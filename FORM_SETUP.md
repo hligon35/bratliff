@@ -16,7 +16,21 @@ The destination spreadsheet is already prepared with these tabs:
 4. In Apps Script project settings, enable the manifest file and replace it with `google-apps-script/appsscript.json`.
 5. Choose **Deploy → New deployment → Web app**.
 6. Set **Execute as** to **Me** and **Who has access** to **Anyone**.
-7. Authorize the requested spreadsheet access and deploy.
+7. Authorize the requested spreadsheet and email-sending access, then deploy. Confirmation emails are sent by the Google account that owns the deployment, using **Jackrabbit Punkin Publishing LLC** as the display name.
 8. Copy the web-app URL ending in `/exec`.
 
 The `/exec` URL is required for the final website activation and submission tests. Do not use the `/dev` test URL.
+
+## Confirmation emails
+
+Every accepted submission is saved to its own spreadsheet tab and generates:
+
+- A branded administrative notification to `Publisher@JackrabbitPunkinPublishing.com`, with the submitter set as the reply-to address.
+- A branded, form-specific confirmation to the submitter.
+- A plain-text fallback for email clients that do not render HTML.
+
+The templates cover Contact, Newsletter, Speaking Requests, Book Club Requests, and Book Notifications. If Google temporarily rejects an email or the Apps Script mail quota is exhausted, the spreadsheet submission is still retained and the endpoint reports `emailSent: false`.
+
+After changing `Code.gs` or `appsscript.json`, update the deployed web app by choosing **Deploy → Manage deployments → Edit → New version → Deploy**. Google may ask you to approve the new email permission the first time.
+
+Submit one test from each website form after deployment and verify both the matching spreadsheet tab and the two expected emails. Check spam or promotions folders during the first tests.
