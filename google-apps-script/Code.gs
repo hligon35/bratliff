@@ -31,7 +31,9 @@ const FORM_ROUTES = Object.freeze({
   }
 });
 
-function doGet() {
+function doGet(event) {
+  const params = event && event.parameter ? event.parameter : {};
+  if (params.action === 'unsubscribe') return handleUnsubscribe_(params);
   return jsonResponse_({ ok: true, service: 'Jackrabbit Punkin Publishing form endpoint' });
 }
 
@@ -128,6 +130,8 @@ function buildMessages_(payload, route) {
   const userCopy = getUserCopy_(formType, payload);
   const adminSubject = getAdminSubject_(formType, payload);
   const details = getAdminDetails_(payload, route);
+  const unsubscribeUrl = formType === 'newsletter' ? getUnsubscribeUrl_(payload.email) : '';
+  userCopy.unsubscribeUrl = unsubscribeUrl;
 
   return {
     admin: {
@@ -153,7 +157,8 @@ function buildMessages_(payload, route) {
         paragraphs: userCopy.paragraphs,
         buttonLabel: 'Visit our website',
         buttonUrl: SITE_URL,
-        footer: userCopy.footer
+        footer: userCopy.footer,
+        unsubscribeUrl: unsubscribeUrl
       })
     }
   };
@@ -174,8 +179,7 @@ function getUserCopy_(formType, payload) {
       subject: 'Welcome to Jackrabbit Punkin Publishing',
       heading: 'You’re on the list',
       paragraphs: [
-        'Thank you for joining our community. We’ll share new releases, author news, events, and Read It Forward updates with you.',
-        'To leave the list at any time, reply to this email and ask to be removed.'
+        'Thank you for joining our community. We’ll share new releases, author news, events, and Read It Forward updates with you.'
       ],
       footer: 'You received this confirmation because you subscribed on our website.'
     },
@@ -271,7 +275,7 @@ function buildAdminText_(sheetName, details) {
 }
 
 function buildUserText_(firstName, copy) {
-  return [
+  const lines = [
     copy.heading,
     '',
     'Hi ' + firstName + ',',
@@ -284,7 +288,9 @@ function buildUserText_(firstName, copy) {
     'Jackrabbit Punkin Publishing LLC',
     '',
     copy.footer
-  ].join('\n');
+  ];
+  if (copy.unsubscribeUrl) lines.push('', 'Unsubscribe: ' + copy.unsubscribeUrl);
+  return lines.join('\n');
 }
 
 function buildEmailHtml_(options) {
@@ -301,6 +307,9 @@ function buildEmailHtml_(options) {
   }).join('');
 
   const content = paragraphs || (details ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e7dfd0;border-radius:8px;border-collapse:separate;overflow:hidden;">' + details + '</table>' : '');
+  const unsubscribe = options.unsubscribeUrl
+    ? '<br><br><a href="' + escapeHtml_(options.unsubscribeUrl) + '" style="color:#542476;text-decoration:underline;">Unsubscribe from these emails</a>'
+    : '';
 
   return '<!doctype html><html><body style="margin:0;padding:0;background:#fbf8f1;font-family:Arial,Helvetica,sans-serif;">' +
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fbf8f1;"><tr><td align="center" style="padding:28px 12px;">' +
@@ -318,8 +327,118 @@ function buildEmailHtml_(options) {
     content +
     '<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:26px;"><tr><td style="border-radius:999px;background:#542476;"><a href="' + escapeHtml_(options.buttonUrl) + '" style="display:inline-block;padding:13px 22px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">' + escapeHtml_(options.buttonLabel) + '</a></td></tr></table>' +
     '</td></tr>' +
-    '<tr><td style="background:#f4efe5;padding:22px 32px;color:#687386;font-size:12px;line-height:1.55;">' + escapeHtml_(options.footer) + '<br><span style="color:#0a1628;font-weight:700;">Jackrabbit Punkin Publishing LLC</span></td></tr>' +
+    '<tr><td style="background:#f4efe5;padding:22px 32px;color:#687386;font-size:12px;line-height:1.55;">' + escapeHtml_(options.footer) + '<br><span style="color:#0a1628;font-weight:700;">Jackrabbit Punkin Publishing LLC</span>' + unsubscribe + '</td></tr>' +
     '</table></td></tr></table></body></html>';
+}
+
+function getUnsubscribeUrl_(email) {
+  const normalizedEmail = safeText_(email, 320).toLowerCase();
+  if (!isValidEmail_(normalizedEmail)) return '';
+
+  const endpoint = ScriptApp.getService().getUrl();
+  if (!endpoint) return '';
+
+  const encodedEmail = stripBase64Padding_(Utilities.base64EncodeWebSafe(normalizedEmail));
+  const signature = signUnsubscribeToken_(encodedEmail);
+  return endpoint + '?action=unsubscribe&e=' + encodeURIComponent(encodedEmail) + '&sig=' + encodeURIComponent(signature);
+}
+
+function handleUnsubscribe_(params) {
+  try {
+    const encodedEmail = safeText_(params.e, 1000);
+    const suppliedSignature = safeText_(params.sig, 1000);
+    if (!encodedEmail || !suppliedSignature || suppliedSignature !== signUnsubscribeToken_(encodedEmail)) {
+      return unsubscribePage_(false, 'This unsubscribe link is invalid. Please contact us if you still need help.');
+    }
+
+    const decodedBytes = Utilities.base64DecodeWebSafe(addBase64Padding_(encodedEmail));
+    const email = Utilities.newBlob(decodedBytes).getDataAsString().trim().toLowerCase();
+    if (!isValidEmail_(email)) {
+      return unsubscribePage_(false, 'This unsubscribe link is invalid. Please contact us if you still need help.');
+    }
+
+    unsubscribeEmail_(email);
+    return unsubscribePage_(true, 'You have been removed from the Jackrabbit Punkin Publishing subscriber list.');
+  } catch (error) {
+    console.error('Unsubscribe request failed: ' + error);
+    return unsubscribePage_(false, 'We could not process this request. Please try again or contact us for help.');
+  }
+}
+
+function unsubscribeEmail_(email) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+    const route = FORM_ROUTES.newsletter;
+    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(route.sheet);
+    if (!sheet) throw new Error('Newsletter sheet not found.');
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const emailColumn = route.fields.indexOf('email') + 2;
+    const consentColumn = route.fields.indexOf('consent') + 2;
+    const statusColumn = route.fields.length + 2;
+    const notesColumn = route.fields.length + 3;
+    const emails = sheet.getRange(2, emailColumn, lastRow - 1, 1).getDisplayValues();
+    const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM d, yyyy 'at' h:mm a");
+
+    emails.forEach(function (row, index) {
+      if (String(row[0] || '').trim().toLowerCase() !== email) return;
+      const sheetRow = index + 2;
+      const noteCell = sheet.getRange(sheetRow, notesColumn);
+      const existingNote = String(noteCell.getValue() || '').trim();
+      const unsubscribeNote = 'Unsubscribed through email link on ' + timestamp + '.';
+      sheet.getRange(sheetRow, consentColumn).setValue(false);
+      sheet.getRange(sheetRow, statusColumn).setValue('Unsubscribed');
+      noteCell.setValue(existingNote ? existingNote + '\n' + unsubscribeNote : unsubscribeNote);
+    });
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+function signUnsubscribeToken_(value) {
+  const secret = getUnsubscribeSecret_();
+  const signatureBytes = Utilities.computeHmacSha256Signature(String(value), secret);
+  return stripBase64Padding_(Utilities.base64EncodeWebSafe(signatureBytes));
+}
+
+function getUnsubscribeSecret_() {
+  const properties = PropertiesService.getScriptProperties();
+  let secret = properties.getProperty('UNSUBSCRIBE_SECRET');
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid();
+    properties.setProperty('UNSUBSCRIBE_SECRET', secret);
+  }
+  return secret;
+}
+
+function stripBase64Padding_(value) {
+  return String(value || '').replace(/=+$/, '');
+}
+
+function addBase64Padding_(value) {
+  const text = String(value || '');
+  return text + '==='.slice((text.length + 3) % 4);
+}
+
+function unsubscribePage_(success, message) {
+  const title = success ? 'You’re unsubscribed' : 'We need a little help';
+  const eyebrow = success ? 'PREFERENCES UPDATED' : 'UNSUBSCRIBE REQUEST';
+  const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml_(title) + '</title></head>' +
+    '<body style="margin:0;background:#fbf8f1;font-family:Arial,Helvetica,sans-serif;color:#26354a;">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:40px 16px;">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fff;border:1px solid #e7dfd0;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(10,22,40,.08);">' +
+    '<tr><td style="background:#0a1628;padding:28px 32px;color:#fff;font-family:Georgia,serif;font-size:22px;font-weight:700;">Jackrabbit Punkin Publishing</td></tr>' +
+    '<tr><td style="height:5px;background:#d4ad55;font-size:0;">&nbsp;</td></tr>' +
+    '<tr><td style="padding:42px 32px;"><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.5px;">' + eyebrow + '</div>' +
+    '<h1 style="margin:10px 0 18px;color:#0a1628;font-family:Georgia,serif;font-size:32px;">' + escapeHtml_(title) + '</h1>' +
+    '<p style="margin:0 0 26px;font-size:16px;line-height:1.65;">' + escapeHtml_(message) + '</p>' +
+    '<a href="' + escapeHtml_(SITE_URL) + '" style="display:inline-block;padding:13px 22px;border-radius:999px;background:#542476;color:#fff;text-decoration:none;font-weight:700;">Return to our website</a>' +
+    '</td></tr><tr><td style="background:#f4efe5;padding:20px 32px;color:#687386;font-size:12px;">Stories That Inspire. Books That Endure.</td></tr>' +
+    '</table></td></tr></table></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle(title);
 }
 
 function linkValue_(value) {
