@@ -20,7 +20,8 @@ function socialLinks() {
     <span class="social-icon is-pending" title="Facebook profile link pending"><img src="assets/facebook.png" alt="Facebook"></span>
     <span class="social-icon is-pending" title="LinkedIn profile link pending"><img src="assets/linkedin.png" alt="LinkedIn"></span>
     <span class="social-icon is-pending" title="YouTube channel link pending"><img src="assets/youtube.png" alt="YouTube"></span>
-  </div><a class="social-handle" href="https://www.tiktok.com/@barbararatliff765">TikTok · @barbararatliff765</a>`;
+    <a class="social-icon tiktok" href="https://www.tiktok.com/@barbararatliff765" aria-label="TikTok — @barbararatliff765"><img src="assets/tiktok.svg" alt=""></a>
+  </div>`;
 }
 
 function footer() {
