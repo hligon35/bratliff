@@ -183,11 +183,10 @@ textarea { min-height: 145px; resize: vertical; }
 .footer-links a:hover, .site-footer a:hover { color: var(--gold); }
 .socials { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: 1rem; }
 .social-icon { width: 40px; height: 40px; display: grid; place-items: center; overflow: hidden; border: 0; border-radius: 0; background: transparent; }
-.social-icon img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.social-icon img, .social-icon svg { width: 100%; height: 100%; display: block; object-fit: contain; }
 .social-icon.is-pending { opacity: .9; }
-.social-icon.facebook img, .social-icon.youtube img { width: 82%; height: 82%; }
-.social-icon.tiktok img { width: 82%; height: 82%; }
-.site-footer .social-icon.facebook img, .site-footer .social-icon.youtube img, .site-footer .social-icon.tiktok img { filter: invert(1); }
+.social-icon.tiktok svg { width: 82%; height: 82%; fill: currentColor; }
+.site-footer .social-icon.tiktok { color: white; }
 .footer-bottom { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,.12); display: flex; justify-content: space-between; gap: 1rem; font-size: .78rem; }
 
 @media (max-width: 900px) {
