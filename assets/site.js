@@ -15,11 +15,11 @@ function header() {
 
 function socialLinks() {
   return `<div class="socials" aria-label="Social media">
-    <span class="social-icon is-pending" title="Instagram profile link pending"><img src="assets/IGicon.png" alt="Instagram"></span>
-    <span class="social-icon is-pending" title="X profile link pending"><img src="assets/XSocialIcon.png" alt="X"></span>
-    <span class="social-icon is-pending facebook" title="Facebook profile link pending"><img src="assets/facebook.png" alt="Facebook"></span>
-    <span class="social-icon is-pending" title="LinkedIn profile link pending"><img src="assets/linkedIN.png" alt="LinkedIn"></span>
-    <span class="social-icon is-pending youtube" title="YouTube channel link pending"><img src="assets/youtube.png" alt="YouTube"></span>
+    <span class="social-icon"><img src="assets/IGicon.png" alt="Instagram"></span>
+    <span class="social-icon"><img src="assets/XSocialIcon.png" alt="X"></span>
+    <span class="social-icon facebook"><img src="assets/facebook.png" alt="Facebook"></span>
+    <span class="social-icon"><img src="assets/linkedIN.png" alt="LinkedIn"></span>
+    <span class="social-icon youtube"><img src="assets/youtube.png" alt="YouTube"></span>
     <a class="social-icon tiktok" href="https://www.tiktok.com/@barbararatliff765" aria-label="TikTok — @barbararatliff765"><img src="assets/tiktok.png" alt=""></a>
   </div>`;
 }
