@@ -90,6 +90,8 @@ p { margin: 0 0 1rem; }
 .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 .card-grid.four { grid-template-columns: repeat(4, 1fr); }
 .card { padding: 1.6rem; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 8px 30px rgba(10,22,40,.05); }
+.future-title-grid .card { display: grid; grid-template-rows: auto 1fr auto; }
+.future-title-grid .button { justify-self: start; align-self: end; }
 .card .number { display: inline-grid; place-items: center; width: 40px; height: 40px; margin-bottom: 1.2rem; border-radius: 50%; background: var(--navy); color: var(--gold); font-weight: 900; }
 .card p:last-child { margin-bottom: 0; }
 .warm-callout { padding: clamp(2rem, 4vw, 3.5rem); border-left: 5px solid var(--gold); background: #f5ecdc; font: 1.18rem/1.7 var(--serif); }
@@ -180,11 +182,11 @@ textarea { min-height: 145px; resize: vertical; }
 .footer-links a, .site-footer a { color: inherit; text-decoration: none; }
 .footer-links a:hover, .site-footer a:hover { color: var(--gold); }
 .socials { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: 1rem; }
-.social-icon { width: 40px; height: 40px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(212,173,85,.55); border-radius: 11px; background: white; }
+.social-icon { width: 40px; height: 40px; display: grid; place-items: center; overflow: hidden; border: 0; border-radius: 0; background: transparent; }
 .social-icon img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .social-icon.is-pending { opacity: .9; }
-.social-handle { display: inline-block; margin-top: .7rem; color: inherit; font-size: .78rem; font-weight: 700; text-decoration: none; }
-.social-handle:hover { color: var(--gold); }
+.social-icon.tiktok img { width: 82%; height: 82%; }
+.site-footer .social-icon.tiktok img { filter: invert(1); }
 .footer-bottom { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,.12); display: flex; justify-content: space-between; gap: 1rem; font-size: .78rem; }
 
 @media (max-width: 900px) {
