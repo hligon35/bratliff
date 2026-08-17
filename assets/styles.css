@@ -133,7 +133,8 @@ p { margin: 0 0 1rem; }
 .empty-state { padding: 2rem; border: 1px dashed #b8ae9c; background: rgba(255,255,255,.55); color: var(--muted); text-align: center; }
 .recognition-grid { align-items: stretch; column-gap: 1.5rem; }
 .recognition-column { display: grid; grid-template-rows: auto 1fr; }
-.recognition-title { display: grid; grid-template-rows: auto minmax(2.2em, auto); }
+.recognition-title { display: grid; grid-template-rows: auto auto; }
+.recognition-title h2 { font-size: clamp(2.1rem, 3.9vw, 3.55rem); white-space: nowrap; }
 .recognition-column .empty-state { min-height: 118px; display: grid; place-items: center; margin-top: 1.5rem; }
 
 form { display: grid; gap: 1rem; }
@@ -209,7 +210,6 @@ textarea { min-height: 145px; resize: vertical; }
   .newsletter { grid-template-columns: 1fr; }
   .footer-links { grid-template-columns: 1fr; }
   .footer-bottom { flex-direction: column; }
-  .recognition-title { grid-template-rows: auto auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
