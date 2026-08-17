@@ -13,9 +13,19 @@ function header() {
   </div></header>`;
 }
 
+function socialLinks() {
+  return `<div class="socials" aria-label="Social media">
+    <span class="social-icon is-pending" title="Instagram profile link pending"><img src="assets/IGicon.png" alt="Instagram"></span>
+    <span class="social-icon is-pending" title="X profile link pending"><img src="assets/XSocialIcon.png" alt="X"></span>
+    <span class="social-icon is-pending" title="Facebook profile link pending"><img src="assets/facebook.png" alt="Facebook"></span>
+    <span class="social-icon is-pending" title="LinkedIn profile link pending"><img src="assets/linkedin.png" alt="LinkedIn"></span>
+    <span class="social-icon is-pending" title="YouTube channel link pending"><img src="assets/youtube.png" alt="YouTube"></span>
+  </div><a class="social-handle" href="https://www.tiktok.com/@barbararatliff765">TikTok · @barbararatliff765</a>`;
+}
+
 function footer() {
   return `<footer class="site-footer"><div class="container footer-grid">
-    <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a><div class="socials"><a href="https://www.tiktok.com/@barbararatliff765" aria-label="TikTok">T</a><a href="#" aria-label="Facebook profile pending">f</a><a href="#" aria-label="LinkedIn profile pending">in</a></div></div>
+    <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
     <div><h3>Explore</h3><div class="footer-links">${pages.slice(0,9).map(([label,href])=>`<a href="${href}">${label}</a>`).join('')}</div></div>
     <div><h3>Policies</h3><div class="footer-links"><a href="policies.html#privacy">Privacy Policy</a><a href="policies.html#terms">Terms & Conditions</a><a href="policies.html#refund">Refund Policy</a><a href="policies.html#shipping">Shipping Policy</a><a href="policies.html#accessibility">Accessibility</a><a href="policies.html#copyright">Copyright</a></div></div>
   </div><div class="container footer-bottom"><span>© 2025 Jackrabbit Punkin Publishing LLC. All Rights Reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
