@@ -31,6 +31,8 @@ Every accepted submission is saved to its own spreadsheet tab and generates:
 
 The templates cover Contact, Newsletter, Speaking Requests, Book Club Requests, and Book Notifications. If Google temporarily rejects an email or the Apps Script mail quota is exhausted, the spreadsheet submission is still retained and the endpoint reports `emailSent: false`.
 
+Newsletter confirmations also include a signed unsubscribe link. When used, it updates every matching row in the **Newsletter** tab by clearing Consent, setting Status to **Unsubscribed**, and recording the date in Notes. The link cannot be altered to unsubscribe a different address without the script’s private signing secret.
+
 After changing `Code.gs` or `appsscript.json`, update the deployed web app by choosing **Deploy → Manage deployments → Edit → New version → Deploy**. Google may ask you to approve the new email permission the first time.
 
 Submit one test from each website form after deployment and verify both the matching spreadsheet tab and the two expected emails. Check spam or promotions folders during the first tests.
