@@ -1,7 +1,7 @@
 const pages = [
   ['Home', 'index.html', 'home'], ['Books', 'books.html', 'books'], ['About Barbara', 'about.html', 'about'],
   ['Read It Forward', 'read-it-forward.html', 'forward'], ['Speaking & Events', 'speaking.html', 'speaking'],
-  ['Book Club', 'book-club.html', 'club'], ['Awards', 'awards.html', 'awards'], ['Media', 'media.html', 'media'], ['Contact', 'contact.html', 'contact']
+  ['Book Club', 'book-club.html', 'club'], ['Awards', 'recognition.html', 'awards'], ['Media', 'media.html', 'media'], ['Contact', 'contact.html', 'contact']
 ];
 
 function header() {
