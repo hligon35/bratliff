@@ -455,41 +455,29 @@ function renderAdminDashboard_() {
     return sum + snapshot.total;
   }, 0);
   const spreadsheetUrl = spreadsheetId ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(spreadsheetId) + '/edit' : '';
-  const cards = snapshots.map(function (snapshot) {
+  const cards = snapshots.map(function (snapshot, index) {
     const rows = snapshot.rows.length
       ? snapshot.rows.map(function (row) {
-        const detailRows = row.details.map(function (item, index) {
-          const border = index ? 'border-top:1px solid #e7dfd0;' : '';
-          return '<tr>' +
-            '<td style="' + border + 'padding:10px 12px;width:34%;color:#542476;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;vertical-align:top;">' + escapeHtml_(item.label) + '</td>' +
-            '<td style="' + border + 'padding:10px 12px;color:#26354a;font-size:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word;">' + linkValue_(item.value) + '</td>' +
-            '</tr>';
-        }).join('');
-
-        return '<details style="margin-top:12px;border:1px solid #e7dfd0;border-radius:10px;background:#fff;overflow:hidden;"' + (row.isExpanded ? ' open' : '') + '>' +
-          '<summary style="list-style:none;cursor:pointer;padding:16px 18px;background:#fcfaf5;">' +
-          '<div style="display:grid;grid-template-columns:minmax(120px,.8fr) minmax(180px,1fr) minmax(220px,1.3fr) auto;gap:12px;align-items:start;">' +
-          '<div><div style="color:#542476;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;">Submitted</div><div style="margin-top:6px;color:#0a1628;font-size:14px;">' + escapeHtml_(row.submittedAt) + '</div></div>' +
-          '<div><div style="color:#542476;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;">Primary Contact</div><div style="margin-top:6px;color:#0a1628;font-size:14px;">' + linkValue_(row.primaryContact) + '</div></div>' +
-          '<div><div style="color:#542476;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;">Summary</div><div style="margin-top:6px;color:#26354a;font-size:14px;line-height:1.45;">' + escapeHtml_(row.summary) + '</div></div>' +
-          '<div><div style="display:inline-block;padding:7px 10px;border-radius:999px;background:#f2dfb2;color:#35154d;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;">' + escapeHtml_(row.status) + '</div></div>' +
-          '</div></summary>' +
-          '<div style="padding:0 18px 18px;">' +
-          '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e7dfd0;border-radius:10px;border-collapse:separate;overflow:hidden;">' + detailRows + '</table>' +
-          '</div></details>';
+        return '<tr>' + row.map(function (value) {
+          return '<td style="padding:10px 12px;border-top:1px solid #e7dfd0;color:#26354a;font-size:14px;line-height:1.45;vertical-align:top;white-space:pre-wrap;word-break:break-word;">' + linkValue_(value) + '</td>';
+        }).join('') + '</tr>';
       }).join('')
-      : '<div style="margin-top:12px;padding:18px;border:1px solid #e7dfd0;border-radius:10px;background:#fff;color:#687386;font-size:14px;">No submissions yet.</div>';
+      : '<tr><td colspan="4" style="padding:18px 12px;border-top:1px solid #e7dfd0;color:#687386;font-size:14px;">No submissions yet.</td></tr>';
 
-    return '<section style="margin-top:26px;">' +
-      '<details style="border:1px solid #e7dfd0;border-radius:12px;background:#ffffff;overflow:hidden;"' + (snapshot.total ? ' open' : '') + '>' +
-      '<summary style="list-style:none;cursor:pointer;padding:18px 20px;background:#f8f4ec;">' +
-      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap;">' +
+    const sectionHeader = '<div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap;padding-right:28px;">' +
       '<div><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.3px;">' + escapeHtml_(snapshot.label.toUpperCase()) + '</div>' +
       '<h2 style="margin:6px 0 0;color:#0a1628;font-family:Georgia,serif;font-size:28px;">' + escapeHtml_(String(snapshot.total)) + ' submissions</h2></div>' +
-      '<div style="color:#687386;font-size:13px;">Latest ' + escapeHtml_(String(snapshot.rows.length)) + '</div></div>' +
+      '<div style="color:#687386;font-size:13px;">Latest ' + escapeHtml_(String(snapshot.rows.length)) + '</div></div>';
+
+    return '<details' + (index === 0 ? ' open' : '') + ' style="margin-top:26px;border:1px solid #e7dfd0;border-radius:10px;background:#fff;overflow:hidden;">' +
+      '<summary style="list-style:none;cursor:pointer;padding:18px 20px;background:#fcfaf5;">' +
+      sectionHeader +
+      '<span style="position:absolute;right:20px;top:22px;color:#542476;font-size:18px;font-weight:700;">+</span>' +
       '</summary>' +
-      '<div style="padding:8px 16px 16px;">' + rows + '</div>' +
-      '</details></section>';
+      '<div style="padding:0 20px 20px;">' +
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:12px;border:1px solid #e7dfd0;border-radius:10px;border-collapse:separate;overflow:hidden;">' +
+      '<thead><tr style="background:#f4efe5;"><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Submitted</th><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Primary Contact</th><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Summary</th><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Status</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div></details>';
   }).join('');
 
   const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jackrabbit Punkin Publishing Admin</title></head><body style="margin:0;background:#fbf8f1;font-family:Arial,Helvetica,sans-serif;color:#26354a;">' +
@@ -523,70 +511,16 @@ function getAdminSnapshots_() {
     return {
       label: route.sheet,
       total: dataRows.length,
-      rows: dataRows.reverse().slice(0, 10).map(function (row, index) {
-        return {
-          submittedAt: row[0] || '—',
-          primaryContact: getPrimaryContact_(key, row) || '—',
-          summary: getRowSummary_(key, row) || '—',
-          status: row[route.fields.length + 1] || 'New',
-          details: getSnapshotDetails_(route, row),
-          isExpanded: index === 0
-        };
+      rows: dataRows.reverse().slice(0, 10).map(function (row) {
+        return [
+          row[0] || '—',
+          getPrimaryContact_(key, row) || '—',
+          getRowSummary_(key, row) || '—',
+          row[route.fields.length + 1] || 'New'
+        ];
       })
     };
   });
-}
-
-function getFieldLabels_() {
-  return {
-    name: 'Name',
-    email: 'Email',
-    phone: 'Phone',
-    subject: 'Subject',
-    message: 'Message',
-    organization: 'Organization',
-    type: 'Event type',
-    date: 'Preferred date',
-    location: 'Location',
-    audience: 'Audience',
-    details: 'Event details',
-    group: 'Book club / group',
-    size: 'Group size',
-    format: 'Preferred format',
-    request: 'Request',
-    notes: 'Notes',
-    title: 'Book title',
-    consent: 'Marketing consent',
-    pageUrl: 'Submitted from',
-    userAgent: 'Browser / device',
-    status: 'Status',
-    internalNotes: 'Internal notes'
-  };
-}
-
-function getSnapshotDetails_(route, row) {
-  const labels = getFieldLabels_();
-  const details = route.fields.map(function (field, index) {
-    return {
-      label: labels[field] || field,
-      value: row[index + 1] || '—'
-    };
-  });
-
-  details.push({
-    label: labels.status,
-    value: row[route.fields.length + 1] || 'New'
-  });
-
-  const notes = row[route.fields.length + 2] || '';
-  if (notes) {
-    details.push({
-      label: labels.internalNotes,
-      value: notes
-    });
-  }
-
-  return details;
 }
 
 function getPrimaryContact_(formType, row) {
