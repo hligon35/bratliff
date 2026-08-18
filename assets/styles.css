@@ -148,6 +148,7 @@ textarea { min-height: 145px; resize: vertical; }
 .span-2 { grid-column: 1 / -1; }
 .form-message { display: none; padding: 1rem; background: #e5f3e8; border-left: 4px solid #2b7a46; color: #184628; }
 .form-message.show { display: block; }
+.form-message.error { background: #fbe8e5; border-left-color: #b34c3f; color: #6d241d; }
 .newsletter { display: grid; grid-template-columns: 1fr auto; gap: .7rem; max-width: 620px; }
 .newsletter-note { margin-top: .7rem; font-size: .78rem; color: rgba(255,255,255,.66); }
 

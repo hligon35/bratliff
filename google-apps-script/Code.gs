@@ -1,7 +1,10 @@
-const SPREADSHEET_ID = '1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g';
-const ADMIN_EMAIL = 'Publisher@JackrabbitPunkinPublishing.com';
-const SENDER_NAME = 'Jackrabbit Punkin Publishing LLC';
-const SITE_URL = 'https://hligon35.github.io/bratliff/';
+const DEFAULT_CONFIG = Object.freeze({
+  GOOGLE_SPREADSHEET_ID: '1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g',
+  ADMIN_NOTIFICATION_EMAIL: 'hligon@getsparqd.com',
+  GOOGLE_APPS_SENDER_NAME: 'Jackrabbit Punkin Publishing LLC',
+  SITE_URL: 'https://hligon35.github.io/bratliff/',
+  ADMIN_ALLOWED_EMAILS: 'hligon@getsparqd.com'
+});
 
 const FORM_ROUTES = Object.freeze({
   contact: {
@@ -33,6 +36,7 @@ const FORM_ROUTES = Object.freeze({
 
 function doGet(event) {
   const params = event && event.parameter ? event.parameter : {};
+  if (params.action === 'admin') return renderAdminDashboard_();
   if (params.action === 'unsubscribe') return handleUnsubscribe_(params);
   return jsonResponse_({ ok: true, service: 'Jackrabbit Punkin Publishing form endpoint' });
 }
@@ -65,7 +69,7 @@ function doPost(event) {
     });
     row.push('New', '');
 
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(route.sheet);
+    const sheet = SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(route.sheet);
     if (!sheet) throw new Error('Destination sheet not found.');
     sheet.appendRow(row);
 
@@ -93,12 +97,12 @@ function sendSubmissionEmails_(payload, route) {
 
   try {
     MailApp.sendEmail({
-      to: ADMIN_EMAIL,
+      to: getAdminEmail_(),
       subject: messages.admin.subject,
       body: messages.admin.text,
       htmlBody: messages.admin.html,
-      name: SENDER_NAME + ' Website',
-      replyTo: isValidEmail_(submitterEmail) ? submitterEmail : ADMIN_EMAIL
+      name: getSenderName_() + ' Website',
+      replyTo: isValidEmail_(submitterEmail) ? submitterEmail : getAdminEmail_()
     });
   } catch (error) {
     errors.push('admin notification: ' + String(error));
@@ -111,8 +115,8 @@ function sendSubmissionEmails_(payload, route) {
         subject: messages.user.subject,
         body: messages.user.text,
         htmlBody: messages.user.html,
-        name: SENDER_NAME,
-        replyTo: ADMIN_EMAIL
+        name: getSenderName_(),
+        replyTo: getAdminEmail_()
       });
     } catch (error) {
       errors.push('user confirmation: ' + String(error));
@@ -143,7 +147,7 @@ function buildMessages_(payload, route) {
         intro: 'A new submission was received from the Jackrabbit Punkin Publishing website.',
         details: details,
         buttonLabel: 'Open website',
-        buttonUrl: SITE_URL,
+        buttonUrl: getSiteUrl_(),
         footer: 'This administrative notification was generated automatically by the website.'
       })
     },
@@ -156,7 +160,7 @@ function buildMessages_(payload, route) {
         intro: 'Hi ' + firstName + ',',
         paragraphs: userCopy.paragraphs,
         buttonLabel: 'Visit our website',
-        buttonUrl: SITE_URL,
+        buttonUrl: getSiteUrl_(),
         footer: userCopy.footer,
         unsubscribeUrl: unsubscribeUrl
       })
@@ -270,7 +274,7 @@ function buildAdminText_(sheetName, details) {
   details.forEach(function (item) {
     lines.push(item.label + ': ' + item.value);
   });
-  lines.push('', 'Website: ' + SITE_URL);
+  lines.push('', 'Website: ' + getSiteUrl_());
   return lines.join('\n');
 }
 
@@ -282,7 +286,7 @@ function buildUserText_(firstName, copy) {
     '',
     copy.paragraphs.join('\n\n'),
     '',
-    'Visit our website: ' + SITE_URL,
+    'Visit our website: ' + getSiteUrl_(),
     '',
     'Stories That Inspire. Books That Endure.',
     'Jackrabbit Punkin Publishing LLC',
@@ -370,7 +374,7 @@ function unsubscribeEmail_(email) {
   try {
     lock.waitLock(10000);
     const route = FORM_ROUTES.newsletter;
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(route.sheet);
+    const sheet = SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(route.sheet);
     if (!sheet) throw new Error('Newsletter sheet not found.');
 
     const lastRow = sheet.getLastRow();
@@ -435,10 +439,147 @@ function unsubscribePage_(success, message) {
     '<tr><td style="padding:42px 32px;"><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.5px;">' + eyebrow + '</div>' +
     '<h1 style="margin:10px 0 18px;color:#0a1628;font-family:Georgia,serif;font-size:32px;">' + escapeHtml_(title) + '</h1>' +
     '<p style="margin:0 0 26px;font-size:16px;line-height:1.65;">' + escapeHtml_(message) + '</p>' +
-    '<a href="' + escapeHtml_(SITE_URL) + '" style="display:inline-block;padding:13px 22px;border-radius:999px;background:#542476;color:#fff;text-decoration:none;font-weight:700;">Return to our website</a>' +
+    '<a href="' + escapeHtml_(getSiteUrl_()) + '" style="display:inline-block;padding:13px 22px;border-radius:999px;background:#542476;color:#fff;text-decoration:none;font-weight:700;">Return to our website</a>' +
     '</td></tr><tr><td style="background:#f4efe5;padding:20px 32px;color:#687386;font-size:12px;">Stories That Inspire. Books That Endure.</td></tr>' +
     '</table></td></tr></table></body></html>';
   return HtmlService.createHtmlOutput(html).setTitle(title);
+}
+
+function renderAdminDashboard_() {
+  const viewerEmail = getAuthorizedAdminEmail_();
+  if (!viewerEmail) return unauthorizedAdminPage_();
+
+  const spreadsheetId = getSpreadsheetId_();
+  const snapshots = getAdminSnapshots_();
+  const totals = snapshots.reduce(function (sum, snapshot) {
+    return sum + snapshot.total;
+  }, 0);
+  const spreadsheetUrl = spreadsheetId ? 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(spreadsheetId) + '/edit' : '';
+  const cards = snapshots.map(function (snapshot) {
+    const rows = snapshot.rows.length
+      ? snapshot.rows.map(function (row) {
+        return '<tr>' + row.map(function (value) {
+          return '<td style="padding:10px 12px;border-top:1px solid #e7dfd0;color:#26354a;font-size:14px;line-height:1.45;vertical-align:top;white-space:pre-wrap;word-break:break-word;">' + linkValue_(value) + '</td>';
+        }).join('') + '</tr>';
+      }).join('')
+      : '<tr><td colspan="4" style="padding:18px 12px;border-top:1px solid #e7dfd0;color:#687386;font-size:14px;">No submissions yet.</td></tr>';
+
+    return '<section style="margin-top:26px;">' +
+      '<div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap;">' +
+      '<div><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.3px;">' + escapeHtml_(snapshot.label.toUpperCase()) + '</div>' +
+      '<h2 style="margin:6px 0 0;color:#0a1628;font-family:Georgia,serif;font-size:28px;">' + escapeHtml_(String(snapshot.total)) + ' submissions</h2></div>' +
+      '<div style="color:#687386;font-size:13px;">Latest ' + escapeHtml_(String(snapshot.rows.length)) + '</div></div>' +
+      '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:12px;border:1px solid #e7dfd0;border-radius:10px;border-collapse:separate;overflow:hidden;">' +
+      '<thead><tr style="background:#f4efe5;"><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Submitted</th><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Primary Contact</th><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Summary</th><th style="padding:10px 12px;color:#542476;font-size:12px;text-align:left;text-transform:uppercase;letter-spacing:.8px;">Status</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></section>';
+  }).join('');
+
+  const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jackrabbit Punkin Publishing Admin</title></head><body style="margin:0;background:#fbf8f1;font-family:Arial,Helvetica,sans-serif;color:#26354a;">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px;">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:1080px;background:#ffffff;border:1px solid #e7dfd0;border-radius:14px;overflow:hidden;box-shadow:0 10px 28px rgba(10,22,40,.08);">' +
+    '<tr><td style="background:#0a1628;padding:28px 32px;color:#ffffff;">' +
+    '<div style="color:#d4ad55;font-size:12px;font-weight:700;letter-spacing:1.6px;">GOOGLE ACCOUNT REQUIRED</div>' +
+    '<h1 style="margin:10px 0 8px;font-family:Georgia,serif;font-size:34px;line-height:1.1;">Jackrabbit Punkin Admin Dashboard</h1>' +
+    '<p style="margin:0;color:rgba(255,255,255,.82);font-size:15px;line-height:1.6;">Signed in as ' + escapeHtml_(viewerEmail) + '. Review recent form activity and jump into the live spreadsheet.</p></td></tr>' +
+    '<tr><td style="height:5px;background:#d4ad55;font-size:0;line-height:0;">&nbsp;</td></tr>' +
+    '<tr><td style="padding:32px;">' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">' +
+    '<div style="padding:18px;border:1px solid #e7dfd0;border-radius:10px;background:#fcfaf5;"><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.2px;">TOTAL SUBMISSIONS</div><div style="margin-top:8px;color:#0a1628;font-family:Georgia,serif;font-size:34px;">' + escapeHtml_(String(totals)) + '</div></div>' +
+    '<div style="padding:18px;border:1px solid #e7dfd0;border-radius:10px;background:#fcfaf5;"><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.2px;">AUTHORIZED ADMIN</div><div style="margin-top:8px;color:#0a1628;font-size:16px;line-height:1.5;">' + escapeHtml_(viewerEmail) + '</div></div>' +
+    '<div style="padding:18px;border:1px solid #e7dfd0;border-radius:10px;background:#fcfaf5;"><div style="color:#542476;font-size:12px;font-weight:700;letter-spacing:1.2px;">LIVE SPREADSHEET</div><div style="margin-top:12px;">' + (spreadsheetUrl ? '<a href="' + escapeHtml_(spreadsheetUrl) + '" style="color:#542476;font-weight:700;">Open Google Sheet</a>' : 'Configure GOOGLE_SPREADSHEET_ID') + '</div></div>' +
+    '</div>' + cards +
+    '</td></tr></table></td></tr></table></body></html>';
+
+  return HtmlService.createHtmlOutput(html).setTitle('Jackrabbit Punkin Admin');
+}
+
+function getAdminSnapshots_() {
+  const spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+  return Object.keys(FORM_ROUTES).map(function (key) {
+    const route = FORM_ROUTES[key];
+    const sheet = spreadsheet.getSheetByName(route.sheet);
+    if (!sheet) return { label: route.sheet, total: 0, rows: [] };
+
+    const values = sheet.getDataRange().getDisplayValues();
+    const dataRows = values.length > 1 ? values.slice(1) : [];
+    return {
+      label: route.sheet,
+      total: dataRows.length,
+      rows: dataRows.reverse().slice(0, 10).map(function (row) {
+        return [
+          row[0] || '—',
+          getPrimaryContact_(key, row) || '—',
+          getRowSummary_(key, row) || '—',
+          row[route.fields.length + 1] || 'New'
+        ];
+      })
+    };
+  });
+}
+
+function getPrimaryContact_(formType, row) {
+  if (formType === 'newsletter' || formType === 'bookNotification') return row[1] || '';
+  return row[2] || row[1] || '';
+}
+
+function getRowSummary_(formType, row) {
+  const summaries = {
+    contact: [row[4], row[5]].filter(Boolean).join(' · '),
+    newsletter: row[2] ? 'Consent: ' + row[2] : 'Newsletter signup',
+    speaking: [row[2], row[5], row[6]].filter(Boolean).join(' · '),
+    bookClub: [row[1], row[6], row[7]].filter(Boolean).join(' · '),
+    bookNotification: row[2] || ''
+  };
+  return summaries[formType] || '';
+}
+
+function getAuthorizedAdminEmail_() {
+  const viewerEmail = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+  if (!viewerEmail) return '';
+  return getAllowedAdminEmails_().indexOf(viewerEmail) !== -1 ? viewerEmail : '';
+}
+
+function unauthorizedAdminPage_() {
+  const viewerEmail = String(Session.getActiveUser().getEmail() || '').trim();
+  const signedIn = viewerEmail ? 'Signed in as ' + escapeHtml_(viewerEmail) + '.' : 'No authorized Google account is available for this request.';
+  const detail = 'Use a Google account listed in ADMIN_ALLOWED_EMAILS, or add the correct email in Script Properties before opening the dashboard.';
+  const html = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin access required</title></head><body style="margin:0;background:#fbf8f1;font-family:Arial,Helvetica,sans-serif;color:#26354a;">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:40px 16px;">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fff;border:1px solid #e7dfd0;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(10,22,40,.08);">' +
+    '<tr><td style="background:#0a1628;padding:28px 32px;color:#fff;font-family:Georgia,serif;font-size:24px;font-weight:700;">Admin access required</td></tr>' +
+    '<tr><td style="height:5px;background:#d4ad55;font-size:0;">&nbsp;</td></tr>' +
+    '<tr><td style="padding:32px;"><p style="margin:0 0 16px;font-size:16px;line-height:1.65;">' + signedIn + '</p><p style="margin:0 0 20px;font-size:16px;line-height:1.65;">' + detail + '</p><a href="' + escapeHtml_(getSiteUrl_()) + '" style="display:inline-block;padding:13px 22px;border-radius:999px;background:#542476;color:#fff;text-decoration:none;font-weight:700;">Return to website</a></td></tr>' +
+    '</table></td></tr></table></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle('Admin access required');
+}
+
+function getAllowedAdminEmails_() {
+  const configured = getConfigValue_('ADMIN_ALLOWED_EMAILS') || getAdminEmail_();
+  return configured.split(',').map(function (email) {
+    return String(email || '').trim().toLowerCase();
+  }).filter(Boolean);
+}
+
+function getSpreadsheetId_() {
+  return getConfigValue_('GOOGLE_SPREADSHEET_ID');
+}
+
+function getAdminEmail_() {
+  return getConfigValue_('ADMIN_NOTIFICATION_EMAIL');
+}
+
+function getSenderName_() {
+  return getConfigValue_('GOOGLE_APPS_SENDER_NAME');
+}
+
+function getSiteUrl_() {
+  return getConfigValue_('SITE_URL');
+}
+
+function getConfigValue_(key) {
+  const propertyValue = PropertiesService.getScriptProperties().getProperty(key);
+  if (propertyValue) return String(propertyValue).trim();
+  return String(DEFAULT_CONFIG[key] || '').trim();
 }
 
 function linkValue_(value) {

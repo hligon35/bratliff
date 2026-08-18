@@ -1,0 +1,16 @@
+{
+  "name": "bratliff-site",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "prepare:config": "node scripts/write-site-config.js",
+    "dev": "npm run prepare:config && http-server . -p 8080 -c-1",
+    "open": "npm run prepare:config && open-cli http://127.0.0.1:8080",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "dotenv": "^16.6.1",
+    "http-server": "^14.1.1",
+    "open-cli": "^8.0.0"
+  }
+}
