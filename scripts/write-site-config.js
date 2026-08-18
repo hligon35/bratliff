@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 
 const rootDir = path.resolve(__dirname, '..');
 const envPath = path.join(rootDir, '.env');
+const envLocalPath = path.join(rootDir, '.env.local');
 const envExamplePath = path.join(rootDir, '.env.example');
 const outputPath = path.join(rootDir, 'assets', 'site-config.js');
 
@@ -22,7 +23,8 @@ function isPlaceholder(value) {
 
 const exampleValues = readEnvFile(envExamplePath);
 const envValues = readEnvFile(envPath);
-const values = { ...exampleValues, ...envValues };
+const envLocalValues = readEnvFile(envLocalPath);
+const values = { ...exampleValues, ...envValues, ...envLocalValues };
 
 const formEndpoint = normalizeUrl(values.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
 const adminUrl = normalizeUrl(values.GOOGLE_APPS_SCRIPT_ADMIN_URL) || (isPlaceholder(formEndpoint)
