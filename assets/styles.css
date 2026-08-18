@@ -138,6 +138,26 @@ p { margin: 0 0 1rem; }
 .recognition-title { display: grid; grid-template-rows: auto auto; }
 .recognition-title h2 { font-size: clamp(2.1rem, 3.9vw, 3.55rem); white-space: nowrap; }
 .recognition-column .empty-state { min-height: 118px; display: grid; place-items: center; margin-top: 1.5rem; }
+.admin-panel { padding: clamp(2rem, 4vw, 3rem); background: var(--paper); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(10,22,40,.05); }
+.admin-panel .button-row { margin-top: 1.5rem; }
+.status-note { color: var(--muted); }
+.stack-gap { margin-top: 1rem; }
+.login-screen { display: grid; place-items: center; min-height: calc(100vh - 78px); padding: clamp(2rem, 5vw, 4rem) 0; background: linear-gradient(120deg, rgba(10,22,40,.98), rgba(53,21,77,.96)); }
+.login-stage { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 480px); gap: clamp(2rem, 5vw, 4rem); align-items: center; width: min(1100px, 100%); }
+.login-brand { color: var(--white); }
+.login-brand .brand { margin-bottom: 1.5rem; }
+.login-brand .brand-mark { width: 64px; font-size: 1.45rem; }
+.login-brand .brand-copy strong { font-size: 2rem; }
+.login-brand .brand-copy small { font-size: .8rem; }
+.login-brand h1 { color: var(--white); font-size: clamp(3rem, 6vw, 5rem); max-width: 9ch; }
+.login-brand .lede { color: rgba(255,255,255,.78); max-width: 34ch; }
+.login-list { padding: 0; margin: 1.5rem 0 0; list-style: none; display: grid; gap: .85rem; }
+.login-list li { color: rgba(255,255,255,.82); }
+.login-list li::before { content: '◆'; color: var(--gold); margin-right: .7rem; font-size: .7rem; }
+.login-form { display: grid; gap: 1rem; }
+.login-field { display: grid; gap: .45rem; }
+.login-field span { color: var(--purple); font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.login-field input { background: #f8f4ec; }
 
 form { display: grid; gap: 1rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -194,6 +214,7 @@ textarea { min-height: 145px; resize: vertical; }
   .site-nav.open { display: flex; }
   .site-nav a { padding: .85rem 1rem; }
   .hero-grid, .split, .featured-book, .section-head, .footer-grid { grid-template-columns: 1fr; }
+  .login-stage { grid-template-columns: 1fr; }
   .hero-grid { min-height: auto; }
   .hero-art { width: min(540px,100%); margin-inline: auto; }
   .card-grid, .card-grid.four, .pricing { grid-template-columns: 1fr 1fr; }

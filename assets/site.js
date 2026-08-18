@@ -16,6 +16,13 @@ function isConfiguredUrl(value) {
   return Boolean(value) && !/your-deployment-id|example\.com/i.test(value);
 }
 
+function buildAdminDashboardUrl(value) {
+  const url = normalizeUrl(value);
+  if (!isConfiguredUrl(url)) return '';
+  if (/[?&]action=admin(?:&|$)/.test(url)) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'action=admin';
+}
+
 function header() {
   const current = document.body.dataset.page;
   return `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap">
@@ -38,7 +45,7 @@ function socialLinks() {
 
 function footer() {
   const adminLinks = isConfiguredUrl(adminUrl)
-    ? `<div><h3>Admin</h3><div class="footer-links"><a href="${adminUrl}" target="_blank" rel="noreferrer">Dashboard</a></div></div>`
+    ? `<div><h3>Admin</h3><div class="footer-links"><a href="login/">Publisher Login</a><a href="admin/">Admin Landing</a></div></div>`
     : '';
   return `<footer class="site-footer"><div class="container footer-grid">
     <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
@@ -152,6 +159,45 @@ document.querySelectorAll('form[data-form-type]').forEach(form => {
     submitLiveForm(form);
   });
 });
+
+function initAdminEntryPages() {
+  const loginButton = document.querySelector('[data-login-continue]');
+  const loginStatus = document.querySelector('[data-login-status]');
+  const adminButton = document.querySelector('[data-admin-continue]');
+  const adminStatus = document.querySelector('[data-admin-status]');
+  const dashboardUrl = buildAdminDashboardUrl(adminUrl);
+
+  if (loginButton) {
+    loginButton.setAttribute('href', dashboardUrl ? 'admin/' : 'contact.html?subject=Admin%20Access');
+    if (loginStatus) {
+      loginStatus.textContent = dashboardUrl
+        ? 'Use the Google account listed in ADMIN_ALLOWED_EMAILS to continue.'
+        : 'Admin access is not configured yet. Add the Apps Script admin URL and regenerate the site config.';
+    }
+  }
+
+  if (!adminButton && !adminStatus) return;
+
+  if (!dashboardUrl) {
+    if (adminStatus) adminStatus.textContent = 'The secure admin dashboard is not configured yet. Add GOOGLE_APPS_SCRIPT_ADMIN_URL or a live Apps Script web app URL and rerun npm run prepare:config.';
+    if (adminButton) {
+      adminButton.setAttribute('href', 'contact.html?subject=Admin%20Access');
+      adminButton.textContent = 'Request Admin Access';
+    }
+    return;
+  }
+
+  if (adminStatus) adminStatus.textContent = 'Redirecting to the secure Google-powered publisher dashboard.';
+  if (adminButton) adminButton.setAttribute('href', dashboardUrl);
+
+  if (document.body.dataset.page === 'admin') {
+    window.setTimeout(() => {
+      window.location.assign(dashboardUrl);
+    }, 400);
+  }
+}
+
+initAdminEntryPages();
 
 const slides = [...document.querySelectorAll('.testimonial')];
 let slideIndex = 0;

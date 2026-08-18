@@ -34,7 +34,7 @@ Then open `http://localhost:8080`.
 
 ## Environment template
 
-Copy `.env.example` to `.env` and fill in your deployment values before wiring up the live form endpoint.
+Copy `.env.example` to `.env` and fill in your deployment values before wiring up the live form endpoint. If you prefer local-only overrides, `.env.local` is also supported and takes precedence over `.env`.
 
 - `SITE_URL`: the public website URL.
 - `GOOGLE_APPS_SCRIPT_WEB_APP_URL`: the deployed Apps Script `/exec` endpoint used by the site.
@@ -50,6 +50,11 @@ Only the public URL values should ever be exposed in frontend code. Keep `UNSUBS
 ## Admin dashboard
 
 The website footer shows an `Admin` link when `GOOGLE_APPS_SCRIPT_ADMIN_URL` or a valid `GOOGLE_APPS_SCRIPT_WEB_APP_URL` is configured. The Apps Script endpoint serves an authenticated dashboard at `?action=admin` and checks the signed-in Google account against `ADMIN_ALLOWED_EMAILS`.
+
+The static site also includes two branded entry routes:
+
+- `/login/` for the publisher sign-in handoff
+- `/admin/` for the branded admin landing page that forwards to the Apps Script dashboard
 
 ## Launch assets still needed
 
