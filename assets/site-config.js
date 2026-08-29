@@ -5,7 +5,7 @@ window.siteConfig = Object.freeze({
   "adminEmail": "hligon@getsparqd.com"
 });
 
-/* Artwork wiring. Existing placeholders remain visible if an image file has not been added yet. */
+/* Artwork wiring and global navigation presentation. Existing placeholders remain visible if an image file has not been added yet. */
 (function () {
   const artwork = {
     logo: 'assets/jrppLogo.png',
@@ -26,6 +26,26 @@ window.siteConfig = Object.freeze({
   function addArtworkStyles() {
     const style = document.createElement('style');
     style.textContent = `
+      /* Header navigation only */
+      .site-header {
+        background: var(--gold);
+        color: var(--navy);
+        border-bottom-color: rgba(84, 36, 118, .35);
+      }
+      .site-header .site-nav a {
+        color: var(--navy);
+      }
+      .site-header .site-nav a:hover,
+      .site-header .site-nav a[aria-current='page'] {
+        color: var(--white);
+        background: var(--purple);
+      }
+      .site-header .menu-toggle {
+        color: var(--white);
+        background: var(--purple);
+        border-color: var(--purple);
+      }
+
       .brand.brand-with-logo { min-width: 0; }
       .brand-logo {
         display: block;
@@ -73,13 +93,35 @@ window.siteConfig = Object.freeze({
       @media (max-width: 860px) {
         .brand-logo { width: 155px; height: 52px; }
         .site-footer .brand-logo { width: 190px; height: 64px; }
+        .site-header .site-nav { background: var(--gold); }
+        .site-header .site-nav a { color: var(--navy); }
+        .site-header .site-nav a:hover,
+        .site-header .site-nav a[aria-current='page'] {
+          color: var(--white);
+          background: var(--purple);
+        }
       }
     `;
     document.head.appendChild(style);
   }
 
+  function reorderPrimaryNav() {
+    const nav = document.querySelector('.site-header .site-nav');
+    if (!nav) return;
+
+    const links = Array.from(nav.querySelectorAll('a'));
+    const aboutLink = links.find(link => /about\.html(?:$|\?)/i.test(link.getAttribute('href') || ''));
+    const booksLink = links.find(link => /books\.html(?:$|\?)/i.test(link.getAttribute('href') || ''));
+
+    if (aboutLink && booksLink && booksLink.previousElementSibling !== aboutLink) {
+      nav.insertBefore(aboutLink, booksLink);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', async function () {
     addArtworkStyles();
+    reorderPrimaryNav();
+
     const [logoSrc, battlesSrc, ddReuelSrc, barbaraSrc] = await Promise.all([
       preload(artwork.logo), preload(artwork.battles), preload(artwork.ddReuel), preload(artwork.barbara)
     ]);
