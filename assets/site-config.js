@@ -61,15 +61,15 @@ window.siteConfig = Object.freeze({
         padding: 0;
         border: 0;
         background: transparent;
-        box-shadow: var(--shadow);
-        overflow: hidden;
+        box-shadow: none;
+        overflow: visible;
       }
       .cover-placeholder.has-cover::before,
       .book-art.has-cover::before { display: none; }
       .cover-placeholder.has-cover img,
-      .book-art.has-cover img { width: 100%; height: 100%; object-fit: cover; }
-      .cover-placeholder.has-cover { aspect-ratio: 554 / 791; }
-      .book-art.has-cover { min-height: 0; aspect-ratio: 554 / 791; }
+      .book-art.has-cover img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
+      .cover-placeholder.has-cover { aspect-ratio: 1 / 1; }
+      .book-art.has-cover { min-height: 0; aspect-ratio: 1 / 1; }
 
       .photo-placeholder.has-photo {
         background: transparent;
@@ -80,14 +80,27 @@ window.siteConfig = Object.freeze({
       .photo-placeholder.has-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 22%; }
       .hero-art .photo-placeholder.has-photo img { object-position: center 20%; }
 
+      .book-float-slot {
+        width: calc(100% + 3.2rem);
+        margin: -1.6rem -1.6rem 1.35rem;
+        min-height: 250px;
+        display: grid;
+        place-items: center;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        overflow: visible;
+      }
       .future-title-cover {
         display: block;
-        width: calc(100% + 3.2rem);
-        max-width: none;
-        aspect-ratio: 521 / 734;
-        object-fit: cover;
-        margin: -1.6rem -1.6rem 1.35rem;
-        border-bottom: 1px solid var(--line);
+        width: 100%;
+        max-width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: contain;
+        margin: 0;
+        border: 0;
+        background: transparent !important;
+        box-shadow: none;
       }
 
       @media (max-width: 860px) {
@@ -152,20 +165,6 @@ window.siteConfig = Object.freeze({
         photo.removeAttribute('aria-hidden');
         photo.innerHTML = `<img src="${barbaraSrc}" alt="Barbara J. Ratliff">`;
       });
-    }
-
-    if (ddReuelSrc && document.body.dataset.page === 'books') {
-      const ddReuelCard = Array.from(document.querySelectorAll('.future-title-grid .card')).find(card => {
-        const title = card.querySelector('h3');
-        return title && /D\.D\.\s*&\s*Reuel/i.test(title.textContent || '');
-      });
-      if (ddReuelCard && !ddReuelCard.querySelector('.future-title-cover')) {
-        const cover = document.createElement('img');
-        cover.className = 'future-title-cover';
-        cover.src = ddReuelSrc;
-        cover.alt = 'The Adventures of D.D. & Reuel: The Great Pie Mystery book cover';
-        ddReuelCard.insertBefore(cover, ddReuelCard.firstChild);
-      }
     }
   });
 })();
