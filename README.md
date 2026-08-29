@@ -51,10 +51,7 @@ Only the public URL values should ever be exposed in frontend code. Keep `UNSUBS
 
 The website footer shows an `Admin` link when `GOOGLE_APPS_SCRIPT_ADMIN_URL` or a valid `GOOGLE_APPS_SCRIPT_WEB_APP_URL` is configured. The Apps Script endpoint serves an authenticated dashboard at `?action=admin` and checks the signed-in Google account against `ADMIN_ALLOWED_EMAILS`.
 
-The static site also includes two branded entry routes:
-
-- `/login/` for the publisher sign-in handoff
-- `/admin/` for the branded admin landing page that forwards to the Apps Script dashboard
+The static site includes a branded `/login/` route that hands off directly to the Google-authenticated Apps Script dashboard.
 
 ## Launch assets still needed
 
