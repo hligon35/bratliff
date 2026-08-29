@@ -9,8 +9,8 @@ window.siteConfig = Object.freeze({
 (function () {
   const artwork = {
     logo: 'assets/jrppLogo.png',
-    battles: 'assets/book1.jpg',
-    ddReuel: 'assets/book2.jpg',
+    battles: 'assets/book1.png',
+    ddReuel: 'assets/book2.png',
     barbara: 'assets/barbaraRatliff.png'
   };
 
@@ -50,11 +50,11 @@ window.siteConfig = Object.freeze({
       .brand-logo {
         display: block;
         width: clamp(150px, 17vw, 205px);
-        height: 58px;
+        height: 84px;
         object-fit: contain;
         object-position: left center;
       }
-      .site-footer .brand-logo { width: 220px; height: 72px; }
+      .site-footer .brand-logo { width: 300px; height: 84px; }
 
       .cover-placeholder.has-cover,
       .book-art.has-cover {
@@ -91,8 +91,8 @@ window.siteConfig = Object.freeze({
       }
 
       @media (max-width: 860px) {
-        .brand-logo { width: 155px; height: 52px; }
-        .site-footer .brand-logo { width: 190px; height: 64px; }
+        .brand-logo { width: 155px; height: 84px; }
+        .site-footer .brand-logo { width: 300px; height: 84px; }
         .site-header .site-nav { background: var(--gold); }
         .site-header .site-nav a { color: var(--navy); }
         .site-header .site-nav a:hover,
