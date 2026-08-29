@@ -5,13 +5,13 @@ window.siteConfig = Object.freeze({
   "adminEmail": "hligon@getsparqd.com"
 });
 
-/* Artwork wiring. The existing placeholders remain visible if an asset is unavailable. */
+/* Artwork wiring. Existing placeholders remain visible if an image file has not been added yet. */
 (function () {
   const artwork = {
     logo: 'assets/jrppLogo.png',
     battles: 'assets/book1.jpg',
     ddReuel: 'assets/book2.jpg',
-    barbara: 'assets/barbara-ratliff.jpg'
+    barbara: 'assets/barbaraRatliff.png'
   };
 
   function preload(src) {
