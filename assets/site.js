@@ -33,10 +33,6 @@ function buildAdminDashboardUrl(value) {
   return withAdminAction(value, 'admin');
 }
 
-function buildStoreAdminDashboardUrl(value) {
-  return withAdminAction(value, 'storeAdmin');
-}
-
 function header() {
   const current = document.body.dataset.page;
   return `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap">
@@ -176,20 +172,15 @@ document.querySelectorAll('form[data-form-type]').forEach(form => {
 
 function initAdminEntryPages() {
   const loginButton = document.querySelector('[data-login-continue]');
-  const storeButton = document.querySelector('[data-store-login]');
   const loginStatus = document.querySelector('[data-login-status]');
   const dashboardUrl = buildAdminDashboardUrl(adminUrl);
-  const storeDashboardUrl = buildStoreAdminDashboardUrl(adminUrl);
 
   if (loginButton) {
     loginButton.setAttribute('href', dashboardUrl || 'contact.html?subject=Admin%20Access');
   }
-  if (storeButton) {
-    storeButton.setAttribute('href', storeDashboardUrl || 'contact.html?subject=Admin%20Access');
-  }
   if (loginStatus) {
-    loginStatus.textContent = dashboardUrl && storeDashboardUrl
-      ? 'Choose the website dashboard or the Publisher Store Manager. Both use your authorized Google account.'
+    loginStatus.textContent = dashboardUrl
+      ? 'Continue to Google sign-in for the secure publisher admin system.'
       : 'Admin access is not configured yet. Add the Apps Script admin URL and regenerate the site config.';
   }
 }
