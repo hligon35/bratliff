@@ -30,7 +30,7 @@ function withAdminAction(value, action) {
 }
 
 function buildAdminDashboardUrl(value) {
-  return withAdminAction(value, 'admin');
+  return withAdminAction(value, 'storeAdmin');
 }
 
 function header() {
