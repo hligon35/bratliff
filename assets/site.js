@@ -16,11 +16,25 @@ function isConfiguredUrl(value) {
   return Boolean(value) && !/your-deployment-id|example\.com/i.test(value);
 }
 
-function buildAdminDashboardUrl(value) {
+function withAdminAction(value, action) {
   const url = normalizeUrl(value);
   if (!isConfiguredUrl(url)) return '';
-  if (/[?&]action=admin(?:&|$)/.test(url)) return url;
-  return url + (url.includes('?') ? '&' : '?') + 'action=admin';
+  try {
+    const parsed = new URL(url, window.location.href);
+    parsed.searchParams.set('action', action);
+    return parsed.toString();
+  } catch (error) {
+    const clean = url.replace(/([?&])action=[^&]*/i, '$1').replace(/[?&]$/, '');
+    return clean + (clean.includes('?') ? '&' : '?') + 'action=' + encodeURIComponent(action);
+  }
+}
+
+function buildAdminDashboardUrl(value) {
+  return withAdminAction(value, 'admin');
+}
+
+function buildStoreAdminDashboardUrl(value) {
+  return withAdminAction(value, 'storeAdmin');
 }
 
 function header() {
@@ -162,16 +176,21 @@ document.querySelectorAll('form[data-form-type]').forEach(form => {
 
 function initAdminEntryPages() {
   const loginButton = document.querySelector('[data-login-continue]');
+  const storeButton = document.querySelector('[data-store-login]');
   const loginStatus = document.querySelector('[data-login-status]');
   const dashboardUrl = buildAdminDashboardUrl(adminUrl);
+  const storeDashboardUrl = buildStoreAdminDashboardUrl(adminUrl);
 
   if (loginButton) {
     loginButton.setAttribute('href', dashboardUrl || 'contact.html?subject=Admin%20Access');
-    if (loginStatus) {
-      loginStatus.textContent = dashboardUrl
-        ? 'Continue to Google sign-in for the secure publisher dashboard.'
-        : 'Admin access is not configured yet. Add the Apps Script admin URL and regenerate the site config.';
-    }
+  }
+  if (storeButton) {
+    storeButton.setAttribute('href', storeDashboardUrl || 'contact.html?subject=Admin%20Access');
+  }
+  if (loginStatus) {
+    loginStatus.textContent = dashboardUrl && storeDashboardUrl
+      ? 'Choose the website dashboard or the Publisher Store Manager. Both use your authorized Google account.'
+      : 'Admin access is not configured yet. Add the Apps Script admin URL and regenerate the site config.';
   }
 }
 
