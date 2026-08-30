@@ -38,7 +38,7 @@ function updateStoreFulfillment(orderNumber, fulfillmentStatus, trackingNumber, 
 
 function recordPaidStoreOrder(orderPayload) {
   orderPayload = orderPayload || {};
-  setupPublisherStore();
+  setupPublisherStore_();
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
