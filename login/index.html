@@ -32,27 +32,30 @@
             <p class="eyebrow light">Publisher access</p>
             <h1>Admin Portal</h1>
             <p class="lede">
-              Use your authorized Google account to open the secure publisher
-              dashboard and review submissions in one place.
+              Use your authorized Google account to manage both website activity
+              and the publisher store.
             </p>
             <ul class="login-list">
-              <li>Google-authenticated staff access</li>
-              <li>Monitor submissions and activity</li>
+              <li>Website submissions and activity</li>
+              <li>Books, orders, inventory, and store metrics</li>
             </ul>
           </div>
           <div class="admin-panel">
-            <form class="login-form">
-              <p class="eyebrow">Continue</p>
+            <div class="login-form">
+              <p class="eyebrow">Choose a workspace</p>
               <h2>Sign in with Google</h2>
               <p class="status-note" data-login-status>
                 Preparing secure sign-in.
               </p>
-              <div class="button-row">
-                <a class="button ink" href="admin/" data-login-continue
-                  >Continue with Google</a
-                >
+              <div class="button-row" style="display:flex;gap:12px;flex-wrap:wrap;">
+                <a class="button ink" href="admin/" data-login-continue>
+                  Website Admin
+                </a>
+                <a class="button ghost" href="admin/" data-store-login>
+                  Publisher Store Manager
+                </a>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       </section>
