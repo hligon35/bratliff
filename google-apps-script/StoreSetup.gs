@@ -1,12 +1,16 @@
 function setupPublisherStore() {
   storeRequireAdmin_();
+  setupPublisherStore_();
+  return { ok: true, message: 'Publisher Store Manager is ready.' };
+}
+
+function setupPublisherStore_() {
   const ss = getStoreSpreadsheet_();
   ensureStoreSheet_(ss, STORE_CONFIG.SHEETS.BOOKS, STORE_BOOK_HEADERS);
   ensureStoreSheet_(ss, STORE_CONFIG.SHEETS.ORDERS, STORE_ORDER_HEADERS);
   ensureStoreSheet_(ss, STORE_CONFIG.SHEETS.ORDER_ITEMS, STORE_ORDER_ITEM_HEADERS);
   ensureStoreSheet_(ss, STORE_CONFIG.SHEETS.INVENTORY, STORE_INVENTORY_HEADERS);
-  ensureStoreImageFolder_();
-  return { ok: true, message: 'Publisher Store Manager is ready.' };
+  return ss;
 }
 
 function ensureStoreSheet_(ss, name, headers) {
