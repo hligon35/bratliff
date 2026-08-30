@@ -37,6 +37,7 @@ const FORM_ROUTES = Object.freeze({
 function doGet(event) {
   const params = event && event.parameter ? event.parameter : {};
   if (params.action === 'admin') return renderAdminDashboard_();
+  if (params.action === 'storeAdmin') return renderStoreAdmin_();
   if (params.action === 'unsubscribe') return handleUnsubscribe_(params);
   return jsonResponse_({ ok: true, service: 'Jackrabbit Punkin Publishing form endpoint' });
 }
