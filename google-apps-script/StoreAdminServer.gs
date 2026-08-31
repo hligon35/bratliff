@@ -14,7 +14,9 @@ function renderStoreAdmin_() {
     '.jrpp-admin-nav{display:flex;gap:8px;flex-wrap:wrap}.jrpp-admin-nav button{border:1px solid rgba(255,255,255,.28);background:transparent;color:#fff;border-radius:999px;padding:9px 14px;font:700 13px Arial,sans-serif;cursor:pointer}.jrpp-admin-nav button.active,.jrpp-admin-nav button:hover{background:#d4ad55;border-color:#d4ad55;color:#0a1628}' +
     '#jrppDashboardWorkspace{display:block;background:#fbf8f1;min-height:calc(100vh - 68px)}' +
     '#jrppStoreWorkspace{display:none}' +
-    '@media(max-width:640px){.jrpp-admin-switcher{align-items:flex-start}.jrpp-admin-nav{width:100%}.jrpp-admin-nav button{flex:1}}' +
+    '#jrppStoreWorkspace .metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}' +
+    '#jrppStoreWorkspace .metrics .metric:first-child{grid-column:1/-1}' +
+    '@media(max-width:640px){.jrpp-admin-switcher{align-items:flex-start}.jrpp-admin-nav{width:100%}.jrpp-admin-nav button{flex:1}#jrppStoreWorkspace .metrics{grid-template-columns:1fr!important}#jrppStoreWorkspace .metrics .metric:first-child{grid-column:auto}}' +
     '</style>';
 
   const shellHeader = '<div class="jrpp-admin-switcher">' +
