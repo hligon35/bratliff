@@ -77,10 +77,22 @@ function doGet(event) {
 }
 
 function doPost(event) {
+  const params = event && event.parameter ? event.parameter : {};
+  if (params.action === "send-email") {
+    try {
+      return handleEmailRelay_(event);
+    } catch (error) {
+      return jsonResponse_({
+        ok: false,
+        error: String(error && error.message ? error.message : error),
+      });
+    }
+  }
+
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
-    const payload = event && event.parameter ? event.parameter : {};
+    const payload = params;
 
     // Honeypot submissions receive a neutral response without being stored.
     if (payload.website) return jsonResponse_({ ok: true });
@@ -178,6 +190,40 @@ function sendSubmissionEmails_(payload, route) {
   }
 
   if (errors.length) throw new Error(errors.join("; "));
+}
+
+function handleEmailRelay_(event) {
+  const relaySecret = getEmailRelaySecret_();
+  if (!relaySecret) throw new Error("EMAIL_RELAY_SECRET is not configured.");
+
+  const request = parseJsonBody_(event);
+  const timestamp = safeText_(request.timestamp, 40);
+  const signature = safeText_(request.signature, 500);
+  const message = request.message || {};
+  const canonicalMessage = JSON.stringify(message);
+  const requestAge = Math.abs(Date.now() - Number(timestamp));
+
+  if (!/^\d{10,15}$/.test(timestamp)) throw new Error("Invalid relay timestamp.");
+  if (!Number.isFinite(requestAge) || requestAge > 10 * 60 * 1000)
+    throw new Error("Expired relay request.");
+
+  const expectedSignature = signEmailRelayValue_(
+    timestamp + "." + canonicalMessage,
+    relaySecret,
+  );
+  if (!constantTimeEqual_(signature, expectedSignature))
+    throw new Error("Invalid relay signature.");
+
+  MailApp.sendEmail({
+    to: safeText_(message.to, 320),
+    subject: safeText_(message.subject, 200),
+    body: safeText_(message.text, 20000),
+    htmlBody: String(message.html || "").slice(0, 200000),
+    name: safeText_(message.fromName, 160) || getSenderName_(),
+    replyTo: safeText_(message.replyTo, 320) || getAdminEmail_(),
+  });
+
+  return jsonResponse_({ ok: true });
 }
 
 function buildMessages_(payload, route) {
@@ -834,6 +880,26 @@ function getConfigValue_(key) {
   return String(DEFAULT_CONFIG[key] || "").trim();
 }
 
+function getEmailRelaySecret_() {
+  return safeText_(
+    PropertiesService.getScriptProperties().getProperty("EMAIL_RELAY_SECRET"),
+    500,
+  );
+}
+
+function parseJsonBody_(event) {
+  const contents =
+    event && event.postData && event.postData.contents
+      ? String(event.postData.contents)
+      : "";
+  if (!contents) throw new Error("Missing JSON request body.");
+  try {
+    return JSON.parse(contents);
+  } catch (error) {
+    throw new Error("Invalid JSON request body.");
+  }
+}
+
 function linkValue_(value) {
   const text = String(value || "");
   const escaped = escapeHtml_(text);
@@ -895,6 +961,22 @@ function throttle_(formType, identity) {
   const cache = CacheService.getScriptCache();
   if (cache.get(key)) throw new Error("Please wait before submitting again.");
   cache.put(key, "1", 20);
+}
+
+function signEmailRelayValue_(value, secret) {
+  const signatureBytes = Utilities.computeHmacSha256Signature(value, secret);
+  return stripBase64Padding_(Utilities.base64EncodeWebSafe(signatureBytes));
+}
+
+function constantTimeEqual_(left, right) {
+  left = String(left || "");
+  right = String(right || "");
+  if (left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return mismatch === 0;
 }
 
 function jsonResponse_(payload) {

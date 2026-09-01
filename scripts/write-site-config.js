@@ -51,15 +51,12 @@ const publicAdminUrl = isPlaceholder(values.PUBLIC_ADMIN_URL)
   ? ''
   : normalizeUrl(values.PUBLIC_ADMIN_URL);
 const legacyFormEndpoint = normalizeUrl(values.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
-const legacyAdminUrl = normalizeUrl(values.GOOGLE_APPS_SCRIPT_ADMIN_URL) || (isPlaceholder(legacyFormEndpoint)
-  ? ''
-  : legacyFormEndpoint + (legacyFormEndpoint.includes('?') ? '&' : '?') + 'action=storeAdmin');
 
 const formEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/forms/submit') : legacyFormEndpoint;
 const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/books') : (legacyFormEndpoint ? legacyFormEndpoint + (legacyFormEndpoint.includes('?') ? '&' : '?') + 'action=store-books' : '');
 const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : legacyFormEndpoint;
 const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : '';
-const adminUrl = publicAdminUrl || legacyAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
+const adminUrl = publicAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
 
 const publicConfig = {
   siteUrl,
