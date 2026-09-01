@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="../" />
+    <title>Publisher Admin | Jackrabbit Punkin Publishing LLC</title>
+    <meta
+      name="description"
+      content="Protected publisher administration console for Jackrabbit Punkin Publishing LLC."
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+    <link rel="stylesheet" href="assets/admin.css" />
+    <script src="assets/site-config.js" defer></script>
+    <script src="assets/site.js" defer></script>
+    <script src="assets/admin.js" defer></script>
+  </head>
+  <body data-page="admin">
+    <div data-header></div>
+    <main id="main" class="admin-shell">
+      <section class="admin-hero">
+        <div class="container admin-hero-grid">
+          <div>
+            <p class="eyebrow light">Publisher operations</p>
+            <h1>Admin Console</h1>
+            <p class="lede admin-hero-copy">
+              Cloudflare Access protects this workspace. Authorized Google
+              accounts can review submissions, manage books, track orders,
+              schedule newsletters, and export reporting data.
+            </p>
+          </div>
+          <div class="admin-hero-card">
+            <p class="eyebrow">Signed-in operator</p>
+            <h2 data-admin-viewer>Loading secure session...</h2>
+            <p class="status-note" data-admin-status>
+              Connecting to the protected admin API.
+            </p>
+            <div class="button-row">
+              <button class="button" type="button" data-admin-refresh>
+                Refresh dashboard
+              </button>
+              <a class="button secondary" href="books.html">Open storefront</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section admin-surface">
+        <div class="container">
+          <div class="admin-metrics" data-admin-metrics></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container admin-grid admin-grid-wide">
+          <article class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <p class="eyebrow">Inbox</p>
+                <h2>Recent Submissions</h2>
+              </div>
+              <select data-submission-filter aria-label="Filter submissions by form type">
+                <option value="">All forms</option>
+                <option value="contact">Contact</option>
+                <option value="newsletter">Newsletter</option>
+                <option value="speaking">Speaking</option>
+                <option value="bookClub">Book Club</option>
+                <option value="bookNotification">Book Notification</option>
+              </select>
+            </div>
+            <div class="admin-table-wrap" data-submissions-table></div>
+          </article>
+
+          <article class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <p class="eyebrow">Commerce</p>
+                <h2>Recent Orders</h2>
+              </div>
+            </div>
+            <div class="admin-table-wrap" data-orders-table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section admin-surface">
+        <div class="container admin-grid admin-grid-wide">
+          <article class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <p class="eyebrow">Catalog</p>
+                <h2>Books</h2>
+              </div>
+            </div>
+            <div class="admin-table-wrap" data-books-table></div>
+          </article>
+
+          <article class="admin-card">
+            <p class="eyebrow">Catalog editor</p>
+            <h2>Save Book</h2>
+            <form id="book-form" class="admin-form-grid">
+              <input type="hidden" name="bookId" />
+              <label>SKU<input name="sku" required /></label>
+              <label>Title<input name="title" required /></label>
+              <label>Subtitle<input name="subtitle" /></label>
+              <label>Author<input name="author" /></label>
+              <label>ISBN<input name="isbn" /></label>
+              <label>Format<input name="format" /></label>
+              <label>Category<input name="category" /></label>
+              <label>Price<input name="price" type="number" min="0" step="0.01" /></label>
+              <label>Compare Price<input name="comparePrice" type="number" min="0" step="0.01" /></label>
+              <label>Stock<input name="stock" type="number" min="0" step="1" /></label>
+              <label>Low Stock Threshold<input name="lowStockThreshold" type="number" min="0" step="1" /></label>
+              <label>Status
+                <select name="status">
+                  <option>Draft</option>
+                  <option>Coming Soon</option>
+                  <option>Published</option>
+                  <option>Out of Stock</option>
+                  <option>Archived</option>
+                </select>
+              </label>
+              <label>Publication Date<input name="publicationDate" type="date" /></label>
+              <label class="admin-check"><input name="featured" type="checkbox" /> Featured</label>
+              <label class="admin-check"><input name="comingSoon" type="checkbox" /> Coming soon</label>
+              <label class="admin-check"><input name="preorder" type="checkbox" /> Preorder</label>
+              <label class="span-2">Short Description<textarea name="shortDescription"></textarea></label>
+              <label class="span-2">Synopsis<textarea name="synopsis"></textarea></label>
+              <label class="span-2">Cover Image<input name="image" type="file" accept="image/png,image/jpeg,image/webp" /></label>
+              <div class="button-row span-2">
+                <button class="button ink" type="submit">Save book</button>
+                <button class="button ghost" type="button" data-book-reset>New book</button>
+              </div>
+              <div class="form-message span-2" role="status"></div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container admin-grid">
+          <article class="admin-card">
+            <p class="eyebrow">Inventory</p>
+            <h2>Adjust Stock</h2>
+            <form id="inventory-form">
+              <label>Book<select name="bookId" data-book-select></select></label>
+              <label>Adjustment<input name="change" type="number" step="1" required /></label>
+              <label>Reason<input name="reason" value="Admin adjustment" /></label>
+              <label>Notes<textarea name="notes"></textarea></label>
+              <div class="button-row">
+                <button class="button ink" type="submit">Apply adjustment</button>
+              </div>
+              <div class="form-message" role="status"></div>
+            </form>
+          </article>
+
+          <article class="admin-card">
+            <p class="eyebrow">Fulfillment</p>
+            <h2>Update Order</h2>
+            <form id="order-form">
+              <label>Order<select name="orderNumber" data-order-select></select></label>
+              <label>Fulfillment Status<input name="fulfillmentStatus" value="Fulfilled" /></label>
+              <label>Tracking Number<input name="trackingNumber" /></label>
+              <label>Notes<textarea name="notes"></textarea></label>
+              <div class="button-row">
+                <button class="button ink" type="submit">Save fulfillment</button>
+              </div>
+              <div class="form-message" role="status"></div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="section admin-surface">
+        <div class="container admin-grid admin-grid-wide">
+          <article class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <p class="eyebrow">Newsletter</p>
+                <h2>Campaign Builder</h2>
+              </div>
+              <div class="status-note" data-newsletter-meta></div>
+            </div>
+            <form id="newsletter-form" class="admin-form-grid">
+              <input type="hidden" name="campaignId" />
+              <label>Campaign Title<input name="title" /></label>
+              <label>Subject<input name="subject" required /></label>
+              <label>Preview Text<input name="previewText" /></label>
+              <label>From Name<input name="fromName" /></label>
+              <label>Audience<input name="audience" /></label>
+              <label>Status
+                <select name="status">
+                  <option>Draft</option>
+                  <option>Scheduled</option>
+                </select>
+              </label>
+              <label>Featured Book<select name="featuredBookId" data-newsletter-book-select></select></label>
+              <label>Hero CTA Label<input name="heroCtaLabel" /></label>
+              <label>Hero CTA URL<input name="heroCtaUrl" type="url" /></label>
+              <label>Featured CTA Label<input name="featuredCtaLabel" /></label>
+              <label>Featured CTA URL<input name="featuredCtaUrl" type="url" /></label>
+              <label>Quick Update 1 Title<input name="quick1Title" /></label>
+              <label>Quick Update 1 URL<input name="quick1Url" type="url" /></label>
+              <label class="span-2">Hero Message<textarea name="heroMessage"></textarea></label>
+              <label class="span-2">Featured Book Title<input name="featuredBookTitle" /></label>
+              <label class="span-2">Featured Book Description<textarea name="featuredBookDescription"></textarea></label>
+              <label>Featured Image URL<input name="featuredBookImageUrl" type="url" /></label>
+              <label>Quick Update 2 Title<input name="quick2Title" /></label>
+              <label>Quick Update 2 URL<input name="quick2Url" type="url" /></label>
+              <label class="span-2">Quick Update 1 Text<textarea name="quick1Text"></textarea></label>
+              <label class="span-2">Quick Update 2 Text<textarea name="quick2Text"></textarea></label>
+              <label>Send Date<input name="sendDate" type="date" /></label>
+              <label>Send Time<input name="sendTime" type="time" /></label>
+              <label>Time Zone<input name="timeZone" value="America/New_York" /></label>
+              <label>Test Email<input name="testEmail" type="email" /></label>
+              <label class="span-2">Closing Note<textarea name="closingNote"></textarea></label>
+              <div class="button-row span-2">
+                <button class="button ink" type="submit">Save campaign</button>
+                <button class="button ghost" type="button" data-newsletter-test>
+                  Send test
+                </button>
+                <button class="button ghost" type="button" data-newsletter-reset>
+                  New campaign
+                </button>
+              </div>
+              <div class="form-message span-2" role="status"></div>
+            </form>
+          </article>
+
+          <article class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <p class="eyebrow">Audience</p>
+                <h2>Subscribers & Campaigns</h2>
+              </div>
+            </div>
+            <div class="admin-table-wrap" data-campaigns-table></div>
+            <div class="admin-table-wrap stack-gap" data-subscribers-table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container admin-grid">
+          <article class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <p class="eyebrow">Access</p>
+                <h2>Admin Users</h2>
+              </div>
+              <button class="button ghost" type="button" data-export-sheets>
+                Export to Sheets
+              </button>
+            </div>
+            <div class="admin-table-wrap" data-admins-table></div>
+          </article>
+
+          <article class="admin-card">
+            <p class="eyebrow">Access control</p>
+            <h2>Add or Update Admin</h2>
+            <form id="admin-form">
+              <label>Email<input name="email" type="email" required /></label>
+              <label>Display Name<input name="displayName" /></label>
+              <label>Role
+                <select name="role">
+                  <option value="marketing">Marketing</option>
+                  <option value="fulfillment">Fulfillment</option>
+                  <option value="editor">Editor</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </label>
+              <div class="button-row">
+                <button class="button ink" type="submit">Save admin</button>
+              </div>
+              <div class="form-message" role="status"></div>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+    <div data-footer></div>
+  </body>
+</html>

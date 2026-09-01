@@ -18,6 +18,14 @@ npm run dev
 
 This regenerates `assets/site-config.js` from `.env` before serving the site.
 
+To preview the Cloudflare Worker and staged static assets together:
+
+```sh
+npm run worker:dev
+```
+
+This regenerates `assets/site-config.js`, copies the public website into `cloudflare/public`, and starts Wrangler using [cloudflare/wrangler.jsonc](cloudflare/wrangler.jsonc).
+
 Open the local site in your default browser:
 
 ```sh
@@ -34,24 +42,28 @@ Then open `http://localhost:8080`.
 
 ## Environment template
 
-Copy `.env.example` to `.env` and fill in your deployment values before wiring up the live form endpoint. If you prefer local-only overrides, `.env.local` is also supported and takes precedence over `.env`.
+Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.env.local` is optional and overrides `.env` during local development.
 
 - `SITE_URL`: the public website URL.
-- `GOOGLE_APPS_SCRIPT_WEB_APP_URL`: the deployed Apps Script `/exec` endpoint used by the site.
-- `GOOGLE_APPS_SCRIPT_ADMIN_URL`: optional dedicated admin dashboard URL. If omitted, the site falls back to `GOOGLE_APPS_SCRIPT_WEB_APP_URL?action=admin`.
-- `GOOGLE_SPREADSHEET_ID`: the destination spreadsheet ID for form submissions.
-- `ADMIN_NOTIFICATION_EMAIL`: the mailbox that receives form notifications.
-- `GOOGLE_APPS_SENDER_NAME`: the display name used for confirmation emails.
-- `ADMIN_ALLOWED_EMAILS`: comma-separated Google account emails allowed to open the admin dashboard.
-- `UNSUBSCRIBE_SECRET`: a private signing secret for newsletter unsubscribe links.
+- `PUBLIC_API_URL`: the Worker base URL used by forms, checkout, media, and admin API requests.
+- `PUBLIC_ADMIN_URL`: the protected admin URL shown in the footer and login page.
+- `CORS_ORIGIN`: origin allowed for browser requests to the Worker.
+- `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
+- `TEAM_DOMAIN`: Cloudflare Access team domain.
+- `POLICY_AUD`: Cloudflare Access application audience.
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`: Stripe checkout and webhook secrets.
+- `RESEND_API_KEY` and `MAIL_FROM_EMAIL`: transactional email delivery.
+- `GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, and `GOOGLE_SERVICE_ACCOUNT_TOKEN_URI`: Google Sheets export credentials.
+- `SHEETS_EXPORT_SPREADSHEET_ID` and `SHEETS_EXPORT_ENABLED`: reporting export target and on/off switch.
+- `UNSUBSCRIBE_SECRET`: private signing secret for newsletter unsubscribe links.
 
-Only the public URL values should ever be exposed in frontend code. Keep `UNSUBSCRIBE_SECRET` in Apps Script Script Properties, not in browser-delivered files.
+Legacy Apps Script URLs remain as optional fallback variables during migration, but the production path is now Cloudflare-first.
 
 ## Admin dashboard
 
-The website footer shows an `Admin` link when `GOOGLE_APPS_SCRIPT_ADMIN_URL` or a valid `GOOGLE_APPS_SCRIPT_WEB_APP_URL` is configured. The Apps Script endpoint serves an authenticated dashboard at `?action=admin` and checks the signed-in Google account against `ADMIN_ALLOWED_EMAILS`.
+The website footer shows an `Admin` link when `PUBLIC_ADMIN_URL` is configured. The static admin console now lives at [admin/index.html](admin/index.html) and calls the Worker at `/api/admin/*`.
 
-The static site includes a branded `/login/` route that hands off directly to the Google-authenticated Apps Script dashboard.
+Protect the admin route and API with Cloudflare Access using Google as the identity provider. The Worker validates the Access JWT and then checks the signed-in email against the `admins` table in D1.
 
 ## Launch assets still needed
 

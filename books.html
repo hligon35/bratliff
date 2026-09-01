@@ -12,8 +12,10 @@
       content="Shop Battles Beyond the Waves and upcoming titles from Jackrabbit Punkin Publishing LLC by veteran author Barbara J. Ratliff."
     />
     <link rel="stylesheet" href="assets/styles.css" />
+    <link rel="stylesheet" href="assets/store.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
+    <script src="assets/store.js" defer></script>
   </head>
   <body data-page="books">
     <div data-header></div>
@@ -53,10 +55,28 @@
               veterans, families of service members, and anyone who wants to
               understand the full cost and meaning of service to country.
             </p>
-            <a class="button ink" href="contact.html?subject=Book%20Inquiry"
-              >Order Now</a
-            >
+            <div class="button-row">
+              <button class="button ink" type="button" data-store-cart-trigger>
+                Open Cart <span class="store-cart-count" data-store-cart-count>0</span>
+              </button>
+              <a class="button ghost" href="#live-catalog">Browse Live Catalog</a>
+            </div>
           </div>
+        </div>
+      </section>
+      <section class="section surface" id="live-catalog">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Publisher store</p>
+              <h2>Live Catalog</h2>
+            </div>
+            <p>
+              Published titles, live availability, and Stripe checkout are now
+              served from the new platform backend.
+            </p>
+          </div>
+          <div class="store-grid" data-store-grid></div>
         </div>
       </section>
       <section class="section surface">

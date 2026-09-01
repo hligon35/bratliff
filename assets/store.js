@@ -1,7 +1,8 @@
 (() => {
   const STORAGE_KEY = 'jrpp_store_cart_v1';
   const siteConfig = window.siteConfig || {};
-  const endpoint = String(siteConfig.storeEndpoint || siteConfig.formEndpoint || '').trim();
+  const booksEndpoint = String(siteConfig.storeBooksEndpoint || '').trim();
+  const checkoutEndpoint = String(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint || '').trim();
   const state = { books: [], cart: loadCart() };
 
   function loadCart() {
@@ -22,8 +23,9 @@
   }
 
   async function fetchBooks() {
-    if (!endpoint) throw new Error('Store endpoint is not configured.');
-    const response = await fetch(endpoint + (endpoint.includes('?') ? '&' : '?') + 'action=store-books', { cache: 'no-store' });
+    const requestUrl = booksEndpoint || (checkoutEndpoint ? checkoutEndpoint + (checkoutEndpoint.includes('?') ? '&' : '?') + 'action=store-books' : '');
+    if (!requestUrl) throw new Error('Store endpoint is not configured.');
+    const response = await fetch(requestUrl, { cache: 'no-store' });
     const data = await response.json();
     if (!data.ok) throw new Error(data.error || 'Could not load books.');
     state.books = Array.isArray(data.books) ? data.books : [];
@@ -119,10 +121,10 @@
 
   async function checkout() {
     if (!state.cart.length) return toast('Your cart is empty.');
-    if (!endpoint) return toast('Checkout is not configured yet.');
+    if (!checkoutEndpoint) return toast('Checkout is not configured yet.');
     const body = new URLSearchParams({ action: 'store-checkout', cart: JSON.stringify(state.cart.map(item => ({ sku: item.sku, quantity: item.quantity }))) });
     try {
-      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: body.toString() });
+      const response = await fetch(checkoutEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: body.toString() });
       const data = await response.json();
       if (!data.ok || !data.url) throw new Error(data.error || 'Checkout could not be started.');
       window.location.href = data.url;
