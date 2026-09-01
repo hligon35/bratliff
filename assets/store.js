@@ -3,6 +3,7 @@
   const siteConfig = window.siteConfig || {};
   const booksEndpoint = String(siteConfig.storeBooksEndpoint || '').trim();
   const checkoutEndpoint = String(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint || '').trim();
+  const usesLegacyCheckout = /script\.google\.com/i.test(checkoutEndpoint);
   const state = { books: [], cart: loadCart() };
 
   function loadCart() {
@@ -131,6 +132,45 @@
     } catch (error) { toast(error.message); }
   }
 
+  async function confirmCheckoutReturn() {
+    const params = new URLSearchParams(window.location.search);
+    const checkoutState = String(params.get('checkout') || '').toLowerCase();
+    if (checkoutState === 'cancelled') {
+      toast('Checkout was cancelled.');
+      return;
+    }
+    if (checkoutState !== 'success') return;
+
+    state.cart = [];
+    saveCart();
+    renderCart();
+
+    if (!usesLegacyCheckout) {
+      toast('Payment complete. Thank you for your order.');
+      return;
+    }
+
+    const sessionId = String(params.get('session_id') || '').trim();
+    if (!sessionId || !checkoutEndpoint) {
+      toast('Payment completed, but order confirmation is still pending.');
+      return;
+    }
+
+    const body = new URLSearchParams({ action: 'store-confirm-checkout', sessionId });
+    try {
+      const response = await fetch(checkoutEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: body.toString()
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || 'Order confirmation failed.');
+      toast(data.duplicate ? 'Payment confirmed. Your order was already recorded.' : 'Payment confirmed. Thank you for your order.');
+    } catch (error) {
+      toast(error.message || 'Payment completed, but order confirmation failed.');
+    }
+  }
+
   function toast(message) {
     ensureCartUi();
     const el = document.querySelector('.store-toast');
@@ -150,6 +190,7 @@
 
   async function init() {
     ensureCartUi(); renderCart(); updateCartCount();
+    await confirmCheckoutReturn();
     const grid = document.querySelector('[data-store-grid]');
     if (!grid) return;
     grid.innerHTML = '<div class="store-loading">Loading books…</div>';
