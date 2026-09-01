@@ -5,11 +5,13 @@ The Publisher Store Manager now runs on the Cloudflare Worker stack while preser
 ## Modules
 
 ### Cloudflare Worker
+
 - [cloudflare/src/app.ts](cloudflare/src/app.ts) — public routes, admin API, Stripe webhook, newsletter scheduling, and Google Sheets export.
 - [cloudflare/migrations/0001_initial.sql](cloudflare/migrations/0001_initial.sql) — D1 schema for books, orders, subscribers, campaigns, submissions, and admins.
 - R2 bucket binding `BOOK_ASSETS` — book-cover storage.
 
 ### Website
+
 - [assets/store.css](assets/store.css) — storefront/cart styles using the existing navy, purple, gold, cream brand variables.
 - [assets/store.js](assets/store.js) — live catalog loader, local cart, quantity control, cart drawer, and Stripe Checkout redirect.
 - [admin/index.html](admin/index.html), [assets/admin.js](assets/admin.js), and [assets/admin.css](assets/admin.css) — protected static admin console.
@@ -53,6 +55,24 @@ The existing legacy `?action=store-books` and `action=store-checkout` compatibil
 ## Payment webhook
 
 The Worker creates Stripe Checkout Sessions, but only the authenticated Stripe webhook records a paid order and reduces inventory. Browser redirects are never treated as proof of payment.
+
+## Apps Script Stripe Connect
+
+When the website is using the Google Sheets and Apps Script store backend, checkout is created on your Stripe platform account and sent to the connected account as a destination charge.
+
+Required Apps Script Script Properties:
+
+- `STRIPE_SECRET_KEY` — your platform secret key.
+- `STRIPE_CONNECTED_ACCOUNT_ID` — the connected Stripe account ID that receives the transfer, such as `acct_...`.
+- `STRIPE_PLATFORM_FEE_BPS` — platform fee in basis points. `250` means `2.5%`.
+- `STORE_SUCCESS_URL` and `STORE_CANCEL_URL` — optional overrides for the return URLs.
+
+Implementation details:
+
+- Checkout Sessions are created with `payment_intent_data[application_fee_amount]`.
+- Funds are sent with `payment_intent_data[transfer_data][destination]`.
+- The fee is calculated from the line-item subtotal before tax and shipping.
+- The storefront confirms successful sessions server-side after Stripe redirects back, then records the paid order in Google Sheets.
 
 ## Storefront integration
 

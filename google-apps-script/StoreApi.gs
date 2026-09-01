@@ -28,5 +28,10 @@ function routeStorePost_(payload) {
     }
     return jsonResponse_(createStoreCheckoutSession(cart));
   }
+  if (action === "store-confirm-checkout") {
+    return jsonResponse_(
+      confirmStoreCheckoutSession(payload.sessionId || payload.session_id),
+    );
+  }
   return null;
 }
