@@ -70,6 +70,10 @@ function doGet(event) {
   if (params.action === "admin") return renderAdminDashboard_();
   if (params.action === "storeAdmin") return renderStoreAdmin_();
   if (params.action === "unsubscribe") return handleUnsubscribe_(params);
+  const storeResponse = routeStoreGet_(params);
+  if (storeResponse) return storeResponse;
+  const adminResponse = routeAdminGet_(params);
+  if (adminResponse) return adminResponse;
   return jsonResponse_({
     ok: true,
     service: "Jackrabbit Punkin Publishing form endpoint",
@@ -88,6 +92,12 @@ function doPost(event) {
       });
     }
   }
+
+  const storeResponse = routeStorePost_(buildRequestPayload_(event, params));
+  if (storeResponse) return storeResponse;
+
+  const adminResponse = routeAdminPost_(params, event);
+  if (adminResponse) return adminResponse;
 
   const lock = LockService.getScriptLock();
   try {
@@ -224,6 +234,271 @@ function handleEmailRelay_(event) {
   });
 
   return jsonResponse_({ ok: true });
+}
+
+function routeAdminGet_(params) {
+  const action = String(params.action || "");
+  if (action === "admin-bootstrap") return jsonResponse_(buildStaticAdminBootstrap_(params));
+  if (action === "admin-submissions") return jsonResponse_({ ok: true, rows: listStaticAdminSubmissions_(params) });
+  if (action === "admin-books") return jsonResponse_({ ok: true, books: listStoreBooksAdmin() });
+  if (action === "admin-orders") return jsonResponse_({ ok: true, orders: listStoreOrders(params.limit || 100) });
+  if (action === "admin-newsletter-state") return jsonResponse_(Object.assign({ ok: true }, getNewsletterBuilderState()));
+  if (action === "admin-newsletter-subscribers") return jsonResponse_({ ok: true, subscribers: listNewsletterSubscribersAdmin_() });
+  if (action === "admin-admins") return jsonResponse_({ ok: true, admins: listStaticAdmins_() });
+  return null;
+}
+
+function routeAdminPost_(params, event) {
+  const action = String(params.action || "");
+  if (!/^admin-/.test(action)) return null;
+  const payload = buildRequestPayload_(event, params);
+
+  if (action === "admin-save-book") {
+    return jsonResponse_({ ok: true, book: saveStoreBook(payload) });
+  }
+  if (action === "admin-upload-book-image") {
+    const file = payload.file || {};
+    return jsonResponse_(Object.assign({ ok: true }, uploadStoreBookImage(
+      payload.bookId || params.bookId,
+      file.name,
+      file.type,
+      file.data,
+    )));
+  }
+  if (action === "admin-adjust-inventory") {
+    return jsonResponse_({ ok: true, book: adjustStoreInventory(payload.bookId, payload.change, payload.reason, payload.notes) });
+  }
+  if (action === "admin-update-fulfillment") {
+    return jsonResponse_({ ok: true, order: updateStoreFulfillment(params.orderNumber || payload.orderNumber, payload.fulfillmentStatus, payload.trackingNumber, payload.notes) });
+  }
+  if (action === "admin-save-campaign") {
+    const status = String(payload.status || "Draft");
+    const campaign = status === "Scheduled" ? scheduleNewsletterCampaign(payload) : saveNewsletterDraft(payload);
+    return jsonResponse_({ ok: true, campaign: campaign.campaignId ? getNewsletterCampaignById_(campaign.campaignId) : campaign });
+  }
+  if (action === "admin-send-newsletter-test") {
+    return jsonResponse_(Object.assign({ ok: true }, sendNewsletterTest(payload, payload.testEmail)));
+  }
+  if (action === "admin-save-admin") {
+    return jsonResponse_({ ok: true, admin: saveStaticAdmin_(payload) });
+  }
+  if (action === "admin-remove-admin") {
+    return jsonResponse_(removeStaticAdmin_(params.email || payload.email));
+  }
+  if (action === "admin-export-sheets") {
+    return jsonResponse_({ ok: true, message: "Google Sheets is already the primary database for this admin system." });
+  }
+  return jsonResponse_({ ok: false, error: "Unknown admin action." });
+}
+
+function buildRequestPayload_(event, fallback) {
+  const contentType =
+    event && event.postData && event.postData.type
+      ? String(event.postData.type)
+      : "";
+  if (/application\/json/i.test(contentType)) {
+    return parseJsonBody_(event);
+  }
+  return fallback || (event && event.parameter ? event.parameter : {});
+}
+
+function buildStaticAdminBootstrap_(params) {
+  storeRequireAdmin_();
+  const submissions = listStaticAdminSubmissions_({ limit: params.limit || 25 });
+  const recentOrders = listStoreOrders(10);
+  const dashboard = getStoreDashboardMetrics();
+  const newsletter = getNewsletterBuilderState();
+  const books = listStoreBooksAdmin();
+  const viewerEmail = getAuthorizedAdminEmail_();
+  const viewerRecord = getStaticAdminByEmail_(viewerEmail);
+
+  return {
+    ok: true,
+    viewer: {
+      email: viewerEmail,
+      role: viewerRecord ? viewerRecord.role : "owner",
+      displayName: viewerRecord && viewerRecord.displayName ? viewerRecord.displayName : viewerEmail,
+    },
+    metrics: {
+      submissions: countStaticAdminSubmissions_(),
+      subscribers: newsletter.subscriberCount || 0,
+      orders: dashboard.orderCount || recentOrders.length,
+      books: books.length,
+      campaigns: (newsletter.campaigns || []).length,
+      revenue: dashboard.totalSales || 0,
+    },
+    recentSubmissions: submissions,
+    recentOrders: recentOrders,
+  };
+}
+
+function countStaticAdminSubmissions_() {
+  const spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+  return Object.keys(FORM_ROUTES).reduce(function (sum, key) {
+    const sheet = spreadsheet.getSheetByName(FORM_ROUTES[key].sheet);
+    return sum + (!sheet ? 0 : Math.max(0, sheet.getLastRow() - 1));
+  }, 0);
+}
+
+function listStaticAdminSubmissions_(params) {
+  storeRequireAdmin_();
+  const limit = Math.max(1, Math.min(100, Number(params && params.limit ? params.limit : 25) || 25));
+  const filter = String(params && params.formType ? params.formType : "").trim();
+  const spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+  let rows = [];
+
+  Object.keys(FORM_ROUTES).forEach(function (formType) {
+    if (filter && formType !== filter) return;
+    const route = FORM_ROUTES[formType];
+    const sheet = spreadsheet.getSheetByName(route.sheet);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    const values = sheet.getDataRange().getDisplayValues().slice(1);
+    values.forEach(function (row, index) {
+      rows.push(mapStaticSubmissionRow_(formType, route, row, values.length - index));
+    });
+  });
+
+  rows.sort(function (left, right) {
+    return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+  });
+  return rows.slice(0, limit);
+}
+
+function mapStaticSubmissionRow_(formType, route, row, reverseIndex) {
+  const payload = {};
+  route.fields.forEach(function (field, index) {
+    payload[field] = row[index + 1] || "";
+  });
+  const status = row[route.fields.length + 1] || "New";
+  const name = payload.name || payload.group || payload.organization || payload.title || "";
+  const summary = getRowSummary_(formType, row) || route.sheet;
+  return {
+    id: formType + "-" + reverseIndex,
+    createdAt: row[0] || "",
+    formType: formType,
+    name: name,
+    email: payload.email || "",
+    summary: summary,
+    status: status,
+  };
+}
+
+function listNewsletterSubscribersAdmin_() {
+  storeRequireAdmin_();
+  const route = FORM_ROUTES.newsletter;
+  const sheet = SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(route.sheet);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const rows = sheet.getDataRange().getDisplayValues().slice(1).reverse();
+  const seen = {};
+  const subscribers = [];
+  rows.forEach(function (row) {
+    const email = String(row[1] || "").trim().toLowerCase();
+    if (!isValidEmail_(email) || seen[email]) return;
+    seen[email] = true;
+    const consent = /^(true|yes|on|1)$/i.test(String(row[3] || row[2] || ""));
+    subscribers.push({
+      email: email,
+      status: String(row[route.fields.length + 1] || (consent ? "Active" : "Unsubscribed")),
+      consent: consent,
+      lastSeenAt: row[0] || "",
+    });
+  });
+  return subscribers.slice(0, 200);
+}
+
+function listStaticAdmins_() {
+  storeRequireAdmin_();
+  return getStaticAdminDirectory_();
+}
+
+function getStaticAdminDirectory_() {
+  const properties = PropertiesService.getScriptProperties();
+  const raw = String(properties.getProperty("ADMIN_DIRECTORY") || "").trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(function (entry) {
+            return {
+              email: String(entry.email || "").trim().toLowerCase(),
+              role: String(entry.role || "owner").trim() || "owner",
+              displayName: String(entry.displayName || "").trim(),
+            };
+          })
+          .filter(function (entry) {
+            return isValidEmail_(entry.email);
+          });
+      }
+    } catch (error) {}
+  }
+  return getAllowedAdminEmails_().map(function (email) {
+    return { email: email, role: "owner", displayName: "" };
+  });
+}
+
+function saveStaticAdminDirectory_(admins) {
+  const normalized = admins
+    .map(function (entry) {
+      return {
+        email: String(entry.email || "").trim().toLowerCase(),
+        role: String(entry.role || "owner").trim() || "owner",
+        displayName: String(entry.displayName || "").trim(),
+      };
+    })
+    .filter(function (entry) {
+      return isValidEmail_(entry.email);
+    });
+  const properties = PropertiesService.getScriptProperties();
+  properties.setProperty("ADMIN_DIRECTORY", JSON.stringify(normalized));
+  properties.setProperty(
+    "ADMIN_ALLOWED_EMAILS",
+    normalized.map(function (entry) {
+      return entry.email;
+    }).join(", "),
+  );
+  return normalized;
+}
+
+function saveStaticAdmin_(payload) {
+  storeRequireAdmin_();
+  const email = safeText_(payload.email, 320).toLowerCase();
+  const role = safeText_(payload.role, 40) || "owner";
+  if (!isValidEmail_(email)) throw new Error("Enter a valid email address.");
+  if (["owner", "editor", "fulfillment", "marketing"].indexOf(role) === -1) {
+    throw new Error("Select a valid admin role.");
+  }
+  const admins = getStaticAdminDirectory_();
+  const existing = admins.find(function (entry) {
+    return entry.email === email;
+  });
+  if (existing) {
+    existing.role = role;
+    existing.displayName = safeText_(payload.displayName, 200);
+  } else {
+    admins.push({ email: email, role: role, displayName: safeText_(payload.displayName, 200) });
+  }
+  saveStaticAdminDirectory_(admins);
+  return getStaticAdminByEmail_(email);
+}
+
+function removeStaticAdmin_(email) {
+  storeRequireAdmin_();
+  const normalizedEmail = safeText_(email, 320).toLowerCase();
+  const admins = getStaticAdminDirectory_().filter(function (entry) {
+    return entry.email !== normalizedEmail;
+  });
+  if (!admins.length) throw new Error("At least one admin must remain.");
+  saveStaticAdminDirectory_(admins);
+  return { ok: true };
+}
+
+function getStaticAdminByEmail_(email) {
+  const normalizedEmail = safeText_(email, 320).toLowerCase();
+  return getStaticAdminDirectory_().find(function (entry) {
+    return entry.email === normalizedEmail;
+  }) || null;
 }
 
 function buildMessages_(payload, route) {

@@ -1,6 +1,9 @@
 (function () {
   const siteConfig = window.siteConfig || {};
+  const publicApiRoot = String(siteConfig.publicApiUrl || '').replace(/\/$/, '');
   const adminApiRoot = String(siteConfig.adminApiUrl || '').replace(/\/$/, '');
+  const legacyApiRoot = String(siteConfig.formEndpoint || adminApiRoot || '').replace(/\/$/, '');
+  const useLegacyAdminApi = !publicApiRoot && /script\.google\.com/i.test(legacyApiRoot);
   const state = {
     books: [],
     orders: [],
@@ -69,7 +72,101 @@
     return '<table class="admin-table"><thead><tr>' + columns.map((column) => '<th>' + escapeHtml(column.label) + '</th>').join('') + '</tr></thead><tbody>' + rows.map((row) => '<tr>' + columns.map((column) => '<td>' + (column.render ? column.render(row) : escapeHtml(row[column.key] == null ? '' : row[column.key])) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
   }
 
+  function legacyAction(path, method) {
+    const requestUrl = new URL(path, 'https://admin.local/');
+    const cleanPath = requestUrl.pathname.replace(/^\/+|\/+$/g, '');
+    const segments = cleanPath ? cleanPath.split('/') : [];
+    const verb = String(method || 'GET').toUpperCase();
+    const query = Object.fromEntries(requestUrl.searchParams.entries());
+
+    if (verb === 'GET' && cleanPath === 'bootstrap') return { action: 'admin-bootstrap', query };
+    if (verb === 'GET' && cleanPath === 'submissions') return { action: 'admin-submissions', query };
+    if (verb === 'GET' && cleanPath === 'books') return { action: 'admin-books', query };
+    if (verb === 'GET' && cleanPath === 'orders') return { action: 'admin-orders', query };
+    if (verb === 'GET' && cleanPath === 'newsletter/state') return { action: 'admin-newsletter-state', query };
+    if (verb === 'GET' && cleanPath === 'newsletter/subscribers') return { action: 'admin-newsletter-subscribers', query };
+    if (verb === 'GET' && cleanPath === 'admins') return { action: 'admin-admins', query };
+    if (verb === 'POST' && cleanPath === 'books') return { action: 'admin-save-book', query };
+    if (verb === 'POST' && segments[0] === 'books' && segments[2] === 'image') return { action: 'admin-upload-book-image', query: { bookId: decodeURIComponent(segments[1] || '') } };
+    if (verb === 'POST' && cleanPath === 'inventory/adjust') return { action: 'admin-adjust-inventory', query };
+    if (verb === 'POST' && segments[0] === 'orders' && segments[2] === 'fulfillment') return { action: 'admin-update-fulfillment', query: { orderNumber: decodeURIComponent(segments[1] || '') } };
+    if (verb === 'POST' && cleanPath === 'newsletter/campaigns') return { action: 'admin-save-campaign', query };
+    if (verb === 'POST' && cleanPath === 'newsletter/test') return { action: 'admin-send-newsletter-test', query };
+    if (verb === 'POST' && cleanPath === 'admins') return { action: 'admin-save-admin', query };
+    if (verb === 'DELETE' && segments[0] === 'admins' && segments[1]) return { action: 'admin-remove-admin', query: { email: decodeURIComponent(segments[1]) } };
+    if (verb === 'POST' && cleanPath === 'exports/sheets') return { action: 'admin-export-sheets', query };
+    throw new Error('This admin action is not supported by the Google Sheets backend yet.');
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('The selected file could not be read.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function buildLegacyBody(body) {
+    if (!body) return {};
+    if (body instanceof FormData) {
+      const values = {};
+      for (const [key, value] of body.entries()) {
+        if (value instanceof File) {
+          values[key] = {
+            name: value.name,
+            type: value.type,
+            data: await readFileAsDataUrl(value)
+          };
+        } else {
+          values[key] = String(value == null ? '' : value);
+        }
+      }
+      return values;
+    }
+    if (typeof body === 'string') {
+      try {
+        return JSON.parse(body);
+      } catch {
+        return { value: body };
+      }
+    }
+    return body;
+  }
+
+  async function legacyApi(path, options) {
+    if (!legacyApiRoot) {
+      throw new Error('GOOGLE_APPS_SCRIPT_WEB_APP_URL is not configured in assets/site-config.js yet.');
+    }
+    const init = options || {};
+    const route = legacyAction(path, init.method || 'GET');
+    const body = await buildLegacyBody(init.body);
+    const url = new URL(legacyApiRoot);
+    url.searchParams.set('action', route.action);
+    Object.entries(route.query || {}).forEach(([key, value]) => {
+      if (value != null && value !== '') url.searchParams.set(key, value);
+    });
+    const requestInit = {
+      method: route.action === 'admin-bootstrap' || route.action === 'admin-submissions' || route.action === 'admin-books' || route.action === 'admin-orders' || route.action === 'admin-newsletter-state' || route.action === 'admin-newsletter-subscribers' || route.action === 'admin-admins' ? 'GET' : 'POST',
+      credentials: 'include',
+      cache: 'no-store'
+    };
+    if (requestInit.method === 'POST') {
+      requestInit.headers = { 'Content-Type': 'application/json' };
+      requestInit.body = JSON.stringify(body || {});
+    }
+    const response = await fetch(url.toString(), requestInit);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.error || 'The Google Sheets admin request failed.');
+    }
+    return data;
+  }
+
   async function api(path, options) {
+    if (useLegacyAdminApi) {
+      return legacyApi(path, options);
+    }
     if (!adminApiRoot) {
       throw new Error('PUBLIC_API_URL is not configured in assets/site-config.js yet.');
     }
@@ -275,13 +372,13 @@
   }
 
   async function loadDashboard() {
-    setStatus('Connecting to the protected admin API.');
+    setStatus(useLegacyAdminApi ? 'Connecting to the Google Sheets admin API.' : 'Connecting to the protected admin API.');
     const bootstrap = await api('bootstrap');
     renderViewer(bootstrap.viewer);
     renderMetrics(bootstrap.metrics);
     renderSubmissions(bootstrap.recentSubmissions || []);
     renderOrders(bootstrap.recentOrders || []);
-    setStatus('Connected. Cloudflare Access and Google authorization are active.');
+    setStatus(useLegacyAdminApi ? 'Connected. Google Sheets and Google account authorization are active.' : 'Connected. Cloudflare Access and Google authorization are active.');
   }
 
   async function loadBooks() {

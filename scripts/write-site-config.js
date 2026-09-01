@@ -55,7 +55,7 @@ const legacyFormEndpoint = normalizeUrl(values.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
 const formEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/forms/submit') : legacyFormEndpoint;
 const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/books') : (legacyFormEndpoint ? legacyFormEndpoint + (legacyFormEndpoint.includes('?') ? '&' : '?') + 'action=store-books' : '');
 const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : legacyFormEndpoint;
-const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : '';
+const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : legacyFormEndpoint;
 const adminUrl = publicAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
 
 const publicConfig = {
