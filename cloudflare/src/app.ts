@@ -1129,13 +1129,62 @@ async function sendEmail(
   env: Env,
   message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
 ) {
+  if (env.GOOGLE_APPS_SCRIPT_EMAIL_URL && env.GOOGLE_APPS_SCRIPT_EMAIL_SECRET) {
+    await sendEmailWithAppsScript(env, message);
+    return;
+  }
   if (!env.RESEND_API_KEY || !env.MAIL_FROM_EMAIL) throw new Error("Email provider is not configured.");
+  await sendEmailWithResend(env, message);
+}
+
+async function sendEmailWithResend(
+  env: Env,
+  message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
+) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ from: `${message.fromName} <${env.MAIL_FROM_EMAIL}>`, to: [message.to], subject: message.subject, text: message.text, html: message.html, reply_to: message.replyTo }),
   });
   if (!response.ok) throw new Error(await response.text());
+}
+
+async function sendEmailWithAppsScript(
+  env: Env,
+  message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
+) {
+  let relayUrl: URL;
+  try {
+    relayUrl = new URL(env.GOOGLE_APPS_SCRIPT_EMAIL_URL);
+  } catch {
+    throw new Error("GOOGLE_APPS_SCRIPT_EMAIL_URL is not a valid URL.");
+  }
+  relayUrl.searchParams.set("action", "send-email");
+  const relayMessage = {
+    to: text(message.to, 320),
+    subject: text(message.subject, 200),
+    text: text(message.text, 20000),
+    html: String(message.html || "").slice(0, 200000),
+    replyTo: text(message.replyTo, 320),
+    fromName: text(message.fromName, 160),
+  };
+  const timestamp = String(Date.now());
+  const relayBody = JSON.stringify(relayMessage);
+  const signature = await signValue(`${timestamp}.${relayBody}`, env.GOOGLE_APPS_SCRIPT_EMAIL_SECRET);
+  const response = await fetch(relayUrl.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json;charset=UTF-8" },
+    body: JSON.stringify({ timestamp, signature, message: relayMessage }),
+  });
+  const responseText = await response.text();
+  if (!response.ok) throw new Error(responseText || "Apps Script email relay request failed.");
+  let payload: { ok?: boolean; error?: string } | null = null;
+  try {
+    payload = responseText ? (JSON.parse(responseText) as { ok?: boolean; error?: string }) : null;
+  } catch {
+    throw new Error("Apps Script email relay returned invalid JSON.");
+  }
+  if (!payload?.ok) throw new Error(payload?.error || "Apps Script email relay failed.");
 }
 
 function buildAdminMessage(formType: FormType, record: ReturnType<typeof normalizeFormRecord>, siteUrl: string) {

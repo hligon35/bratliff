@@ -6,7 +6,7 @@ Before deployment, copy `.env.example` to `.env` and fill in the Cloudflare and 
 
 - Public forms post to `/api/forms/submit`.
 - Submissions are stored in D1 first.
-- Confirmation and admin-notification emails are sent through Resend.
+- Confirmation, admin-notification, and newsletter emails can be relayed to Apps Script for branded delivery.
 - Newsletter unsubscribe links are HMAC-signed by the Worker.
 - Optional reporting exports write D1 data into Google Sheets on demand or from the Worker cron.
 
@@ -16,10 +16,15 @@ Before deployment, copy `.env.example` to `.env` and fill in the Cloudflare and 
 - `PUBLIC_ADMIN_URL`
 - `ADMIN_NOTIFICATION_EMAIL`
 - `UNSUBSCRIBE_SECRET`
-- `RESEND_API_KEY`
-- `MAIL_FROM_EMAIL`
+- `GOOGLE_APPS_SCRIPT_EMAIL_URL`
+- `GOOGLE_APPS_SCRIPT_EMAIL_SECRET`
 - `TEAM_DOMAIN`
 - `POLICY_AUD`
+
+If you prefer direct Worker email instead of the Apps Script relay, set:
+
+- `RESEND_API_KEY`
+- `MAIL_FROM_EMAIL`
 
 If Sheets exports are enabled, also set:
 
@@ -48,6 +53,14 @@ Every accepted submission is saved in D1 and attempts to generate:
 - A plain-text fallback for mail clients that do not render HTML.
 
 If email delivery fails, the submission still remains in D1 and the API responds with `emailSent: false`.
+
+## Apps Script relay setup
+
+1. Deploy the Apps Script web app.
+2. Add `EMAIL_RELAY_SECRET` to Apps Script Script Properties.
+3. Set the same value as `GOOGLE_APPS_SCRIPT_EMAIL_SECRET` in Cloudflare.
+4. Set `GOOGLE_APPS_SCRIPT_EMAIL_URL` to the Apps Script web app URL.
+5. Share the Google Sheet with the service account if Sheets export is enabled.
 
 ## Reporting exports
 
