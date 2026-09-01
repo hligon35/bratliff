@@ -17,8 +17,27 @@ function normalizeUrl(value) {
   return String(value || '').trim();
 }
 
+function pickPrimaryUrl(value) {
+  const candidates = String(value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      return new URL(candidate).toString().replace(/\/$/, '');
+    } catch {}
+  }
+  return normalizeUrl(value).replace(/\/$/, '');
+}
+
 function isPlaceholder(value) {
   return !value || /your-deployment-id|example\.com/i.test(value);
+}
+
+function joinUrl(base, pathName) {
+  const cleanBase = pickPrimaryUrl(base);
+  if (!cleanBase) return '';
+  return cleanBase + pathName;
 }
 
 const exampleValues = readEnvFile(envExamplePath);
@@ -26,15 +45,30 @@ const envValues = readEnvFile(envPath);
 const envLocalValues = readEnvFile(envLocalPath);
 const values = { ...exampleValues, ...envValues, ...envLocalValues };
 
-const formEndpoint = normalizeUrl(values.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
-const adminUrl = normalizeUrl(values.GOOGLE_APPS_SCRIPT_ADMIN_URL) || (isPlaceholder(formEndpoint)
+const siteUrl = pickPrimaryUrl(values.SITE_URL);
+const publicApiUrl = isPlaceholder(values.PUBLIC_API_URL) ? '' : normalizeUrl(values.PUBLIC_API_URL).replace(/\/$/, '');
+const publicAdminUrl = isPlaceholder(values.PUBLIC_ADMIN_URL)
   ? ''
-  : formEndpoint + (formEndpoint.includes('?') ? '&' : '?') + 'action=admin');
+  : normalizeUrl(values.PUBLIC_ADMIN_URL);
+const legacyFormEndpoint = normalizeUrl(values.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
+const legacyAdminUrl = normalizeUrl(values.GOOGLE_APPS_SCRIPT_ADMIN_URL) || (isPlaceholder(legacyFormEndpoint)
+  ? ''
+  : legacyFormEndpoint + (legacyFormEndpoint.includes('?') ? '&' : '?') + 'action=storeAdmin');
+
+const formEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/forms/submit') : legacyFormEndpoint;
+const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/books') : (legacyFormEndpoint ? legacyFormEndpoint + (legacyFormEndpoint.includes('?') ? '&' : '?') + 'action=store-books' : '');
+const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : legacyFormEndpoint;
+const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : '';
+const adminUrl = publicAdminUrl || legacyAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
 
 const publicConfig = {
-  siteUrl: normalizeUrl(values.SITE_URL),
+  siteUrl,
+  publicApiUrl,
   formEndpoint,
+  storeBooksEndpoint,
+  storeCheckoutEndpoint,
   adminUrl,
+  adminApiUrl,
   adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL)
 };
 

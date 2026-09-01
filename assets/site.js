@@ -13,6 +13,13 @@ const pages = [
 const siteConfig = window.siteConfig || {};
 const formEndpoint = normalizeUrl(siteConfig.formEndpoint);
 const adminUrl = normalizeUrl(siteConfig.adminUrl);
+const adminApiUrl = normalizeUrl(siteConfig.adminApiUrl);
+const artwork = Object.freeze({
+  logo: "assets/jrppLogo.png",
+  featuredBook: "assets/book1.png",
+  futureBook: "assets/book2.png",
+  author: "assets/barbaraRatliff.png",
+});
 
 function normalizeUrl(value) {
   return String(value || "").trim();
@@ -36,7 +43,72 @@ function withAdminAction(value, action) {
 }
 
 function buildAdminDashboardUrl(value) {
-  return withAdminAction(value, 'storeAdmin');
+  const url = normalizeUrl(value);
+  if (!isConfiguredUrl(url) && !url.startsWith('/') && !url.startsWith('./')) {
+    return 'admin/';
+  }
+  if (/script\.google\.com/i.test(url)) {
+    return withAdminAction(url, 'storeAdmin');
+  }
+  return url;
+}
+
+function preloadImage(src) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(src);
+    image.onerror = () => resolve("");
+    image.src = src;
+  });
+}
+
+function setImageMarkup(target, className, src, alt, isDecorative) {
+  if (!target || !src) return;
+  target.classList.add(className);
+  if (isDecorative) target.setAttribute("aria-hidden", "true");
+  else target.setAttribute("aria-label", alt);
+  target.innerHTML = `<img src="${src}" alt="${isDecorative ? "" : alt}">`;
+}
+
+async function wireArtwork() {
+  const [logoSrc, featuredBookSrc, authorSrc] = await Promise.all([
+    preloadImage(artwork.logo),
+    preloadImage(artwork.featuredBook),
+    preloadImage(artwork.author),
+  ]);
+
+  if (logoSrc) {
+    document.querySelectorAll(".brand").forEach((brand) => {
+      const copy = brand.querySelector(".brand-copy");
+      if (!copy || brand.querySelector(".brand-logo")) return;
+      brand.classList.add("brand-with-logo");
+      const logo = document.createElement("img");
+      logo.className = "brand-logo";
+      logo.src = logoSrc;
+      logo.alt = "Jackrabbit Punkin Publishing";
+      const mark = brand.querySelector(".brand-mark");
+      if (mark) mark.remove();
+      brand.insertBefore(logo, copy);
+    });
+  }
+
+  if (featuredBookSrc) {
+    const heroCover = document.querySelector(".hero-art .cover-placeholder");
+    setImageMarkup(heroCover, "has-cover", featuredBookSrc, "Battles Beyond the Waves cover", true);
+
+    document.querySelectorAll(".book-art").forEach((card) => {
+      if (card.querySelector("img")) return;
+      const label = card.getAttribute("aria-label") || "Battles Beyond the Waves cover";
+      setImageMarkup(card, "has-cover", featuredBookSrc, label, true);
+    });
+  }
+
+  if (authorSrc) {
+    document.querySelectorAll(".photo-placeholder").forEach((photo) => {
+      if (photo.querySelector("img")) return;
+      setImageMarkup(photo, "has-photo", authorSrc, "Barbara J. Ratliff", true);
+    });
+  }
 }
 
 function header() {
@@ -80,6 +152,8 @@ document
 document
   .querySelector("[data-footer]")
   ?.insertAdjacentHTML("afterbegin", footer());
+
+wireArtwork();
 
 const menu = document.querySelector(".menu-toggle");
 const nav = document.querySelector(".site-nav");
@@ -131,7 +205,7 @@ async function submitLiveForm(form) {
   if (!isConfiguredUrl(formEndpoint)) {
     setFormMessage(
       form,
-      "Form submissions are not configured yet. Add GOOGLE_APPS_SCRIPT_WEB_APP_URL to .env and rerun npm run dev.",
+      "Form submissions are not configured yet. Add PUBLIC_API_URL to .env and rerun npm run prepare:config.",
       true,
     );
     return;
@@ -167,14 +241,26 @@ async function submitLiveForm(form) {
       submitButton.textContent = "Sending...";
     }
 
-    await fetch(formEndpoint, {
+    const requestInit = {
       method: "POST",
-      mode: "no-cors",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
       },
       body: payload.toString(),
-    });
+    };
+
+    if (/script\.google\.com/i.test(formEndpoint)) {
+      await fetch(formEndpoint, {
+        ...requestInit,
+        mode: "no-cors",
+      });
+    } else {
+      const response = await fetch(formEndpoint, requestInit);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || "We could not send your request just now.");
+      }
+    }
 
     setFormMessage(
       form,
@@ -216,8 +302,10 @@ function initAdminEntryPages() {
   }
   if (loginStatus) {
     loginStatus.textContent = dashboardUrl
-      ? 'Continue to Google sign-in for the secure publisher admin system.'
-      : 'Admin access is not configured yet. Add the Apps Script admin URL and regenerate the site config.';
+      ? adminApiUrl
+        ? 'Continue to Cloudflare Access. Authorized Google accounts will be admitted to the publisher admin system.'
+        : 'Continue to the publisher admin workspace. Finish PUBLIC_API_URL and PUBLIC_ADMIN_URL setup before using live tools.'
+      : 'Admin access is not configured yet. Add PUBLIC_ADMIN_URL and regenerate the site config.';
   }
 }
 

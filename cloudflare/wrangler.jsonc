@@ -1,0 +1,66 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "bratliff-platform",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*", "/stripe/*", "/healthz"]
+  },
+  "vars": {
+    "SITE_URL": "https://alphazonelabs.com/jackrabbit",
+    "PUBLIC_ADMIN_URL": "https://admin.example.com",
+    "PUBLIC_API_URL": "https://api.example.com",
+    "ADMIN_BOOTSTRAP_EMAILS": "publisher@example.com",
+    "TEAM_DOMAIN": "https://your-team.cloudflareaccess.com",
+    "POLICY_AUD": "replace-with-access-audience",
+    "STRIPE_CURRENCY": "usd",
+    "ORDER_SUCCESS_URL": "https://alphazonelabs.com/jackrabbit/books.html?checkout=success",
+    "ORDER_CANCEL_URL": "https://alphazonelabs.com/jackrabbit/books.html?checkout=cancelled",
+    "SHEETS_EXPORT_SPREADSHEET_ID": "",
+    "SHEETS_EXPORT_ENABLED": "false",
+    "CORS_ORIGIN": "https://alphazonelabs.com"
+  },
+  "secrets": {
+    "required": [
+      "UNSUBSCRIBE_SECRET",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL",
+      "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
+      "GOOGLE_SERVICE_ACCOUNT_TOKEN_URI",
+      "RESEND_API_KEY",
+      "MAIL_FROM_EMAIL",
+      "ADMIN_NOTIFICATION_EMAIL"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bratliff-platform",
+      "database_id": "replace-with-d1-database-id",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BOOK_ASSETS",
+      "bucket_name": "replace-with-book-assets-bucket"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  "dev": {
+    "port": 8787,
+    "ip": "127.0.0.1"
+  }
+}

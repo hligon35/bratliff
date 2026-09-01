@@ -6,11 +6,19 @@
     "prepare:config": "node scripts/write-site-config.js",
     "dev": "npm run prepare:config && http-server . -p 8080 -c-1",
     "open": "npm run prepare:config && open-cli http://127.0.0.1:8080",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "worker:prepare": "node scripts/stage-cloudflare-assets.js",
+    "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
+    "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
   },
   "devDependencies": {
     "dotenv": "^16.6.1",
     "http-server": "^14.1.1",
-    "open-cli": "^8.0.0"
+    "open-cli": "^8.0.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.37.1"
   }
 }
