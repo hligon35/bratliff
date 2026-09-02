@@ -12,6 +12,7 @@ const pages = [
 
 const siteConfig = window.siteConfig || {};
 const formEndpoint = normalizeUrl(siteConfig.formEndpoint);
+const loginUrl = normalizeUrl(siteConfig.loginUrl);
 const adminUrl = normalizeUrl(siteConfig.adminUrl);
 const adminApiUrl = normalizeUrl(siteConfig.adminApiUrl);
 const artwork = Object.freeze({
@@ -49,6 +50,14 @@ function buildAdminDashboardUrl(value) {
   }
   if (/script\.google\.com/i.test(url)) {
     return withAdminAction(url, 'storeAdmin');
+  }
+  return url;
+}
+
+function buildAdminLoginUrl(value) {
+  const url = normalizeUrl(value);
+  if (!isConfiguredUrl(url) && !url.startsWith('/') && !url.startsWith('./')) {
+    return 'login/';
   }
   return url;
 }
@@ -296,16 +305,17 @@ function initAdminEntryPages() {
   const loginButton = document.querySelector("[data-login-continue]");
   const loginStatus = document.querySelector("[data-login-status]");
   const dashboardUrl = buildAdminDashboardUrl(adminUrl);
+  const entryUrl = buildAdminLoginUrl(loginUrl);
 
   if (loginButton) {
     loginButton.setAttribute('href', dashboardUrl || 'contact.html?subject=Admin%20Access');
   }
   if (loginStatus) {
-    loginStatus.textContent = dashboardUrl
-      ? adminApiUrl
-        ? 'Continue to Cloudflare Access. Authorized Google accounts will be admitted to the publisher admin system.'
-        : 'Continue to the publisher admin workspace. Finish PUBLIC_API_URL and PUBLIC_ADMIN_URL setup before using live tools.'
-      : 'Admin access is not configured yet. Add PUBLIC_ADMIN_URL and regenerate the site config.';
+    loginStatus.textContent = adminApiUrl
+      ? 'Sign in with your authorized Google account to open the publisher admin system.'
+      : entryUrl
+        ? 'Publisher login is visible, but the live admin API is not configured yet. Finish PUBLIC_API_URL before using live tools.'
+        : 'Admin access is not configured yet. Add PUBLIC_API_URL and regenerate the site config.';
   }
 }
 

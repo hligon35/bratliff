@@ -57,6 +57,8 @@ const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/book
 const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : legacyFormEndpoint;
 const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : legacyFormEndpoint;
 const adminUrl = publicAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
+const loginUrl = siteUrl ? joinUrl(siteUrl, '/login/') : 'login/';
+const authApiRoot = publicApiUrl || '';
 
 const publicConfig = {
   siteUrl,
@@ -64,9 +66,15 @@ const publicConfig = {
   formEndpoint,
   storeBooksEndpoint,
   storeCheckoutEndpoint,
+  loginUrl,
   adminUrl,
   adminApiUrl,
-  adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL)
+  authGoogleEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/google') : '',
+  authSessionEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/session') : '',
+  authLogoutEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/logout') : '',
+  googleClientId: normalizeUrl(values.GOOGLE_CLIENT_ID),
+  adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL),
+  spreadsheetId: normalizeUrl(values.SHEETS_EXPORT_SPREADSHEET_ID || values.GOOGLE_SPREADSHEET_ID)
 };
 
 fs.writeFileSync(

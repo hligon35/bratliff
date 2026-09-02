@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="assets/auth.js" defer></script>
   </head>
   <body data-page="login">
     <div data-header></div>
@@ -47,8 +49,14 @@
                 Preparing secure sign-in.
               </p>
               <div class="button-row">
-                <a class="button ink" href="admin/" data-login-continue>
+                <div data-google-login-button></div>
+              </div>
+              <div class="button-row">
+                <a class="button ink" href="admin/" data-login-continue hidden>
                   Continue to Admin
+                </a>
+                <a class="button ghost" href="contact.html?subject=Admin%20Access">
+                  Request access
                 </a>
               </div>
             </div>
