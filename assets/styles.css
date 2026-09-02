@@ -165,6 +165,7 @@ p {
   backdrop-filter: blur(16px);
 }
 .nav-wrap {
+  width: min(1360px, calc(100% - 2rem));
   min-height: 56px;
   display: flex;
   align-items: center;
@@ -579,6 +580,11 @@ body[data-page="books"] .future-title-grid .button {
   color: var(--gold);
 }
 
+.testimonial-stage {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+}
 .testimonial {
   min-height: 280px;
   display: grid;
@@ -586,6 +592,31 @@ body[data-page="books"] .future-title-grid .button {
   padding: 3rem;
   border-left: 5px solid var(--gold);
   background: white;
+}
+.testimonial-stage.is-enhanced .testimonial {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-2.5rem);
+  transition:
+    opacity 0.65s ease,
+    transform 0.65s ease,
+    visibility 0s linear 0.65s;
+}
+.testimonial-stage.is-enhanced .testimonial.is-active {
+  z-index: 2;
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  transition-delay: 0s;
+}
+.testimonial-stage.is-enhanced .testimonial.is-leaving {
+  z-index: 1;
+  opacity: 0;
+  visibility: visible;
+  transform: translateX(2.5rem);
+  transition-delay: 0s;
 }
 .testimonial blockquote {
   margin: 0;
@@ -665,6 +696,7 @@ body[data-page="books"] .future-title-grid .button {
   gap: 1rem;
 }
 .price-card {
+  position: relative;
   padding: 1.5rem;
   border: 1px solid var(--line);
   background: white;
@@ -676,13 +708,41 @@ body[data-page="books"] .future-title-grid .button {
   transform: translateY(-0.6rem);
 }
 .price-card.featured h3 {
+  margin-top: 0.75rem;
   color: white;
+}
+.price-card.featured .tag {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
 }
 .price {
   display: block;
   margin: 0.8rem 0;
   font: 700 2.4rem var(--serif);
   color: var(--gold);
+}
+.sponsor-placeholders {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.sponsor-placeholder {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  border: 2px dashed var(--gold);
+  background: var(--paper);
+  color: var(--purple);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .check-list {
