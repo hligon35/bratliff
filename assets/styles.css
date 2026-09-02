@@ -155,8 +155,7 @@ p {
 }
 
 .site-header {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
   background: rgba(10, 22, 40, 0.96);
   color: var(--white);
