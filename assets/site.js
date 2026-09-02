@@ -323,20 +323,73 @@ initAdminEntryPages();
 
 const slides = [...document.querySelectorAll(".testimonial")];
 let slideIndex = 0;
+let slideInterval;
+let slideTransitionTimer;
 function showSlide(next) {
   if (!slides.length) return;
-  slideIndex = (next + slides.length) % slides.length;
-  slides.forEach((slide, index) => {
-    slide.hidden = index !== slideIndex;
-  });
+  const nextIndex = (next + slides.length) % slides.length;
+  const currentSlide = slides[slideIndex];
+  const nextSlide = slides[nextIndex];
+
+  if (nextIndex === slideIndex && currentSlide.classList.contains("is-active")) {
+    return;
+  }
+
+  window.clearTimeout(slideTransitionTimer);
+  slides.forEach((slide) => slide.classList.remove("is-leaving"));
+
+  currentSlide.classList.remove("is-active");
+  currentSlide.classList.add("is-leaving");
+  currentSlide.setAttribute("aria-hidden", "true");
+
+  slideIndex = nextIndex;
+  nextSlide.hidden = false;
+  nextSlide.classList.add("is-active");
+  nextSlide.setAttribute("aria-hidden", "false");
+
+  slideTransitionTimer = window.setTimeout(() => {
+    currentSlide.classList.remove("is-leaving");
+  }, 650);
+}
+function startSlider() {
+  window.clearInterval(slideInterval);
+  if (slides.length > 1) {
+    slideInterval = window.setInterval(() => showSlide(slideIndex + 1), 4000);
+  }
+}
+function pauseSlider() {
+  window.clearInterval(slideInterval);
 }
 document
   .querySelector("[data-prev]")
-  ?.addEventListener("click", () => showSlide(slideIndex - 1));
+  ?.addEventListener("click", () => {
+    showSlide(slideIndex - 1);
+    startSlider();
+  });
 document
   .querySelector("[data-next]")
-  ?.addEventListener("click", () => showSlide(slideIndex + 1));
-showSlide(0);
+  ?.addEventListener("click", () => {
+    showSlide(slideIndex + 1);
+    startSlider();
+  });
+if (slides.length) {
+  const stage = document.querySelector(".testimonial-stage");
+  stage?.classList.add("is-enhanced");
+  slides.forEach((slide, index) => {
+    slide.hidden = false;
+    slide.classList.toggle("is-active", index === 0);
+    slide.setAttribute("aria-hidden", String(index !== 0));
+  });
+  stage?.addEventListener("mouseenter", pauseSlider);
+  stage?.addEventListener("mouseleave", startSlider);
+  stage?.addEventListener("focusin", pauseSlider);
+  stage?.addEventListener("focusout", startSlider);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pauseSlider();
+    else startSlider();
+  });
+  startSlider();
+}
 
 const counters = document.querySelectorAll("[data-count]");
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
