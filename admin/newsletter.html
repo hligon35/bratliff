@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="../" />
+    <title>Newsletter Builder | Jackrabbit Punkin Publishing LLC</title>
+    <meta
+      name="description"
+      content="Protected publisher newsletter builder for Jackrabbit Punkin Publishing LLC."
+    />
+    <link rel="stylesheet" href="assets/admin.css" />
+    <script src="assets/site-config.js" defer></script>
+    <script src="assets/admin.js" defer></script>
+  </head>
+  <body data-page="admin" data-admin-page="newsletter">
+    <div class="jrpp-admin-switcher">
+      <a class="jrpp-admin-home" href="admin/index.html" aria-label="Jackrabbit Punkin Publishing admin dashboard">
+        <img class="jrpp-admin-logo" src="assets/jrppLogo.png" alt="Jackrabbit Punkin Publishing" />
+        <span class="jrpp-admin-brandcopy">
+          Jackrabbit Punkin Publishing
+          <small>Secure Admin System</small>
+        </span>
+      </a>
+      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages">
+        <a class="jrpp-admin-profile-link" href="admin/profile.html" aria-label="Admin users and access">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12.2a4.1 4.1 0 1 0-4.1-4.1 4.1 4.1 0 0 0 4.1 4.1Zm0 2c-4.05 0-7.35 2.1-7.35 4.7V21h14.7v-2.1c0-2.6-3.3-4.7-7.35-4.7Z" />
+          </svg>
+        </a>
+        <a href="admin/index.html">Admin Dashboard</a>
+        <a href="admin/store.html">Book Store Manager</a>
+        <a class="active" href="admin/newsletter.html" aria-current="page">Newsletter Builder</a>
+      </div>
+      <div class="jrpp-admin-actions">
+        <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
+        <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <div id="newsletterAdminRoot">
+      <div class="nl-page">
+        <div class="nl-title-row">
+          <div>
+            <h1>Newsletter Builder</h1>
+            <p>
+              A shorter, polished publisher update built for announcements,
+              books, events, and community news.
+            </p>
+          </div>
+          <div class="nl-actions">
+            <button class="nl-btn secondary" id="draftsBtn" type="button">Drafts</button>
+            <button class="nl-btn secondary" id="scheduledBtn" type="button">Scheduled</button>
+            <button class="nl-btn secondary" id="saveBtn" type="button">Save Draft</button>
+            <button class="nl-btn secondary" id="testBtn" type="button">Send Test</button>
+            <button class="nl-btn gold" id="scheduleBtn" type="button">Schedule / Send</button>
+          </div>
+        </div>
+        <div class="nl-workspace">
+          <section class="nl-panel">
+            <div class="nl-panel-head">
+              <h2>Build Newsletter</h2>
+                <span class="nl-pill" id="subscriberPill">0 subscribers</span>
+            </div>
+            <div class="nl-panel-body">
+              <input type="hidden" id="campaignId" />
+              <div class="nl-section-label">Message settings</div>
+              <div class="nl-field">
+                <label>Newsletter title</label><input id="title" title="Newsletter title" />
+              </div>
+              <div class="nl-field">
+                <label>Email subject</label><input id="subject" title="Email subject" />
+              </div>
+              <div class="nl-field">
+                <label>Preview text</label><input id="previewText" title="Preview text" />
+              </div>
+              <div class="nl-grid2">
+                <div class="nl-field">
+                  <label>Audience</label><select id="audience" title="Audience"><option>All active subscribers</option></select>
+                </div>
+                <div class="nl-field">
+                  <label>From name</label><input id="fromName" title="From name" />
+                </div>
+              </div>
+              <div class="nl-section-label">Newsletter sections</div>
+              <div class="nl-block">
+                <div class="nl-block-top">
+                  <div class="nl-drag">1</div>
+                  <div>
+                    <strong>Hero / Publisher Note</strong><br /><small>Short opening message + CTA</small>
+                  </div>
+                </div>
+                <div class="nl-field"><textarea id="heroMessage" title="Hero message"></textarea></div>
+                <div class="nl-grid2">
+                  <div class="nl-field"><label>CTA label</label><input id="heroCtaLabel" title="Hero CTA label" /></div>
+                  <div class="nl-field"><label>CTA URL</label><input id="heroCtaUrl" title="Hero CTA URL" /></div>
+                </div>
+              </div>
+              <div class="nl-block">
+                <div class="nl-block-top">
+                  <div class="nl-drag">2</div>
+                  <div>
+                    <strong>Featured Book</strong><br /><small>Select a title from the store</small>
+                  </div>
+                </div>
+                <div class="nl-field">
+                  <label>Featured book</label><select id="featuredBookId" title="Featured book"><option value="">None</option></select>
+                </div>
+                <div class="nl-field">
+                  <label>Description</label><textarea id="featuredBookDescription" title="Featured book description"></textarea>
+                </div>
+                <div class="nl-grid2">
+                  <div class="nl-field"><label>CTA label</label><input id="featuredCtaLabel" title="Featured CTA label" value="Learn More" /></div>
+                  <div class="nl-field"><label>CTA URL</label><input id="featuredCtaUrl" title="Featured CTA URL" /></div>
+                </div>
+              </div>
+              <div class="nl-block">
+                <div class="nl-block-top">
+                  <div class="nl-drag">3</div>
+                  <div>
+                    <strong>Quick Updates</strong><br /><small>Two concise cards</small>
+                  </div>
+                </div>
+                <div class="nl-grid2">
+                  <div>
+                    <div class="nl-field"><label>Update 1 title</label><input id="quick1Title" title="Update 1 title" /></div>
+                    <div class="nl-field"><label>Update 1 text</label><textarea id="quick1Text" title="Update 1 text"></textarea></div>
+                    <div class="nl-field"><label>Update 1 URL</label><input id="quick1Url" title="Update 1 URL" /></div>
+                  </div>
+                  <div>
+                    <div class="nl-field"><label>Update 2 title</label><input id="quick2Title" title="Update 2 title" /></div>
+                    <div class="nl-field"><label>Update 2 text</label><textarea id="quick2Text" title="Update 2 text"></textarea></div>
+                    <div class="nl-field"><label>Update 2 URL</label><input id="quick2Url" title="Update 2 URL" /></div>
+                  </div>
+                </div>
+              </div>
+              <div class="nl-block">
+                <div class="nl-block-top">
+                  <div class="nl-drag">4</div>
+                  <div>
+                    <strong>Closing Note</strong><br /><small>Short publisher sign-off</small>
+                  </div>
+                </div>
+                <div class="nl-field"><textarea id="closingNote" title="Closing note"></textarea></div>
+              </div>
+              <div class="nl-section-label">Delivery</div>
+              <div class="nl-grid2">
+                <div class="nl-field"><label>Send date</label><input type="date" id="sendDate" title="Send date" /></div>
+                <div class="nl-field"><label>Send time</label><input type="time" id="sendTime" title="Send time" /></div>
+              </div>
+              <div class="nl-field">
+                <label>Time zone</label>
+                <select id="timeZone" title="Time zone">
+                  <option>America/New_York</option>
+                  <option>America/Chicago</option>
+                  <option>America/Denver</option>
+                  <option>America/Los_Angeles</option>
+                </select>
+              </div>
+              <div class="nl-status" id="status"></div>
+            </div>
+          </section>
+          <section class="nl-panel">
+            <div class="nl-panel-head">
+              <h2>Email Preview</h2>
+              <span class="nl-pill" id="previewModePill">Desktop</span>
+            </div>
+            <div class="nl-preview-shell">
+              <div class="nl-preview-tools">
+                <span>Live preview · approx. 2–3 minute read</span>
+                <div class="nl-toggle-row">
+                  <span class="nl-pill nl-preview-pill active" id="desktopPreviewBtn">Desktop</span>
+                  <span class="nl-pill nl-preview-pill" id="mobilePreviewBtn">Mobile</span>
+                </div>
+              </div>
+              <div class="nl-email-wrap" id="emailWrap">
+                <article class="nl-email" id="preview"></article>
+              </div>
+              <div class="nl-statusbar">
+                <div class="nl-stat"><b id="newsletterSectionsStat">0/4</b><span>active content sections</span></div>
+                <div class="nl-stat"><b id="newsletterCtaStat">0</b><span>configured CTA links</span></div>
+                <div class="nl-stat"><b id="newsletterWordsStat">0 / 425</b><span>estimated words vs target</span></div>
+                <div class="nl-stat"><b id="newsletterPreviewStat">Desktop</b><span>current responsive preview</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <section class="nl-panel nl-campaigns">
+          <div class="nl-panel-head">
+            <h2>Recent Campaigns</h2>
+            <button class="nl-btn secondary" id="newBtn" type="button">New Newsletter</button>
+          </div>
+          <div class="nl-panel-body" id="campaignList">
+            <div class="nl-muted">Loading campaigns...</div>
+          </div>
+        </section>
+        <section class="nl-panel nl-campaigns">
+          <div class="nl-panel-head"><h2>Subscribers</h2></div>
+          <div class="nl-panel-body" id="subscriberList">
+            <div class="nl-muted">Loading subscribers...</div>
+          </div>
+        </section>
+      </div>
+      <div class="campaign-library-overlay" id="campaignLibraryOverlay" hidden>
+        <div class="campaign-library-dialog" role="dialog" aria-modal="true" aria-labelledby="campaignLibraryTitle">
+          <div class="campaign-library-head">
+            <h2 id="campaignLibraryTitle">Drafts</h2>
+            <button class="nl-btn secondary" id="closeCampaignLibraryBtn" type="button">Close</button>
+          </div>
+          <div class="campaign-library-body" id="campaignLibraryBody"></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

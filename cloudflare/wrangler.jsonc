@@ -1,9 +1,16 @@
 {
-  "$schema": "../node_modules/wrangler/config-schema.json",
   "name": "bratliff-platform",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "jrpp.alphazonelabs.com/*",
+      "zone_name": "alphazonelabs.com"
+    }
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -16,48 +23,29 @@
     "run_worker_first": ["/api/*", "/stripe/*", "/healthz"]
   },
   "vars": {
-    "SITE_URL": "https://alphazonelabs.com/jackrabbit",
-    "PUBLIC_ADMIN_URL": "https://admin.example.com",
-    "PUBLIC_API_URL": "https://api.example.com",
-    "ADMIN_BOOTSTRAP_EMAILS": "publisher@example.com",
-    "TEAM_DOMAIN": "https://your-team.cloudflareaccess.com",
-    "POLICY_AUD": "replace-with-access-audience",
+    "SITE_URL": "https://jrpp.alphazonelabs.com",
+    "PUBLIC_ADMIN_URL": "https://jrpp.alphazonelabs.com/admin/",
+    "PUBLIC_API_URL": "https://jrpp.alphazonelabs.com",
+    "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com",
+    "GOOGLE_CLIENT_ID": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
     "STRIPE_CURRENCY": "usd",
-    "ORDER_SUCCESS_URL": "https://alphazonelabs.com/jackrabbit/books.html?checkout=success",
-    "ORDER_CANCEL_URL": "https://alphazonelabs.com/jackrabbit/books.html?checkout=cancelled",
-    "SHEETS_EXPORT_SPREADSHEET_ID": "",
+    "ORDER_SUCCESS_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=success",
+    "ORDER_CANCEL_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=cancelled",
+    "SHEETS_EXPORT_SPREADSHEET_ID": "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g",
     "SHEETS_EXPORT_ENABLED": "false",
-    "CORS_ORIGIN": "https://alphazonelabs.com"
+    "CORS_ORIGIN": "https://jrpp.alphazonelabs.com",
+    "GOOGLE_APPS_SCRIPT_WEB_APP_URL": "https://script.google.com/macros/s/AKfycby6bzOdebhTco70LXlvf3TAy7ulu-KYT5vFXmFh5jwjyXdx66KrUaGkU3i7blgpi7oR/exec",
+    "GOOGLE_APPS_SCRIPT_ADMIN_URL": "https://script.google.com/macros/s/AKfycby6bzOdebhTco70LXlvf3TAy7ulu-KYT5vFXmFh5jwjyXdx66KrUaGkU3i7blgpi7oR/exec"
   },
   "secrets": {
     "required": [
       "UNSUBSCRIBE_SECRET",
-      "STRIPE_SECRET_KEY",
-      "STRIPE_WEBHOOK_SECRET",
-      "GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL",
-      "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
-      "GOOGLE_SERVICE_ACCOUNT_TOKEN_URI",
+      "ADMIN_SESSION_SECRET",
+      "GOOGLE_APPS_SCRIPT_DATA_SECRET",
       "GOOGLE_APPS_SCRIPT_EMAIL_URL",
       "GOOGLE_APPS_SCRIPT_EMAIL_SECRET",
       "ADMIN_NOTIFICATION_EMAIL"
     ]
-  },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "bratliff-platform",
-      "database_id": "replace-with-d1-database-id",
-      "migrations_dir": "./migrations"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "BOOK_ASSETS",
-      "bucket_name": "replace-with-book-assets-bucket"
-    }
-  ],
-  "triggers": {
-    "crons": ["*/15 * * * *"]
   },
   "dev": {
     "port": 8787,

@@ -43,6 +43,18 @@ import {
   withCors,
 } from "./utils";
 
+const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
+const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
+const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+
+type VerifiedGoogleIdentity = {
+  email: string;
+  role: AdminRole;
+  displayName: string;
+  token: Record<string, unknown>;
+  sub: string;
+};
+
 const app: AppHandler = {
   async fetch(request, env, ctx) {
     try {
@@ -57,26 +69,56 @@ const app: AppHandler = {
       }
 
       if (url.pathname.startsWith("/media/books/")) {
-        return serveBookImage(url, env);
+        if (hasAppsScriptDataRelay(env) || !env.BOOK_ASSETS) {
+          return new Response("Not found", { status: 404 });
+        }
+        return await serveBookImage(url, env);
       }
 
       if (url.pathname === "/stripe/webhook") {
-        return handleStripeWebhook(request, env);
+        if (hasAppsScriptDataRelay(env) || !env.DB) {
+          return new Response("Not configured", { status: 404 });
+        }
+        return await handleStripeWebhook(request, env);
+      }
+
+      if (url.pathname === "/api/auth/google") {
+        return await handleGoogleAuthRequest(request, env);
+      }
+
+      if (url.pathname === "/api/auth/session") {
+        return await handleAdminSessionRequest(request, env);
+      }
+
+      if (url.pathname === "/api/auth/logout") {
+        return await handleAdminLogoutRequest(request, env);
       }
 
       if (url.pathname.startsWith("/api/admin/")) {
-        return handleAdminApi(request, env, ctx, url);
+        if (hasAppsScriptDataRelay(env)) {
+          return await handleAppsScriptAdminApi(request, env, url);
+        }
+        return await handleAdminApi(request, env, ctx, url);
       }
 
       if (url.pathname === "/api/forms/submit") {
-        return handleFormRequest(request, env);
+        if (hasAppsScriptDataRelay(env)) {
+          return await handleAppsScriptFormRequest(request, env);
+        }
+        return await handleFormRequest(request, env);
       }
 
       if (url.pathname === "/api/store/books") {
+        if (hasAppsScriptDataRelay(env)) {
+          return await handleAppsScriptStoreRequest(request, env, "store-books", Object.fromEntries(url.searchParams.entries()));
+        }
         return json(request, env, { ok: true, books: await listPublishedStoreBooks(env) });
       }
 
       if (url.pathname === "/api/store/book") {
+        if (hasAppsScriptDataRelay(env)) {
+          return await handleAppsScriptStoreRequest(request, env, "store-book", Object.fromEntries(url.searchParams.entries()));
+        }
         const book = await getStoreBookById(env, url.searchParams.get("id") || "");
         if (!book || !isPublicBookStatus(book.status)) {
           return json(request, env, { ok: false, error: "Book not found." }, 404);
@@ -88,14 +130,27 @@ const app: AppHandler = {
         if (request.method !== "POST") {
           return json(request, env, { ok: false, error: "Method not allowed." }, 405);
         }
-        return handleStoreCheckout(request, env, await parseBody(request));
+        if (hasAppsScriptDataRelay(env)) {
+          return await handleAppsScriptStoreRequest(request, env, "store-checkout");
+        }
+        return await handleStoreCheckout(request, env, await parseBody(request));
+      }
+
+      if (url.pathname === "/api/store/confirm-checkout") {
+        if (request.method !== "POST") {
+          return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        }
+        if (!hasAppsScriptDataRelay(env)) {
+          return json(request, env, { ok: false, error: "Order confirmation is not configured for this environment." }, 404);
+        }
+        return await handleAppsScriptStoreRequest(request, env, "store-confirm-checkout");
       }
 
       if (url.pathname === "/" || url.pathname === "/index" || url.pathname === "") {
-        return handleCompatibilityRoot(request, env, url);
+        return await handleCompatibilityRoot(request, env, url);
       }
 
-      return env.ASSETS.fetch(request);
+      return await env.ASSETS.fetch(request);
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
       return json(request, env, { ok: false, error: getErrorMessage(error) }, status);
@@ -103,6 +158,7 @@ const app: AppHandler = {
   },
 
   async scheduled(_controller, env, ctx) {
+    if (hasAppsScriptDataRelay(env) || !env.DB) return;
     ctx.waitUntil(runScheduledTasks(env));
   },
 };
@@ -116,6 +172,9 @@ async function handleCompatibilityRoot(
 ): Promise<Response> {
   if (request.method === "GET") {
     const action = String(url.searchParams.get("action") || "").trim();
+    if (hasAppsScriptDataRelay(env) && (action === "store-books" || action === "store-book" || action === "store-health")) {
+      return handleAppsScriptStoreRequest(request, env, action, Object.fromEntries(url.searchParams.entries()));
+    }
     if (action === "store-books") {
       return json(request, env, { ok: true, books: await listPublishedStoreBooks(env) });
     }
@@ -137,6 +196,10 @@ async function handleCompatibilityRoot(
 
   if (request.method === "POST") {
     const payload = await parseBody(request);
+    if (hasAppsScriptDataRelay(env) && (text(payload.action, 80) === "store-checkout" || text(payload.action, 80) === "store-confirm-checkout" || payload.formType)) {
+      if (payload.formType) return handleAppsScriptFormRequest(request, env, payload);
+      return handleAppsScriptStoreRequest(request, env, text(payload.action, 80), {}, payload);
+    }
     if (text(payload.action, 80) === "store-checkout") {
       return handleStoreCheckout(request, env, payload);
     }
@@ -146,6 +209,443 @@ async function handleCompatibilityRoot(
   }
 
   return json(request, env, { ok: false, error: "Unsupported route." }, 404);
+}
+
+function hasAppsScriptDataRelay(env: Env) {
+  return Boolean(safeUrl(env.GOOGLE_APPS_SCRIPT_WEB_APP_URL));
+}
+
+function hasGoogleClientId(env: Env) {
+  const clientId = text(env.GOOGLE_CLIENT_ID, 320);
+  return Boolean(clientId && !/^replace-with-/i.test(clientId) && /\.apps\.googleusercontent\.com$/i.test(clientId));
+}
+
+function hasAdminSessionConfig(env: Env) {
+  return hasGoogleClientId(env) && Boolean(text(env.ADMIN_SESSION_SECRET, 500));
+}
+
+function getGoogleClientId(env: Env) {
+  return hasGoogleClientId(env) ? text(env.GOOGLE_CLIENT_ID, 320) : "";
+}
+
+function getAppsScriptPublicEndpoint(env: Env) {
+  return safeUrl(env.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
+}
+
+function getAppsScriptAdminEndpoint(env: Env) {
+  return safeUrl(env.GOOGLE_APPS_SCRIPT_ADMIN_URL || env.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
+}
+
+async function handleAppsScriptFormRequest(
+  request: Request,
+  env: Env,
+  payload?: Record<string, string>,
+): Promise<Response> {
+  if (request.method !== "POST") {
+    return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+  }
+  const body = payload || (await parseBody(request));
+  const relay = await callAppsScriptRelay(env, {
+    endpoint: getAppsScriptPublicEndpoint(env),
+    action: "form-submit",
+    method: "POST",
+    body,
+  });
+  return json(request, env, relay);
+}
+
+async function handleAppsScriptStoreRequest(
+  request: Request,
+  env: Env,
+  action: string,
+  query: Record<string, string> = {},
+  payload?: Record<string, string>,
+): Promise<Response> {
+  const method = request.method === "GET" ? "GET" : "POST";
+  const body =
+    method === "GET"
+      ? {}
+      : payload || (await parseRelayRequestBody(request));
+  const relay = await callAppsScriptRelay(env, {
+    endpoint: getAppsScriptPublicEndpoint(env),
+    action,
+    method,
+    query,
+    body,
+  });
+  return json(request, env, relay);
+}
+
+async function handleAppsScriptAdminApi(
+  request: Request,
+  env: Env,
+  url: URL,
+): Promise<Response> {
+  const session = await getAppsScriptAdminSession(request, env);
+  const path = url.pathname.replace(/^\/api\/admin\/?/, "");
+  if (request.method === "GET" && path === "bootstrap") {
+    return json(request, env, session.bootstrap);
+  }
+
+  const route = mapAppsScriptAdminAction(path, request.method);
+  requireRole(session.viewer, route.requiredRole);
+  const body =
+    request.method === "GET" || request.method === "DELETE"
+      ? {}
+      : await parseRelayRequestBody(request);
+  const relay = await callAppsScriptRelay(env, {
+    endpoint: getAppsScriptAdminEndpoint(env),
+    action: route.action,
+    method: request.method,
+    query: { ...Object.fromEntries(url.searchParams.entries()), ...(route.query || {}) },
+    body,
+    viewer: session.viewer,
+  });
+  return json(request, env, relay);
+}
+
+function mapAppsScriptAdminAction(path: string, method: string) {
+  const cleanPath = path.replace(/^\/+|\/+$/g, "");
+  const segments = cleanPath ? cleanPath.split("/") : [];
+  const verb = method.toUpperCase();
+
+  if (verb === "GET" && cleanPath === "submissions") return { action: "admin-submissions", requiredRole: "marketing" as AdminRole };
+  if (verb === "GET" && cleanPath === "books") return { action: "admin-books", requiredRole: "marketing" as AdminRole };
+  if (verb === "GET" && cleanPath === "orders") return { action: "admin-orders", requiredRole: "marketing" as AdminRole };
+  if (verb === "GET" && cleanPath === "newsletter/state") return { action: "admin-newsletter-state", requiredRole: "marketing" as AdminRole };
+  if (verb === "GET" && cleanPath === "newsletter/subscribers") return { action: "admin-newsletter-subscribers", requiredRole: "marketing" as AdminRole };
+  if (verb === "GET" && cleanPath === "admins") return { action: "admin-admins", requiredRole: "owner" as AdminRole };
+  if (verb === "POST" && cleanPath === "books") return { action: "admin-save-book", requiredRole: "editor" as AdminRole };
+  if (verb === "POST" && segments[0] === "books" && segments[2] === "image") return { action: "admin-upload-book-image", requiredRole: "editor" as AdminRole, query: { bookId: decodeURIComponent(segments[1] || "") } };
+  if (verb === "POST" && cleanPath === "inventory/adjust") return { action: "admin-adjust-inventory", requiredRole: "fulfillment" as AdminRole };
+  if (verb === "POST" && segments[0] === "orders" && segments[2] === "fulfillment") return { action: "admin-update-fulfillment", requiredRole: "fulfillment" as AdminRole, query: { orderNumber: decodeURIComponent(segments[1] || "") } };
+  if (verb === "POST" && cleanPath === "newsletter/campaigns") return { action: "admin-save-campaign", requiredRole: "marketing" as AdminRole };
+  if (verb === "POST" && cleanPath === "newsletter/test") return { action: "admin-send-newsletter-test", requiredRole: "marketing" as AdminRole };
+  if (verb === "POST" && cleanPath === "newsletter/send") return { action: "admin-send-newsletter-now", requiredRole: "marketing" as AdminRole };
+  if (verb === "POST" && segments[0] === "newsletter" && segments[1] === "campaigns" && segments[3] === "cancel") return { action: "admin-cancel-newsletter-schedule", requiredRole: "marketing" as AdminRole, query: { campaignId: decodeURIComponent(segments[2] || "") } };
+  if (verb === "POST" && cleanPath === "admins") return { action: "admin-save-admin", requiredRole: "owner" as AdminRole };
+  if (verb === "DELETE" && segments[0] === "admins" && segments[1]) return { action: "admin-remove-admin", requiredRole: "owner" as AdminRole, query: { email: decodeURIComponent(segments[1]) } };
+  if (verb === "POST" && cleanPath === "exports/sheets") return { action: "admin-export-sheets", requiredRole: "owner" as AdminRole };
+  throw new HttpError(404, "Admin route not found.");
+}
+
+async function parseRelayRequestBody(request: Request) {
+  const contentType = request.headers.get("content-type") || "";
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+    const values: Record<string, unknown> = {};
+    for (const [key, value] of formData.entries()) {
+      if (typeof value === "string") {
+        values[key] = value;
+        continue;
+      }
+      values[key] = {
+        name: value.name,
+        type: value.type,
+        data: `data:${value.type || "application/octet-stream"};base64,${arrayBufferToBase64(await value.arrayBuffer())}`,
+      };
+    }
+    return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value == null ? "" : value as string]));
+  }
+  return parseBody(request);
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+async function handleGoogleAuthRequest(request: Request, env: Env) {
+  if (request.method !== "POST") {
+    return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+  }
+  if (!hasAdminSessionConfig(env)) {
+    throw new HttpError(503, "Google sign-in is not configured yet.");
+  }
+  const payload = await parseBody(request);
+  const credential = text(payload.credential, 6000);
+  if (!credential) throw new HttpError(400, "A Google credential is required.");
+  const identity = await verifyGoogleIdentityToken(credential, env);
+  const viewer = await authorizeAdminIdentity(env, identity);
+  const response = json(request, env, {
+    ok: true,
+    viewer,
+    redirectUrl: buildPostLoginRedirect(request, env, payload.returnTo),
+  });
+  return issueAdminSessionCookie(response, env, viewer, identity.sub);
+}
+
+async function handleAdminSessionRequest(request: Request, env: Env) {
+  if (request.method !== "GET") {
+    return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+  }
+  if (hasAppsScriptDataRelay(env)) {
+    const session = await getAppsScriptAdminSession(request, env);
+    return json(request, env, { ok: true, viewer: session.viewer });
+  }
+  const viewer = await authorizeAdmin(request, env);
+  return json(request, env, { ok: true, viewer });
+}
+
+function handleAdminLogoutRequest(request: Request, env: Env) {
+  if (request.method !== "POST") {
+    return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+  }
+  return clearAdminSessionCookie(json(request, env, { ok: true }));
+}
+
+async function getAppsScriptAdminSession(request: Request, env: Env) {
+  return resolveAppsScriptAdminIdentity(env, await requireAdminSession(request, env));
+}
+
+async function resolveAppsScriptAdminIdentity(env: Env, identity: AuthenticatedAdmin) {
+  const bootstrap = await callAppsScriptRelay(env, {
+    endpoint: getAppsScriptAdminEndpoint(env),
+    action: "admin-bootstrap",
+    method: "GET",
+    viewer: { email: identity.email, displayName: identity.displayName, role: "marketing" },
+  });
+  const viewer = ((bootstrap.viewer || {}) as Record<string, unknown>);
+  const email = text(viewer.email, 320).toLowerCase();
+  const role = text(viewer.role, 40) as AdminRole;
+  if (!email || email !== identity.email || !ADMIN_ROLE_ORDER.includes(role)) {
+    throw new HttpError(403, "This Google account is not authorized for admin access.");
+  }
+  return {
+    viewer: {
+      email,
+      role,
+      displayName: text(viewer.displayName, 200) || identity.displayName,
+      token: identity.token,
+    } satisfies AuthenticatedAdmin,
+    bootstrap,
+  };
+}
+
+async function verifyGoogleIdentityToken(token: string, env: Env): Promise<VerifiedGoogleIdentity> {
+  if (!hasGoogleClientId(env)) throw new HttpError(503, "GOOGLE_CLIENT_ID is not configured yet.");
+  const jwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
+  let payload: JWTPayload;
+  try {
+    payload = (await jwtVerify(token, jwks, { audience: getGoogleClientId(env) })).payload;
+  } catch (error) {
+    throw new HttpError(403, "Invalid Google sign-in token: " + getErrorMessage(error));
+  }
+  if (!GOOGLE_ID_TOKEN_ISSUERS.has(text(payload.iss, 200))) {
+    throw new HttpError(403, "The Google sign-in issuer was not recognized.");
+  }
+  const email = text(payload.email, 320).toLowerCase();
+  if (!isValidEmail(email) || !toBoolean(payload.email_verified)) {
+    throw new HttpError(403, "The selected Google account is not verified.");
+  }
+  return {
+    email,
+    displayName: text(payload.name || payload.nickname || payload.email, 200) || email,
+    role: "marketing",
+    token: payload as Record<string, unknown>,
+    sub: text(payload.sub, 200),
+  };
+}
+
+async function authorizeAdminIdentity(env: Env, identity: VerifiedGoogleIdentity): Promise<AuthenticatedAdmin> {
+  if (hasAppsScriptDataRelay(env)) {
+    try {
+      return (await resolveAppsScriptAdminIdentity(env, identity)).viewer;
+    } catch (error) {
+      const message = getErrorMessage(error);
+      if (/not authorized for admin access/i.test(message)) {
+        throw new HttpError(
+          403,
+          `Signed in as ${identity.email}, but that email is not authorized by the live Apps Script admin backend.`,
+        );
+      }
+      throw error;
+    }
+  }
+  return resolveDatabaseAdminIdentity(env, identity);
+}
+
+async function resolveDatabaseAdminIdentity(env: Env, identity: AuthenticatedAdmin): Promise<AuthenticatedAdmin> {
+  if (!env.DB) throw new HttpError(503, "The admin database is not configured for this environment.");
+  await ensureBootstrapAdmins(env);
+  const admin = await env.DB.prepare(
+    "SELECT email, role, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE lower(email) = ?1",
+  )
+    .bind(identity.email)
+    .first<AdminUser>();
+  if (!admin) throw new HttpError(403, "This Google account is not authorized for admin access.");
+  return { email: admin.email, role: admin.role, displayName: admin.displayName, token: identity.token };
+}
+
+function buildPostLoginRedirect(request: Request, env: Env, returnTo: unknown) {
+  const fallback = (() => {
+    try {
+      const url = new URL(env.PUBLIC_ADMIN_URL || "/admin/", request.url);
+      return url.pathname + url.search + url.hash;
+    } catch {
+      return "/admin/";
+    }
+  })();
+  const value = text(returnTo, 500);
+  if (!value) return fallback;
+  try {
+    const requestedUrl = new URL(value, request.url);
+    const currentOrigin = new URL(request.url).origin;
+    if (requestedUrl.origin !== currentOrigin) return fallback;
+    return requestedUrl.pathname + requestedUrl.search + requestedUrl.hash;
+  } catch {
+    return fallback;
+  }
+}
+
+async function issueAdminSessionCookie(response: Response, env: Env, viewer: AuthenticatedAdmin, subject: string) {
+  const payload = base64UrlEncode(JSON.stringify({
+    sub: text(subject, 200),
+    email: viewer.email,
+    role: viewer.role,
+    displayName: viewer.displayName,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_TTL_SECONDS,
+  }));
+  const signature = await signValue(payload, env.ADMIN_SESSION_SECRET);
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", `${ADMIN_SESSION_COOKIE}=${payload}.${signature}; Max-Age=${ADMIN_SESSION_TTL_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`);
+  return new Response(response.body, { status: response.status, headers });
+}
+
+function clearAdminSessionCookie(response: Response) {
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", `${ADMIN_SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`);
+  return new Response(response.body, { status: response.status, headers });
+}
+
+function readCookie(request: Request, name: string) {
+  const raw = request.headers.get("Cookie") || "";
+  for (const entry of raw.split(/;\s*/)) {
+    const index = entry.indexOf("=");
+    if (index <= 0) continue;
+    const key = entry.slice(0, index).trim();
+    if (key !== name) continue;
+    return entry.slice(index + 1).trim();
+  }
+  return "";
+}
+
+async function requireAdminSession(request: Request, env: Env): Promise<AuthenticatedAdmin> {
+  if (!hasAdminSessionConfig(env)) {
+    throw new HttpError(503, "Google sign-in is not configured yet.");
+  }
+  const cookie = readCookie(request, ADMIN_SESSION_COOKIE);
+  if (!cookie) throw new HttpError(401, "Please sign in with Google to continue.");
+  const [payload, signature] = cookie.split(".");
+  if (!payload || !signature) throw new HttpError(401, "The admin session is invalid. Please sign in again.");
+  const expected = await signValue(payload, env.ADMIN_SESSION_SECRET);
+  if (!constantTimeEqual(signature, expected)) {
+    throw new HttpError(401, "The admin session is invalid. Please sign in again.");
+  }
+  let claims: Record<string, unknown>;
+  try {
+    claims = JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
+  } catch {
+    throw new HttpError(401, "The admin session could not be read. Please sign in again.");
+  }
+  const exp = Number(claims.exp || 0);
+  if (!Number.isFinite(exp) || exp <= Math.floor(Date.now() / 1000)) {
+    throw new HttpError(401, "Your admin session has expired. Please sign in again.");
+  }
+  const email = text(claims.email, 320).toLowerCase();
+  const role = text(claims.role, 40) as AdminRole;
+  if (!isValidEmail(email) || !ADMIN_ROLE_ORDER.includes(role)) {
+    throw new HttpError(401, "The admin session is invalid. Please sign in again.");
+  }
+  return {
+    email,
+    role,
+    displayName: text(claims.displayName, 200) || email,
+    token: {
+      provider: "google",
+      sub: text(claims.sub, 200),
+      exp,
+    },
+  };
+}
+
+async function callAppsScriptRelay(
+  env: Env,
+  options: {
+    endpoint: string;
+    action: string;
+    method: string;
+    query?: Record<string, string>;
+    body?: Record<string, unknown>;
+    viewer?: { email: string; displayName: string; role: AdminRole };
+  },
+) {
+  if (!options.endpoint) throw new HttpError(503, "Apps Script relay URL is not configured.");
+  if (!env.GOOGLE_APPS_SCRIPT_DATA_SECRET) throw new HttpError(503, "GOOGLE_APPS_SCRIPT_DATA_SECRET is not configured.");
+  const relayUrl = new URL(options.endpoint);
+  relayUrl.searchParams.set("action", "relay");
+  const payload = {
+    action: text(options.action, 80),
+    method: text(options.method, 10).toUpperCase() || "POST",
+    query: sanitizeRelayObject(options.query || {}),
+    body: sanitizeRelayObject(options.body || {}),
+    viewer: sanitizeRelayViewer(options.viewer),
+  };
+  const timestamp = String(Date.now());
+  const signature = await signValue(`${timestamp}.${stableJsonStringify(payload)}`, env.GOOGLE_APPS_SCRIPT_DATA_SECRET);
+  const response = await fetch(relayUrl.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json;charset=UTF-8" },
+    body: JSON.stringify({ timestamp, signature, ...payload }),
+  });
+  const responseText = await response.text();
+  if (!response.ok) throw new HttpError(502, responseText || "Apps Script relay request failed.");
+  try {
+    return responseText ? (JSON.parse(responseText) as Record<string, unknown>) : { ok: true };
+  } catch {
+    throw new HttpError(502, "Apps Script relay returned invalid JSON.");
+  }
+}
+
+function sanitizeRelayViewer(viewer?: { email: string; displayName: string; role: AdminRole }) {
+  if (!viewer) return {};
+  return sanitizeRelayObject({
+    email: viewer.email,
+    displayName: viewer.displayName,
+    role: viewer.role,
+  });
+}
+
+function sanitizeRelayObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeRelayValue(entry)]));
+}
+
+function sanitizeRelayValue(value: unknown): unknown {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value.map((entry) => sanitizeRelayValue(entry));
+  if (typeof value === "object") return sanitizeRelayObject(value);
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value;
+  return String(value);
+}
+
+function stableJsonStringify(value: unknown): string {
+  if (value == null) return "null";
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJsonStringify(entry)).join(",")}]`;
+  if (typeof value === "object") {
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJsonStringify((value as Record<string, unknown>)[key])}`)
+      .join(",")}}`;
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "null";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return "null";
 }
 
 async function handleFormRequest(request: Request, env: Env): Promise<Response> {
@@ -626,27 +1126,7 @@ async function handleAdminApi(
 }
 
 async function authorizeAdmin(request: Request, env: Env): Promise<AuthenticatedAdmin> {
-  await ensureBootstrapAdmins(env);
-  if (!env.POLICY_AUD || !env.TEAM_DOMAIN) throw new HttpError(503, "Cloudflare Access is not configured yet.");
-  const token = request.headers.get("cf-access-jwt-assertion") || "";
-  if (!token) throw new HttpError(401, "Cloudflare Access authentication is required.");
-  const teamDomain = env.TEAM_DOMAIN.replace(/\/$/, "");
-  const jwks = createRemoteJWKSet(new URL(teamDomain + "/cdn-cgi/access/certs"));
-  let payload: JWTPayload;
-  try {
-    payload = (await jwtVerify(token, jwks, { issuer: teamDomain, audience: env.POLICY_AUD })).payload;
-  } catch (error) {
-    throw new HttpError(403, "Invalid Cloudflare Access token: " + getErrorMessage(error));
-  }
-  const email = text(payload.email, 320).toLowerCase();
-  if (!isValidEmail(email)) throw new HttpError(403, "No verified Google identity was present.");
-  const admin = await env.DB.prepare(
-    "SELECT email, role, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE lower(email) = ?1",
-  )
-    .bind(email)
-    .first<AdminUser>();
-  if (!admin) throw new HttpError(403, "This Google account is not authorized for admin access.");
-  return { email: admin.email, role: admin.role, displayName: admin.displayName, token: payload as Record<string, unknown> };
+  return resolveDatabaseAdminIdentity(env, await requireAdminSession(request, env));
 }
 
 async function ensureBootstrapAdmins(env: Env) {

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="../" />
+    <title>Admin Access | Jackrabbit Punkin Publishing LLC</title>
+    <meta
+      name="description"
+      content="Protected publisher administration access management for Jackrabbit Punkin Publishing LLC."
+    />
+    <link rel="stylesheet" href="assets/admin.css" />
+    <script src="assets/site-config.js" defer></script>
+    <script src="assets/admin.js" defer></script>
+  </head>
+  <body data-page="admin" data-admin-page="profile">
+    <div class="jrpp-admin-switcher">
+      <a class="jrpp-admin-home" href="admin/index.html" aria-label="Jackrabbit Punkin Publishing admin dashboard">
+        <img class="jrpp-admin-logo" src="assets/jrppLogo.png" alt="Jackrabbit Punkin Publishing" />
+        <span class="jrpp-admin-brandcopy">
+          Jackrabbit Punkin Publishing
+          <small>Secure Admin System</small>
+        </span>
+      </a>
+      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages">
+        <a class="jrpp-admin-profile-link active" href="admin/profile.html" aria-current="page" aria-label="Admin users and access">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12.2a4.1 4.1 0 1 0-4.1-4.1 4.1 4.1 0 0 0 4.1 4.1Zm0 2c-4.05 0-7.35 2.1-7.35 4.7V21h14.7v-2.1c0-2.6-3.3-4.7-7.35-4.7Z" />
+          </svg>
+        </a>
+        <a href="admin/index.html">Admin Dashboard</a>
+        <a href="admin/store.html">Book Store Manager</a>
+        <a href="admin/newsletter.html">Newsletter Builder</a>
+      </div>
+      <div class="jrpp-admin-actions">
+        <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
+        <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="dashboard-page">
+      <section class="dashboard-stage">
+        <header class="dashboard-header">
+          <div class="dashboard-header-copy">
+            <div class="dashboard-kicker">ACCESS MANAGEMENT</div>
+            <h1>Admin Users & Permissions</h1>
+            <p>
+              Signed in as
+              <span data-viewer-email>Loading secure session...</span>.
+              Manage the Google accounts allowed to access the admin system.
+            </p>
+          </div>
+        </header>
+        <div class="dashboard-accent"></div>
+        <div class="dashboard-body">
+          <div class="dashboard-access-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Admin Users</h2>
+                <button class="btn alt" type="button" id="exportSheetsBtn">Export to Sheets</button>
+              </div>
+              <div class="panel-body table-wrap" id="adminList"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head"><h2>Add or Update Admin</h2></div>
+              <div class="panel-body">
+                <form id="adminForm">
+                  <div class="form-grid">
+                    <div class="field full">
+                      <label>Email</label><input name="email" type="email" title="Email" required />
+                    </div>
+                    <div class="field full">
+                      <label>Display Name</label><input name="displayName" title="Display Name" />
+                    </div>
+                    <div class="field full">
+                      <label>Role</label>
+                      <select name="role" title="Role">
+                        <option value="marketing">Marketing</option>
+                        <option value="fulfillment">Fulfillment</option>
+                        <option value="editor">Editor</option>
+                        <option value="owner">Owner</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-actions">
+                    <button class="btn" type="submit">Save Admin</button>
+                  </div>
+                  <div class="status" id="adminStatus"></div>
+                </form>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

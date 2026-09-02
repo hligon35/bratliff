@@ -1,10 +1,17 @@
 (() => {
   const STORAGE_KEY = 'jrpp_store_cart_v1';
   const siteConfig = window.siteConfig || {};
-  const booksEndpoint = String(siteConfig.storeBooksEndpoint || '').trim();
-  const checkoutEndpoint = String(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint || '').trim();
+  const publicApiRoot = String(siteConfig.publicApiUrl || '').trim().replace(/\/$/, '');
+  const booksEndpoint = resolveEndpoint(siteConfig.storeBooksEndpoint, '/api/store/books');
+  const checkoutEndpoint = resolveEndpoint(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/checkout');
+  const confirmCheckoutEndpoint = resolveEndpoint(siteConfig.storeConfirmEndpoint || siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/confirm-checkout');
   const usesLegacyCheckout = /script\.google\.com/i.test(checkoutEndpoint);
   const state = { books: [], cart: loadCart() };
+
+  function resolveEndpoint(configuredValue, defaultPath) {
+    if (publicApiRoot) return publicApiRoot + defaultPath;
+    return String(configuredValue || '').trim();
+  }
 
   function loadCart() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (_) { return []; }
@@ -145,24 +152,28 @@
     saveCart();
     renderCart();
 
-    if (!usesLegacyCheckout) {
+    const sessionId = String(params.get('session_id') || '').trim();
+    const confirmationEndpoint = usesLegacyCheckout ? checkoutEndpoint : confirmCheckoutEndpoint;
+    if (!sessionId || !confirmationEndpoint) {
       toast('Payment complete. Thank you for your order.');
       return;
     }
 
-    const sessionId = String(params.get('session_id') || '').trim();
-    if (!sessionId || !checkoutEndpoint) {
-      toast('Payment completed, but order confirmation is still pending.');
-      return;
-    }
-
-    const body = new URLSearchParams({ action: 'store-confirm-checkout', sessionId });
     try {
-      const response = await fetch(checkoutEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: body.toString()
-      });
+      const response = await fetch(
+        confirmationEndpoint,
+        usesLegacyCheckout
+          ? {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+              body: new URLSearchParams({ action: 'store-confirm-checkout', sessionId }).toString()
+            }
+          : {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId })
+            }
+      );
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Order confirmation failed.');
       toast(data.duplicate ? 'Payment confirmed. Your order was already recorded.' : 'Payment confirmed. Thank you for your order.');

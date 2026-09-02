@@ -3,7 +3,8 @@ const DEFAULT_CONFIG = Object.freeze({
   ADMIN_NOTIFICATION_EMAIL: "hligon@getsparqd.com",
   GOOGLE_APPS_SENDER_NAME: "Jackrabbit Punkin Publishing LLC",
   SITE_URL: "https://hligon35.github.io/bratliff/",
-  ADMIN_ALLOWED_EMAILS: "hligon@getsparqd.com",
+  ADMIN_ALLOWED_EMAILS:
+    "hligon@getsparqd.com, barbarajratliff67@gmail.com, barbarajratliff@gmail.com",
 });
 
 const FORM_ROUTES = Object.freeze({
@@ -65,6 +66,15 @@ const FORM_ROUTES = Object.freeze({
   },
 });
 
+const ADMIN_ROLE_ORDER_ = Object.freeze([
+  "marketing",
+  "fulfillment",
+  "editor",
+  "owner",
+]);
+
+let ACTIVE_RELAY_CONTEXT_ = null;
+
 function doGet(event) {
   const params = event && event.parameter ? event.parameter : {};
   if (params.action === "admin") return renderAdminDashboard_();
@@ -93,16 +103,66 @@ function doPost(event) {
     }
   }
 
-  const storeResponse = routeStorePost_(buildRequestPayload_(event, params));
+  if (params.action === "relay") {
+    try {
+      return handleWorkerRelay_(event);
+    } catch (error) {
+      return jsonResponse_({
+        ok: false,
+        error: String(error && error.message ? error.message : error),
+      });
+    }
+  }
+
+  const payload = buildRequestPayload_(event, params);
+  const storeResponse = routeStorePost_(payload);
   if (storeResponse) return storeResponse;
 
   const adminResponse = routeAdminPost_(params, event);
   if (adminResponse) return adminResponse;
 
+  return handleFormSubmissionPayload_(payload);
+}
+
+function handleWorkerRelay_(event) {
+  const relay = verifyWorkerRelayRequest_(event);
+  const action = safeText_(relay.action, 80);
+  const method = safeText_(relay.method, 10).toUpperCase() || "POST";
+  const query = normalizeRelayObject_(relay.query);
+  const body = normalizeRelayObject_(relay.body);
+
+  ACTIVE_RELAY_CONTEXT_ = buildRelayViewerContext_(relay.viewer, action);
+  try {
+    if (action === "form-submit") return handleFormSubmissionPayload_(body);
+
+    if (/^store-/.test(action)) {
+      const payload = Object.assign({ action: action }, query, body);
+      if (method === "GET") {
+        return routeStoreGet_(payload) || jsonResponse_({ ok: false, error: "Unknown store action." });
+      }
+      return routeStorePost_(payload) || jsonResponse_({ ok: false, error: "Unknown store action." });
+    }
+
+    if (/^admin-/.test(action)) {
+      const params = Object.assign({ action: action }, query);
+      if (method === "GET") {
+        return routeAdminGet_(params) || jsonResponse_({ ok: false, error: "Unknown admin action." });
+      }
+      return routeAdminPostPayload_(action, params, body);
+    }
+
+    throw new Error("Unknown relay action.");
+  } finally {
+    ACTIVE_RELAY_CONTEXT_ = null;
+  }
+}
+
+function handleFormSubmissionPayload_(payload) {
+  payload = payload || {};
+
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(10000);
-    const payload = params;
 
     // Honeypot submissions receive a neutral response without being stored.
     if (payload.website) return jsonResponse_({ ok: true });
@@ -111,8 +171,9 @@ function doPost(event) {
     if (!route) throw new Error("Unknown form type.");
 
     route.required.forEach(function (field) {
-      if (!clean_(payload[field], 5000))
+      if (!clean_(payload[field], 5000)) {
         throw new Error("Missing required field: " + field);
+      }
     });
 
     throttle_(payload.formType, payload.email || payload.name || "anonymous");
@@ -160,6 +221,125 @@ function doPost(event) {
   } finally {
     if (lock.hasLock()) lock.releaseLock();
   }
+}
+
+function verifyWorkerRelayRequest_(event) {
+  const relaySecret = getWorkerRelaySecret_();
+  if (!relaySecret) throw new Error("WORKER_RELAY_SECRET is not configured.");
+
+  const relay = parseJsonBody_(event);
+  const timestamp = safeText_(relay.timestamp, 40);
+  const signature = safeText_(relay.signature, 500);
+  const issuedAt = Number(timestamp);
+  if (!issuedAt || Math.abs(Date.now() - issuedAt) > 5 * 60 * 1000) {
+    throw new Error("Relay request timestamp is invalid or expired.");
+  }
+
+  const canonicalPayload = stableJsonStringify_({
+    action: safeText_(relay.action, 80),
+    method: safeText_(relay.method, 10).toUpperCase() || "POST",
+    query: normalizeRelayObject_(relay.query),
+    body: normalizeRelayObject_(relay.body),
+    viewer: normalizeRelayViewer_(relay.viewer),
+  });
+  const expectedSignature = signEmailRelayValue_(
+    timestamp + "." + canonicalPayload,
+    relaySecret,
+  );
+  if (!constantTimeEqual_(signature, expectedSignature)) {
+    throw new Error("Invalid relay signature.");
+  }
+  return relay;
+}
+
+function normalizeRelayObject_(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result = {};
+  Object.keys(value).forEach(function (key) {
+    result[String(key)] = normalizeRelayValue_(value[key]);
+  });
+  return result;
+}
+
+function normalizeRelayValue_(value) {
+  if (value == null) return null;
+  if (Array.isArray(value)) {
+    return value.map(function (entry) {
+      return normalizeRelayValue_(entry);
+    });
+  }
+  if (typeof value === "object") {
+    const result = {};
+    Object.keys(value).forEach(function (key) {
+      result[String(key)] = normalizeRelayValue_(value[key]);
+    });
+    return result;
+  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value;
+  return String(value);
+}
+
+function normalizeRelayViewer_(viewer) {
+  const values = normalizeRelayObject_(viewer);
+  return {
+    email: safeText_(values.email, 320).toLowerCase(),
+    displayName: safeText_(values.displayName, 200),
+    role: normalizeAdminRole_(values.role),
+  };
+}
+
+function buildRelayViewerContext_(viewer, action) {
+  if (!/^admin-/.test(String(action || ""))) return null;
+  const normalized = normalizeRelayViewer_(viewer);
+  if (!isValidEmail_(normalized.email)) {
+    throw new Error("Relay viewer email is required.");
+  }
+  const record = getStaticAdminByEmail_(normalized.email);
+  if (!record) throw new Error("This account is not authorized for admin access.");
+  return {
+    email: normalized.email,
+    role: normalizeAdminRole_(record.role || normalized.role || "owner"),
+    displayName:
+      safeText_(record.displayName, 200) ||
+      normalized.displayName ||
+      normalized.email,
+  };
+}
+
+function stableJsonStringify_(value) {
+  if (value === null || value === undefined) return "null";
+  if (Array.isArray(value)) {
+    return (
+      "[" +
+      value
+        .map(function (entry) {
+          return stableJsonStringify_(entry);
+        })
+        .join(",") +
+      "]"
+    );
+  }
+  if (typeof value === "object") {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map(function (key) {
+          return (
+            JSON.stringify(String(key)) +
+            ":" +
+            stableJsonStringify_(value[key])
+          );
+        })
+        .join(",") +
+      "}"
+    );
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "null";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return "null";
 }
 
 function sendSubmissionEmails_(payload, route) {
@@ -244,19 +424,26 @@ function routeAdminGet_(params) {
   if (action === "admin-orders") return jsonResponse_({ ok: true, orders: listStoreOrders(params.limit || 100) });
   if (action === "admin-newsletter-state") return jsonResponse_(Object.assign({ ok: true }, getNewsletterBuilderState()));
   if (action === "admin-newsletter-subscribers") return jsonResponse_({ ok: true, subscribers: listNewsletterSubscribersAdmin_() });
-  if (action === "admin-admins") return jsonResponse_({ ok: true, admins: listStaticAdmins_() });
+  if (action === "admin-admins") {
+    requireAdminRole_("owner");
+    return jsonResponse_({ ok: true, admins: listStaticAdmins_() });
+  }
   return null;
 }
 
 function routeAdminPost_(params, event) {
   const action = String(params.action || "");
   if (!/^admin-/.test(action)) return null;
-  const payload = buildRequestPayload_(event, params);
+  return routeAdminPostPayload_(action, params, buildRequestPayload_(event, params));
+}
 
+function routeAdminPostPayload_(action, params, payload) {
   if (action === "admin-save-book") {
+    requireAdminRole_("editor");
     return jsonResponse_({ ok: true, book: saveStoreBook(payload) });
   }
   if (action === "admin-upload-book-image") {
+    requireAdminRole_("editor");
     const file = payload.file || {};
     return jsonResponse_(Object.assign({ ok: true }, uploadStoreBookImage(
       payload.bookId || params.bookId,
@@ -266,26 +453,41 @@ function routeAdminPost_(params, event) {
     )));
   }
   if (action === "admin-adjust-inventory") {
+    requireAdminRole_("fulfillment");
     return jsonResponse_({ ok: true, book: adjustStoreInventory(payload.bookId, payload.change, payload.reason, payload.notes) });
   }
   if (action === "admin-update-fulfillment") {
+    requireAdminRole_("fulfillment");
     return jsonResponse_({ ok: true, order: updateStoreFulfillment(params.orderNumber || payload.orderNumber, payload.fulfillmentStatus, payload.trackingNumber, payload.notes) });
   }
   if (action === "admin-save-campaign") {
+    requireAdminRole_("marketing");
     const status = String(payload.status || "Draft");
     const campaign = status === "Scheduled" ? scheduleNewsletterCampaign(payload) : saveNewsletterDraft(payload);
     return jsonResponse_({ ok: true, campaign: campaign.campaignId ? getNewsletterCampaignById_(campaign.campaignId) : campaign });
   }
   if (action === "admin-send-newsletter-test") {
+    requireAdminRole_("marketing");
     return jsonResponse_(Object.assign({ ok: true }, sendNewsletterTest(payload, payload.testEmail)));
   }
+  if (action === "admin-send-newsletter-now") {
+    requireAdminRole_("marketing");
+    return jsonResponse_(Object.assign({ ok: true }, sendNewsletterNow(payload)));
+  }
+  if (action === "admin-cancel-newsletter-schedule") {
+    requireAdminRole_("marketing");
+    return jsonResponse_(cancelNewsletterSchedule(params.campaignId || payload.campaignId));
+  }
   if (action === "admin-save-admin") {
+    requireAdminRole_("owner");
     return jsonResponse_({ ok: true, admin: saveStaticAdmin_(payload) });
   }
   if (action === "admin-remove-admin") {
+    requireAdminRole_("owner");
     return jsonResponse_(removeStaticAdmin_(params.email || payload.email));
   }
   if (action === "admin-export-sheets") {
+    requireAdminRole_("owner");
     return jsonResponse_({ ok: true, message: "Google Sheets is already the primary database for this admin system." });
   }
   return jsonResponse_({ ok: false, error: "Unknown admin action." });
@@ -309,15 +511,21 @@ function buildStaticAdminBootstrap_(params) {
   const dashboard = getStoreDashboardMetrics();
   const newsletter = getNewsletterBuilderState();
   const books = listStoreBooksAdmin();
-  const viewerEmail = getAuthorizedAdminEmail_();
+  const viewer = getAuthorizedAdminContext_();
+  const viewerEmail = viewer ? viewer.email : "";
   const viewerRecord = getStaticAdminByEmail_(viewerEmail);
 
   return {
     ok: true,
     viewer: {
       email: viewerEmail,
-      role: viewerRecord ? viewerRecord.role : "owner",
-      displayName: viewerRecord && viewerRecord.displayName ? viewerRecord.displayName : viewerEmail,
+      role: viewer ? viewer.role : viewerRecord ? viewerRecord.role : "owner",
+      displayName:
+        viewer && viewer.displayName
+          ? viewer.displayName
+          : viewerRecord && viewerRecord.displayName
+            ? viewerRecord.displayName
+            : viewerEmail,
     },
     metrics: {
       submissions: countStaticAdminSubmissions_(),
@@ -1086,6 +1294,9 @@ function getRowSummary_(formType, row) {
 }
 
 function getAuthorizedAdminEmail_() {
+  const relayContext = getAuthorizedAdminContext_();
+  if (relayContext) return relayContext.email;
+
   const viewerEmail = String(Session.getActiveUser().getEmail() || "")
     .trim()
     .toLowerCase();
@@ -1093,6 +1304,46 @@ function getAuthorizedAdminEmail_() {
   return getAllowedAdminEmails_().indexOf(viewerEmail) !== -1
     ? viewerEmail
     : "";
+}
+
+function getAuthorizedAdminContext_() {
+  if (
+    ACTIVE_RELAY_CONTEXT_ &&
+    isValidEmail_(ACTIVE_RELAY_CONTEXT_.email)
+  ) {
+    return ACTIVE_RELAY_CONTEXT_;
+  }
+
+  const viewerEmail = String(Session.getActiveUser().getEmail() || "")
+    .trim()
+    .toLowerCase();
+  if (!viewerEmail) return null;
+  if (getAllowedAdminEmails_().indexOf(viewerEmail) === -1) return null;
+  const viewerRecord = getStaticAdminByEmail_(viewerEmail);
+  return {
+    email: viewerEmail,
+    role: normalizeAdminRole_(viewerRecord ? viewerRecord.role : "owner"),
+    displayName:
+      viewerRecord && viewerRecord.displayName
+        ? viewerRecord.displayName
+        : viewerEmail,
+  };
+}
+
+function requireAdminRole_(requiredRole) {
+  const viewer = getAuthorizedAdminContext_();
+  if (!viewer) throw new Error("Administrator access is required.");
+  const currentIndex = ADMIN_ROLE_ORDER_.indexOf(normalizeAdminRole_(viewer.role));
+  const requiredIndex = ADMIN_ROLE_ORDER_.indexOf(normalizeAdminRole_(requiredRole));
+  if (currentIndex < requiredIndex) {
+    throw new Error("This account does not have permission for that action.");
+  }
+  return viewer;
+}
+
+function normalizeAdminRole_(value) {
+  const role = safeText_(value, 40) || "owner";
+  return ADMIN_ROLE_ORDER_.indexOf(role) !== -1 ? role : "owner";
 }
 
 function unauthorizedAdminPage_() {
@@ -1158,6 +1409,13 @@ function getConfigValue_(key) {
 function getEmailRelaySecret_() {
   return safeText_(
     PropertiesService.getScriptProperties().getProperty("EMAIL_RELAY_SECRET"),
+    500,
+  );
+}
+
+function getWorkerRelaySecret_() {
+  return safeText_(
+    PropertiesService.getScriptProperties().getProperty("WORKER_RELAY_SECRET"),
     500,
   );
 }
