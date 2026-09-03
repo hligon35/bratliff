@@ -2,7 +2,7 @@ const DEFAULT_CONFIG = Object.freeze({
   GOOGLE_SPREADSHEET_ID: "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g",
   ADMIN_NOTIFICATION_EMAIL: "hligon@getsparqd.com",
   GOOGLE_APPS_SENDER_NAME: "Jackrabbit Punkin Publishing LLC",
-  SITE_URL: "https://hligon35.github.io/bratliff/",
+  SITE_URL: "https://jrpp.alphazonelabs.com/",
   ADMIN_ALLOWED_EMAILS:
     "hligon@getsparqd.com, barbarajratliff67@gmail.com, barbarajratliff@gmail.com",
 });
