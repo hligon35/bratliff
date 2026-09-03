@@ -26,7 +26,7 @@
     "SITE_URL": "https://jrpp.alphazonelabs.com",
     "PUBLIC_ADMIN_URL": "https://jrpp.alphazonelabs.com/admin/",
     "PUBLIC_API_URL": "https://jrpp.alphazonelabs.com",
-    "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com",
+    "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
     "GOOGLE_CLIENT_ID": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
     "STRIPE_CURRENCY": "usd",
     "ORDER_SUCCESS_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=success",
