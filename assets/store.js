@@ -119,12 +119,14 @@
     ensureCartUi();
     const backdrop = document.querySelector('.store-cart-backdrop');
     backdrop.classList.add('open'); backdrop.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('store-cart-open');
   }
 
   function closeCart() {
     const backdrop = document.querySelector('.store-cart-backdrop');
     if (!backdrop) return;
     backdrop.classList.remove('open'); backdrop.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('store-cart-open');
   }
 
   async function checkout() {

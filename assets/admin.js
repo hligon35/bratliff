@@ -16,7 +16,6 @@
   const spreadsheetId = String(siteConfig.spreadsheetId || "").trim();
   const dashboardForms = [
     { key: "contact", label: "Contact" },
-    { key: "newsletter", label: "Newsletter" },
     { key: "speaking", label: "Speaking Requests" },
     { key: "bookClub", label: "Book Club Requests" },
     { key: "bookNotification", label: "Book Notifications" },
@@ -31,6 +30,7 @@
     viewer: null,
     bootstrap: null,
     dashboardRows: {},
+    dashboardLoading: {},
     books: [],
     orders: [],
     admins: [],
@@ -468,36 +468,82 @@
     ].join("");
   }
 
+  function dashboardFormCount(key) {
+    const counts = state.bootstrap && state.bootstrap.formCounts ? state.bootstrap.formCounts : {};
+    return Number(counts[key] || 0);
+  }
+
+  function dashboardRowsLoaded(key) {
+    return Object.prototype.hasOwnProperty.call(state.dashboardRows, key);
+  }
+
+  function dashboardSectionTable(rows) {
+    return tableMarkup(
+      "table",
+      [
+        { label: "Submitted", render: function (row) { return escapeHtml(formatDate(row.createdAt)); } },
+        { label: "Primary Contact", render: function (row) { return "<b>" + escapeHtml(row.name || row.email || "—") + "</b>" + (row.email ? "<br><small>" + escapeHtml(row.email) + "</small>" : ""); } },
+        { label: "Summary", key: "summary" },
+        { label: "Status", key: "status" },
+      ],
+      rows,
+      "No submissions yet.",
+    );
+  }
+
+  function renderDashboardSectionBody(key) {
+    if (state.dashboardLoading[key]) {
+      return '<div class="dashboard-detail-empty">Loading latest submissions...</div>';
+    }
+    if (!dashboardRowsLoaded(key)) {
+      return '<div class="dashboard-detail-empty">Open this section to load the latest 10 submissions.</div>';
+    }
+    return dashboardSectionTable((state.dashboardRows[key] || []).slice(0, 10));
+  }
+
   function renderDashboardSections() {
     const root = qs("#dashboardSections");
     if (!root) return;
     root.innerHTML = dashboardForms
-      .map(function (section, index) {
-        const rows = state.dashboardRows[section.key] || [];
-        const table = tableMarkup(
-          "table",
-          [
-            { label: "Submitted", render: function (row) { return escapeHtml(formatDate(row.createdAt)); } },
-            { label: "Primary Contact", render: function (row) { return "<b>" + escapeHtml(row.name || row.email || "—") + "</b>" + (row.email ? "<br><small>" + escapeHtml(row.email) + "</small>" : ""); } },
-            { label: "Summary", key: "summary" },
-            { label: "Status", key: "status" },
-          ],
-          rows,
-          "No submissions yet.",
-        );
+      .map(function (section) {
+        const count = dashboardFormCount(section.key);
+        const visibleCount = dashboardRowsLoaded(section.key) ? Math.min((state.dashboardRows[section.key] || []).length, 10) : 10;
         return (
-          '<details class="dashboard-detail"' + (index === 0 ? " open" : "") + ">" +
+          '<details class="dashboard-detail" data-dashboard-section="' + escapeHtml(section.key) + '">' +
           '<summary><div class="dashboard-detail-head"><div><div class="label">' +
           escapeHtml(section.label.toUpperCase()) +
           "</div><h2>" +
-          escapeHtml(String(rows.length)) +
+          escapeHtml(String(count)) +
           ' submissions</h2></div><div class="count">Latest ' +
-          escapeHtml(String(rows.length)) +
+          escapeHtml(String(Math.min(count, visibleCount))) +
           "</div></div></summary>" +
-          '<div class="dashboard-detail-body">' + table + "</div></details>"
+          '<div class="dashboard-detail-body">' + renderDashboardSectionBody(section.key) + "</div></details>"
         );
       })
       .join("");
+    qsa(".dashboard-detail[data-dashboard-section]").forEach(function (detail) {
+      detail.addEventListener("toggle", function () {
+        const sectionKey = detail.getAttribute("data-dashboard-section");
+        if (detail.open && sectionKey) loadDashboardSection(sectionKey);
+      });
+    });
+  }
+
+  async function loadDashboardSection(sectionKey, options) {
+    const force = Boolean(options && options.force);
+    if (!force && (state.dashboardLoading[sectionKey] || dashboardRowsLoaded(sectionKey))) return;
+    state.dashboardLoading[sectionKey] = true;
+    renderDashboardSections();
+    try {
+      const data = await api("submissions?limit=10&formType=" + encodeURIComponent(sectionKey));
+      state.dashboardRows[sectionKey] = Array.isArray(data.rows) ? data.rows : [];
+      persistDashboardCache();
+    } catch {
+      state.dashboardRows[sectionKey] = [];
+    } finally {
+      state.dashboardLoading[sectionKey] = false;
+      renderDashboardSections();
+    }
   }
 
   function renderAdmins() {
@@ -1200,22 +1246,10 @@
     const bootstrap = await api("bootstrap");
     state.bootstrap = bootstrap;
     state.viewer = bootstrap.viewer || null;
+    state.dashboardRows = force ? {} : (state.dashboardRows || {});
+    state.dashboardLoading = {};
     renderViewer();
     renderDashboardSummary();
-    const results = await Promise.all(
-      dashboardForms.map(function (section) {
-        return api("submissions?limit=100&formType=" + encodeURIComponent(section.key))
-          .then(function (data) {
-            return { key: section.key, rows: data.rows || [] };
-          })
-          .catch(function () {
-            return { key: section.key, rows: [] };
-          });
-      }),
-    );
-    results.forEach(function (result) {
-      state.dashboardRows[result.key] = result.rows;
-    });
     renderDashboardSections();
     persistDashboardCache();
   }

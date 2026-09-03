@@ -289,6 +289,13 @@ textarea {
 
 .dashboard-detail-body {
   padding: 0 20px 20px;
+  max-height: 430px;
+  overflow: auto;
+}
+
+.dashboard-detail-empty {
+  padding: 18px 0 4px;
+  color: #687386;
 }
 
 .dashboard-access-grid {

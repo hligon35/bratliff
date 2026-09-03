@@ -155,7 +155,8 @@ p {
 }
 
 .site-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 100;
   background: rgba(10, 22, 40, 0.96);
   color: var(--white);
@@ -229,10 +230,43 @@ p {
   color: rgba(255, 255, 255, 0.82);
   border-radius: 999px;
 }
+.site-cart-button {
+  margin-left: 0.2rem;
+  width: 44px;
+  height: 44px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+}
+.site-cart-button svg {
+  width: 21px;
+  height: 21px;
+  fill: currentColor;
+}
+.site-cart-button .store-cart-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font-size: 0.64rem;
+}
 .site-nav a:hover,
 .site-nav a[aria-current="page"] {
   color: var(--navy);
   background: var(--gold);
+}
+.site-cart-button:hover,
+.site-cart-button:focus-visible {
+  color: var(--navy);
+  background: var(--gold);
+  border-color: var(--gold);
 }
 .menu-toggle {
   display: none;
@@ -573,6 +607,9 @@ body[data-page="books"] .future-title-grid .button {
   color: var(--purple);
   font-weight: 800;
 }
+.featured-book-title {
+  margin-top: 1rem;
+}
 .meta-row span + span::before {
   content: "·";
   margin-right: 0.7rem;
@@ -630,6 +667,7 @@ body[data-page="books"] .future-title-grid .button {
 }
 .slider-controls {
   display: flex;
+  justify-content: center;
   gap: 0.7rem;
   margin-top: 1rem;
 }
@@ -1183,6 +1221,10 @@ textarea {
   }
   .site-nav a {
     padding: 0.85rem 1rem;
+  }
+  .site-cart-button {
+    align-self: flex-start;
+    margin-top: 0.35rem;
   }
   .hero-grid,
   .split,

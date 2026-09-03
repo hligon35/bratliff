@@ -1158,13 +1158,17 @@ async function buildAdminBootstrap(env: Env, admin: AuthenticatedAdmin) {
   const latestCampaigns = await env.DB.prepare(
     "SELECT campaign_id AS campaignId, title, subject, status, updated_at AS updatedAt FROM newsletter_campaigns ORDER BY updated_at DESC LIMIT 10",
   ).all();
+  const formCountRows = await env.DB.prepare(
+    "SELECT form_type AS formType, COUNT(*) AS count FROM form_submissions GROUP BY form_type",
+  ).all<{ formType: string; count: number }>();
+  const formCounts: Record<string, number> = {};
+  for (const row of formCountRows.results || []) {
+    formCounts[String(row.formType || "")] = Number(row.count || 0);
+  }
   return {
     viewer: { email: admin.email, role: admin.role, displayName: admin.displayName },
     metrics: { submissions, subscribers, orders, books, campaigns, lowStock, revenue: money(Number(revenue?.total || 0)) },
-    recentSubmissions: await listSubmissions(env, "", 12),
-    recentOrders: await listOrders(env, 12),
-    lowStock: (await getInventorySummary(env)).filter((row) => row.lowStock).slice(0, 10),
-    latestCampaigns: latestCampaigns.results || [],
+    formCounts,
     endpoints: { publicApiUrl: env.PUBLIC_API_URL, adminUrl: env.PUBLIC_ADMIN_URL },
   };
 }
