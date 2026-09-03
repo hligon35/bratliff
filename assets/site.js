@@ -122,10 +122,13 @@ async function wireArtwork() {
 
 function header() {
   const current = document.body.dataset.page;
+  const cartLink = current === "books"
+    ? '<button class="site-cart-button" type="button" data-store-cart-trigger aria-label="Open shopping cart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2Zm10 0c-1.1 0-1.99.9-1.99 2S15.9 22 17 22s2-.9 2-2-.9-2-2-2ZM7.17 14h9.96c.75 0 1.4-.41 1.74-1.03L22 7.5V6H6.21l-.94-2H2v2h2l3.6 7.59-1.35 2.45A2 2 0 0 0 6 17c0 1.1.9 2 2 2h12v-2H8.42a.25.25 0 0 1-.22-.37L9.1 15h8.07Z"></path></svg><span class="store-cart-count" data-store-cart-count>0</span></button>'
+    : "";
   return `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap">
     <a class="brand" href="index.html" aria-label="Jackrabbit Punkin Publishing home"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>
     <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation">☰</button>
-    <nav class="site-nav" id="site-nav" aria-label="Primary">${pages.map(([label, href, key]) => `<a href="${href}"${key === current ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>
+    <nav class="site-nav" id="site-nav" aria-label="Primary">${pages.map(([label, href, key]) => `<a href="${href}"${key === current ? ' aria-current="page"' : ""}>${label}</a>`).join("")}${cartLink}</nav>
   </div></header>`;
 }
 

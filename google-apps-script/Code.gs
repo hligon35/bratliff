@@ -506,14 +506,14 @@ function buildRequestPayload_(event, fallback) {
 
 function buildStaticAdminBootstrap_(params) {
   storeRequireAdmin_();
-  const submissions = listStaticAdminSubmissions_({ limit: params.limit || 25 });
-  const recentOrders = listStoreOrders(10);
-  const dashboard = getStoreDashboardMetrics();
-  const newsletter = getNewsletterBuilderState();
-  const books = listStoreBooksAdmin();
   const viewer = getAuthorizedAdminContext_();
   const viewerEmail = viewer ? viewer.email : "";
   const viewerRecord = getStaticAdminByEmail_(viewerEmail);
+  const formCounts = countStaticAdminSubmissionsByForm_();
+  const storeSpreadsheet = getStoreSpreadsheet_();
+  const booksSheet = storeSpreadsheet.getSheetByName(STORE_CONFIG.SHEETS.BOOKS);
+  const ordersSheet = storeSpreadsheet.getSheetByName(STORE_CONFIG.SHEETS.ORDERS);
+  const campaignsSheet = storeSpreadsheet.getSheetByName(NEWSLETTER_ADMIN_CONFIG.CAMPAIGN_SHEET);
 
   return {
     ok: true,
@@ -527,24 +527,39 @@ function buildStaticAdminBootstrap_(params) {
             ? viewerRecord.displayName
             : viewerEmail,
     },
+    formCounts: formCounts,
     metrics: {
-      submissions: countStaticAdminSubmissions_(),
-      subscribers: newsletter.subscriberCount || 0,
-      orders: dashboard.orderCount || recentOrders.length,
-      books: books.length,
-      campaigns: (newsletter.campaigns || []).length,
-      revenue: dashboard.totalSales || 0,
+      submissions: sumObjectValues_(formCounts),
+      subscribers: listNewsletterSubscribersAdmin_().length,
+      orders: sheetRowCount_(ordersSheet),
+      books: sheetRowCount_(booksSheet),
+      campaigns: sheetRowCount_(campaignsSheet),
+      revenue: getStoreDashboardMetrics().totalSales || 0,
     },
-    recentSubmissions: submissions,
-    recentOrders: recentOrders,
   };
 }
 
 function countStaticAdminSubmissions_() {
+  return sumObjectValues_(countStaticAdminSubmissionsByForm_());
+}
+
+function countStaticAdminSubmissionsByForm_() {
   const spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
-  return Object.keys(FORM_ROUTES).reduce(function (sum, key) {
+  const counts = {};
+  Object.keys(FORM_ROUTES).forEach(function (key) {
     const sheet = spreadsheet.getSheetByName(FORM_ROUTES[key].sheet);
-    return sum + (!sheet ? 0 : Math.max(0, sheet.getLastRow() - 1));
+    counts[key] = sheetRowCount_(sheet);
+  });
+  return counts;
+}
+
+function sheetRowCount_(sheet) {
+  return !sheet ? 0 : Math.max(0, sheet.getLastRow() - 1);
+}
+
+function sumObjectValues_(value) {
+  return Object.keys(value || {}).reduce(function (sum, key) {
+    return sum + (Number(value[key] || 0) || 0);
   }, 0);
 }
 
