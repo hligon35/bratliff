@@ -21,13 +21,18 @@ const staticEntries = [
   'admin'
 ];
 
-fs.rmSync(targetDir, { recursive: true, force: true });
 fs.mkdirSync(targetDir, { recursive: true });
+
+function clearDestinationEntry(destination) {
+  if (!fs.existsSync(destination)) return;
+  fs.rmSync(destination, { recursive: true, force: true });
+}
 
 for (const entry of staticEntries) {
   const source = path.join(rootDir, entry);
   if (!fs.existsSync(source)) continue;
   const destination = path.join(targetDir, entry);
+  clearDestinationEntry(destination);
   fs.cpSync(source, destination, { recursive: true });
 }
 
