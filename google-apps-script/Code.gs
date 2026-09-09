@@ -773,8 +773,7 @@ function getUserCopy_(formType, payload) {
       subject: "We received your message | Jackrabbit Punkin Publishing",
       heading: "Your message is on its way",
       paragraphs: [
-        "Thank you for contacting Jackrabbit Punkin Publishing LLC. We received your message and will review it shortly.",
-        "You can expect a response within 2–3 business days.",
+        "Thank you for contacting Jackrabbit Punkin Publishing LLC. Your message has been received, and a member of JPP will respond as soon as possible.",
       ],
       footer:
         "You received this confirmation because you submitted the contact form on our website.",

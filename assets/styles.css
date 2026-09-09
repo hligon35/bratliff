@@ -154,13 +154,20 @@ p {
   margin-bottom: 1.5rem;
 }
 
+[data-header] {
+  display: block;
+  min-height: 116px;
+}
+
 .site-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
-  background: rgba(10, 22, 40, 0.96);
-  color: var(--white);
-  border-bottom: 1px solid rgba(212, 173, 85, 0.25);
+  background: rgba(251, 248, 241, 0.97);
+  color: var(--navy);
+  border-bottom: 1px solid rgba(10, 22, 40, 0.1);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
@@ -208,10 +215,11 @@ p {
 .brand-copy strong {
   font-family: var(--serif);
   letter-spacing: 0.02em;
+  color: var(--navy);
 }
 .brand-copy small {
   margin-top: 0.25rem;
-  color: var(--gold-soft);
+  color: var(--purple);
   font-size: 0.66rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -227,7 +235,7 @@ p {
   text-decoration: none;
   font-size: 0.82rem;
   font-weight: 650;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(10, 22, 40, 0.82);
   border-radius: 999px;
 }
 .site-cart-button {
@@ -238,10 +246,10 @@ p {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(10, 22, 40, 0.18);
   border-radius: 999px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(10, 22, 40, 0.9);
 }
 .site-cart-button svg {
   width: 21px;
@@ -273,9 +281,9 @@ p {
   margin-left: auto;
   width: 44px;
   height: 44px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(10, 22, 40, 0.18);
   border-radius: 50%;
-  color: white;
+  color: var(--navy);
   background: transparent;
 }
 
@@ -417,6 +425,23 @@ body[data-page="home"] .hero-art .photo-placeholder {
   font: 700 2.7rem var(--serif);
   color: rgba(255, 255, 255, 0.75);
 }
+.logo-placeholder {
+  top: 50%;
+  right: 1rem;
+  width: min(420px, 78%);
+  aspect-ratio: 1;
+  padding: 1.5rem;
+  border: 1px solid rgba(212, 173, 85, 0.55);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.50), rgba(255, 255, 255, 0.50) 58%, rgba(255, 255, 255, 0.1));
+  transform: translateY(-50%);
+}
+.logo-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 30px rgba(10, 22, 40, 0.28));
+}
 .cover-placeholder.has-cover {
   padding: 0;
   border: 0;
@@ -539,6 +564,10 @@ body[data-page="home"] .hero-art .photo-placeholder {
   gap: clamp(2rem, 7vw, 6rem);
   align-items: center;
 }
+.featured-book > div:last-child {
+  position: relative;
+  z-index: 1;
+}
 .book-art {
   min-height: 500px;
   display: grid;
@@ -580,21 +609,47 @@ body[data-page="home"] .hero-art .photo-placeholder {
   display: none;
 }
 .featured-book .book-art.has-cover img {
-  width: 125%;
+  width: 130%;
   max-width: none;
   margin-inline: auto;
 }
+.featured-book .book-art.has-cover {
+  justify-items: center;
+}
+.book-float-slot {
+  width: 100%;
+  min-height: 200px;
+  display: grid;
+  place-items: start center;
+}
+.future-title-cover {
+  width: auto;
+  max-width: 100%;
+  height: 220px;
+  object-fit: contain;
+  object-position: center;
+}
 body[data-page="books"] .future-title-grid .card {
+  height: 100%;
   padding: 0;
   background: transparent;
   border: 0;
   box-shadow: none;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  align-items: start;
 }
 body[data-page="books"] .future-title-grid h3,
 body[data-page="books"] .future-title-grid p,
 body[data-page="books"] .future-title-grid .button {
   margin-left: 1.6rem;
   margin-right: 1.6rem;
+}
+body[data-page="books"] .future-title-grid h3 {
+  min-height: 5.4rem;
+}
+body[data-page="books"] .future-title-grid .asset-note {
+  min-height: 2.4rem;
 }
 body[data-page="books"] .future-title-grid .button {
   margin-bottom: 1.6rem;
@@ -731,18 +786,22 @@ body[data-page="books"] .future-title-grid .button {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
+  align-items: stretch;
 }
 .price-card {
   position: relative;
   padding: 1.5rem;
   border: 1px solid var(--line);
   background: white;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  align-items: start;
 }
 .price-card.featured {
   background: var(--purple-deep);
   color: white;
   border-color: var(--gold);
-  transform: translateY(-0.6rem);
+  transform: none;
 }
 .price-card.featured h3 {
   margin-top: 0.75rem;
@@ -761,6 +820,10 @@ body[data-page="books"] .future-title-grid .button {
   margin: 0.8rem 0;
   font: 700 2.4rem var(--serif);
   color: var(--gold);
+  min-height: 3.1rem;
+}
+.price-card p {
+  margin-bottom: 0;
 }
 .sponsor-placeholders {
   display: grid;
@@ -893,9 +956,11 @@ body[data-page="books"] .future-title-grid .button {
   font-size: 1.45rem;
 }
 .login-brand .brand-copy strong {
+  color: var(--white);
   font-size: 2rem;
 }
 .login-brand .brand-copy small {
+  color: var(--gold);
   font-size: 0.8rem;
 }
 .login-brand h1 {
@@ -1135,7 +1200,7 @@ textarea {
 }
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
   gap: 3rem;
 }
 .site-footer h3 {
@@ -1148,6 +1213,9 @@ textarea {
 .site-footer .brand-logo {
   width: 112px;
   height: 112px;
+}
+.site-footer .brand-copy strong {
+  color: var(--gold);
 }
 .footer-links {
   display: grid;
@@ -1213,8 +1281,8 @@ textarea {
     flex-direction: column;
     align-items: stretch;
     padding: 1rem;
-    background: var(--navy);
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--cream);
+    border-top: 1px solid rgba(10, 22, 40, 0.1);
   }
   .site-nav.open {
     display: flex;
@@ -1243,6 +1311,17 @@ textarea {
     width: min(540px, 100%);
     margin-inline: auto;
   }
+  .book-float-slot {
+    min-height: 320px;
+  }
+  .future-title-cover {
+    height: 320px;
+  }
+  .logo-placeholder {
+    right: 50%;
+    width: min(360px, 92%);
+    transform: translate(50%, -50%);
+  }
   .card-grid,
   .card-grid.four,
   .pricing {
@@ -1257,6 +1336,9 @@ textarea {
 }
 
 @media (max-width: 600px) {
+  [data-header] {
+    min-height: 72px;
+  }
   .brand-logo {
     width: 132px;
     height: 42px;
@@ -1266,6 +1348,18 @@ textarea {
   }
   .hero-art {
     min-height: 410px;
+  }
+  .featured-book .book-art.has-cover img {
+    width: 150%;
+  }
+  .book-float-slot {
+    min-height: 280px;
+  }
+  .future-title-cover {
+    height: 280px;
+  }
+  .logo-placeholder {
+    width: min(290px, 88%);
   }
   .section {
     padding: 3.5rem 0;

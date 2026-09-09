@@ -1,7 +1,7 @@
 const pages = [
   ["Home", "index.html", "home"],
   ["Books", "books.html", "books"],
-  ["About Barbara", "about.html", "about"],
+  ["About Us", "about.html", "about"],
   ["Read It Forward", "read-it-forward.html", "forward"],
   ["Speaking & Events", "speaking.html", "speaking"],
   ["Book Club", "book-club.html", "club"],
@@ -17,10 +17,23 @@ const adminUrl = normalizeUrl(siteConfig.adminUrl);
 const adminApiUrl = normalizeUrl(siteConfig.adminApiUrl);
 const artwork = Object.freeze({
   logo: "assets/jrppLogo.png",
-  featuredBook: "assets/book1.png",
+  featuredBook: "assets/battles1.png",
   futureBook: "assets/book2.png",
   author: "assets/barbaraRatliff.png",
 });
+
+function ensureFavicon() {
+  const head = document.head;
+  if (!head) return;
+  let icon = head.querySelector('link[rel="icon"]');
+  if (!icon) {
+    icon = document.createElement("link");
+    icon.rel = "icon";
+    head.appendChild(icon);
+  }
+  icon.href = artwork.logo;
+  icon.type = "image/png";
+}
 
 function normalizeUrl(value) {
   return String(value || "").trim();
@@ -144,9 +157,6 @@ function socialLinks() {
 }
 
 function footer() {
-  const adminLinks = isConfiguredUrl(adminUrl)
-    ? `<div><h3>Admin</h3><div class="footer-links"><a href="login/">Publisher Login</a></div></div>`
-    : "";
   return `<footer class="site-footer"><div class="container footer-grid">
     <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
     <div><h3>Explore</h3><div class="footer-links">${pages
@@ -154,8 +164,8 @@ function footer() {
       .map(([label, href]) => `<a href="${href}">${label}</a>`)
       .join("")}</div></div>
     <div><h3>Policies</h3><div class="footer-links"><a href="policies.html#privacy">Privacy Policy</a><a href="policies.html#terms">Terms & Conditions</a><a href="policies.html#refund">Refund Policy</a><a href="policies.html#shipping">Shipping Policy</a><a href="policies.html#accessibility">Accessibility</a><a href="policies.html#copyright">Copyright</a></div></div>
-    ${adminLinks}
-  </div><div class="container footer-bottom"><span>© 2025 Jackrabbit Punkin Publishing LLC. All Rights Reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
+    <div><h3>Admin</h3><div class="footer-links"><a href="login/">Publisher Login</a></div></div>
+  </div><div class="container footer-bottom"><span>© 2026 Jackrabbit Punkin Publishing LLC. All rights reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
 }
 
 document
@@ -165,6 +175,7 @@ document
   .querySelector("[data-footer]")
   ?.insertAdjacentHTML("afterbegin", footer());
 
+ensureFavicon();
 wireArtwork();
 
 const menu = document.querySelector(".menu-toggle");
