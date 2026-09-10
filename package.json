@@ -9,6 +9,7 @@
     "start": "npm run dev",
     "worker:prepare": "node scripts/stage-cloudflare-assets.js",
     "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
+    "worker:deploy": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc",
     "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit"
   },
   "dependencies": {
