@@ -10,6 +10,7 @@ const staticEntries = [
   'book-club.html',
   'books.html',
   'contact.html',
+  'coming-soon.html',
   'index.html',
   'media.html',
   'policies.html',
