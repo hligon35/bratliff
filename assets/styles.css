@@ -74,7 +74,7 @@ button,
 }
 .eyebrow {
   margin: 0 0 0.8rem;
-  color: var(--purple);
+  color: var(--gold);
   font-weight: 800;
   font-size: 0.76rem;
   letter-spacing: 0.16em;
@@ -147,6 +147,41 @@ p {
 .navy-section h3 {
   color: var(--white);
 }
+
+.podcast-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.podcast-content {
+  flex: 1;
+}
+
+.podcast-video {
+  flex: 0 0 800px; /* Adjust width as desired */
+}
+
+.podcast-video iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: 100%;
+  border: 0;
+  border-radius: 12px;
+}
+
+/* Stack on mobile */
+@media (max-width: 768px) {
+  .podcast-layout {
+    flex-direction: column;
+  }
+
+  .podcast-video {
+    flex: 1;
+    width: 100%;
+  }
+}
+
 .gold-rule {
   width: 72px;
   height: 4px;
@@ -328,8 +363,18 @@ p {
 .button-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
+  gap: 1rem;
   margin-top: 2rem;
+}
+
+.button-row .book {
+  flex: 1 1 calc(33.333% - 0.667rem);
+  min-width: 200px;
+}
+
+.button-row .book > div {
+  width: 100% !important;
+  box-sizing: border-box;
 }
 
 .hero {
@@ -433,7 +478,12 @@ body[data-page="home"] .hero-art .photo-placeholder {
   padding: 1.5rem;
   border: 1px solid rgba(212, 173, 85, 0.55);
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.50), rgba(255, 255, 255, 0.50) 58%, rgba(255, 255, 255, 0.1));
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.5),
+    rgba(255, 255, 255, 0.5) 58%,
+    rgba(255, 255, 255, 0.1)
+  );
   transform: translateY(-50%);
 }
 .logo-placeholder img {
@@ -441,6 +491,10 @@ body[data-page="home"] .hero-art .photo-placeholder {
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 18px 30px rgba(10, 22, 40, 0.28));
+}
+body[data-page="home"] .logo-placeholder {
+  width: min(504px, 93.6%);
+  transform: translate(250px, -50%);
 }
 .cover-placeholder.has-cover {
   padding: 0;
@@ -545,6 +599,82 @@ body[data-page="home"] .hero-art .photo-placeholder {
   border-left: 5px solid var(--gold);
   background: #f5ecdc;
   font: 1.18rem/1.7 var(--serif);
+}
+.author-spotlight {
+  background: var(--purple-deep);
+  color: rgba(255, 255, 255, 0.78);
+}
+.author-spotlight h2 {
+  color: var(--white);
+}
+.author-spotlight .section-head > p {
+  color: rgba(255, 255, 255, 0.72);
+}
+.spotlight-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.75fr) minmax(280px, 1.35fr) minmax(
+      170px,
+      0.65fr
+    );
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: center;
+}
+.spotlight-visual {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(212, 173, 85, 0.65);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--gold-soft);
+  box-shadow: var(--shadow);
+  font: 700 0.76rem var(--sans);
+  letter-spacing: 0.16em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.spotlight-portrait {
+  aspect-ratio: 4 / 5;
+  border-radius: 50% 50% 4px 4px;
+}
+.spotlight-book {
+  aspect-ratio: 2 / 3;
+}
+.spotlight-copy {
+  padding-block: 1rem;
+}
+.spotlight-copy h3 {
+  color: var(--white);
+}
+.spotlight-copy p:last-child {
+  margin-bottom: 0;
+}
+.spotlight-author-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.spotlight-email {
+  display: inline-block;
+  margin-top: 0.4rem;
+  color: var(--gold-soft);
+  overflow-wrap: anywhere;
+}
+.spotlight-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+.spotlight-disclaimer {
+  grid-column: 1 / -1;
+  width: min(900px, 100%);
+  margin: 0 auto;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  text-align: center;
 }
 .tag {
   display: inline-flex;
@@ -711,7 +841,7 @@ body[data-page="books"] .future-title-grid .button {
 }
 .testimonial blockquote {
   margin: 0;
-  font: clamp(1.55rem, 3vw, 2.5rem)/1.4 var(--serif);
+  font: clamp(1.24rem, 2.4vw, 2rem) / 1.4 var(--serif);
   color: var(--navy);
 }
 .testimonial cite {
@@ -723,7 +853,7 @@ body[data-page="books"] .future-title-grid .button {
 .slider-controls {
   display: flex;
   justify-content: center;
-  gap: 0.7rem;
+  gap: 10rem;
   margin-top: 1rem;
 }
 .slider-controls button {
@@ -796,6 +926,9 @@ body[data-page="books"] .future-title-grid .button {
   display: grid;
   grid-template-rows: auto auto auto 1fr;
   align-items: start;
+}
+.price-card h3 {
+  margin-top: 0.75rem;
 }
 .price-card.featured {
   background: var(--purple-deep);
@@ -1235,8 +1368,15 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 0.65rem;
   margin-top: 1rem;
+}
+.contact-channels {
+  width: fit-content;
+}
+.contact-channels > p {
+  margin-bottom: 0;
 }
 .social-icon {
   width: 40px;
@@ -1322,6 +1462,16 @@ textarea {
     width: min(360px, 92%);
     transform: translate(50%, -50%);
   }
+  body[data-page="home"] .logo-placeholder {
+    width: min(432px, 100%);
+    transform: translate(50%, -50%);
+  }
+  .spotlight-grid {
+    grid-template-columns: minmax(180px, 0.75fr) minmax(260px, 1.25fr) minmax(
+        150px,
+        0.65fr
+      );
+  }
   .card-grid,
   .card-grid.four,
   .pricing {
@@ -1360,6 +1510,24 @@ textarea {
   }
   .logo-placeholder {
     width: min(290px, 88%);
+  }
+  body[data-page="home"] .logo-placeholder {
+    width: min(348px, 100%);
+  }
+  .spotlight-grid {
+    grid-template-columns: 1fr;
+  }
+  .spotlight-author-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .spotlight-portrait,
+  .spotlight-book {
+    width: min(280px, 82vw);
+    justify-self: center;
+  }
+  .spotlight-book {
+    width: min(220px, 68vw);
   }
   .section {
     padding: 3.5rem 0;
