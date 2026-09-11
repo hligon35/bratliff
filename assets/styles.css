@@ -169,6 +169,9 @@ p {
   border: 0;
   border-radius: 12px;
 }
+.podcast-card h3 {
+  margin-top: 1rem;
+}
 
 /* Stack on mobile */
 @media (max-width: 768px) {
@@ -367,14 +370,52 @@ p {
   margin-top: 2rem;
 }
 
-.button-row .book {
-  flex: 1 1 calc(33.333% - 0.667rem);
-  min-width: 200px;
+.purchase-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
 }
-
-.button-row .book > div {
-  width: 100% !important;
-  box-sizing: border-box;
+.purchase-card {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  background: #faf8f4;
+  border-radius: 4px;
+}
+.purchase-card > img {
+  width: 96px;
+  height: auto;
+  align-self: start;
+}
+.purchase-details h3 {
+  font: 700 0.75rem/1.35 var(--sans);
+}
+.purchase-author {
+  margin: 0;
+  padding: 0.8rem 0;
+  font: italic 0.7rem/1.3 var(--sans);
+}
+.purchase-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.purchase-button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
+  border-radius: 4px;
+  background: #3a7c92;
+  color: white;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-decoration: none;
+}
+.purchase-button.direct {
+  background: var(--purple);
 }
 
 .hero {
@@ -580,6 +621,15 @@ body[data-page="home"] .logo-placeholder {
   justify-self: start;
   align-self: end;
 }
+.card-grid.four.future-title-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.future-title-grid > .card {
+  grid-column: span 2;
+}
+.future-title-grid > .card:nth-child(4) {
+  grid-column: 2 / span 2;
+}
 .card .number {
   display: inline-grid;
   place-items: center;
@@ -599,6 +649,9 @@ body[data-page="home"] .logo-placeholder {
   border-left: 5px solid var(--gold);
   background: #f5ecdc;
   font: 1.18rem/1.7 var(--serif);
+}
+.section.transition-tight {
+  padding-top: clamp(2rem, 4vw, 3.5rem);
 }
 .author-spotlight {
   background: var(--purple-deep);
@@ -956,7 +1009,11 @@ body[data-page="books"] .future-title-grid .button {
   min-height: 3.1rem;
 }
 .price-card p {
-  margin-bottom: 0;
+  margin-bottom: 1.25rem;
+}
+.price-card .button {
+  align-self: end;
+  justify-self: start;
 }
 .sponsor-placeholders {
   display: grid;
@@ -1457,6 +1514,10 @@ textarea {
   .future-title-cover {
     height: 320px;
   }
+  .featured-book .book-art.has-cover img {
+    width: 100%;
+    max-width: 100%;
+  }
   .logo-placeholder {
     right: 50%;
     width: min(360px, 92%);
@@ -1476,6 +1537,20 @@ textarea {
   .card-grid.four,
   .pricing {
     grid-template-columns: 1fr 1fr;
+  }
+  .purchase-grid {
+    grid-template-columns: 1fr;
+  }
+  .future-title-grid,
+  .card-grid.four.future-title-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .future-title-grid > .card,
+  .future-title-grid > .card:nth-child(4) {
+    grid-column: span 2;
+  }
+  .future-title-grid > .card:last-child {
+    grid-column: 2 / span 2;
   }
   .impact-grid {
     grid-template-columns: 1fr 1fr;
@@ -1498,9 +1573,6 @@ textarea {
   }
   .hero-art {
     min-height: 410px;
-  }
-  .featured-book .book-art.has-cover img {
-    width: 150%;
   }
   .book-float-slot {
     min-height: 280px;
@@ -1540,6 +1612,15 @@ textarea {
   .check-list,
   .steps {
     grid-template-columns: 1fr;
+  }
+  .future-title-grid,
+  .card-grid.four.future-title-grid {
+    grid-template-columns: 1fr;
+  }
+  .future-title-grid > .card,
+  .future-title-grid > .card:nth-child(4),
+  .future-title-grid > .card:last-child {
+    grid-column: auto;
   }
   .resource {
     grid-template-columns: 42px 1fr;

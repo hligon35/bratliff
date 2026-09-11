@@ -9,7 +9,7 @@
     </title>
     <meta
       name="description"
-      content="Bring Battles Beyond the Waves to your book club. Download the discussion guide, request a virtual author visit, and order signed copies for your group."
+      content="Bring Battles Beyond the Waves to your book club. Request a discussion guide, an in-person or virtual visit, and signed copies for your group."
     />
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
@@ -43,18 +43,18 @@
               </div>
               <a
                 class="button ghost"
-                href="contact.html?subject=Discussion%20Guide"
+                href="#club-form"
                 >Request the Guide</a
               >
             </article>
             <article class="resource">
               <span class="resource-index">02</span>
               <div>
-                <h3>Virtual Book Club Visits</h3>
+                <h3>Book Club Visits</h3>
                 <p>
-                  Connect with JPP for a virtual book club conversation,
-                  reading, or Q&amp;A, subject to availability and the selected
-                  title.
+                  Connect with JPP for an in-person or virtual book club
+                  conversation, reading, or Q&amp;A, subject to availability and
+                  the selected title.
                 </p>
               </div>
               <a class="button ghost" href="#club-form">Request a Visit</a>
@@ -66,12 +66,12 @@
                 <p>
                   Autographed copies may be requested for book clubs and
                   reading groups. Please let JPP know in advance if you would
-                  like your copies personally autographed by Barbara.
+                  like your copies personally autographed by the author.
                 </p>
               </div>
               <a
                 class="button ghost"
-                href="contact.html?subject=Autographed%20Copies"
+                href="#club-form"
                 >Request Autographed Copies</a
               >
             </article>
@@ -136,14 +136,16 @@
             ><label class="span-2"
               >Type of Request<select name="request">
                 <option>Discussion Guide</option>
-                <option>Virtual Book Club Visit</option>
+                <option>Book Club Visit</option>
                 <option>Autographed Copies</option>
                 <option>Read It Forward Information</option>
                 <option>Other</option>
               </select></label
             ><label class="span-2"
-              >Which JPP book would you like to feature?<input name="title" />
-            </label
+              >Which JPP book would you like to feature?<select name="title">
+                <option>Battles Beyond the Waves</option>
+                <option>Other / Not Sure Yet</option>
+              </select></label
             ><label class="span-2"
               >Additional Notes<textarea name="notes"></textarea>
             </label>
@@ -156,57 +158,6 @@
               Thank you for your book club request.
             </div>
           </form>
-        </div>
-      </section>
-      <section class="section author-spotlight" aria-labelledby="author-spotlight-title">
-        <div class="container">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow light">Meet the storyteller</p>
-              <h2 id="author-spotlight-title">Author Spotlight</h2>
-            </div>
-            <p>
-              Giving emerging and lesser-known authors a place to be seen, heard, and discovered.
-            </p>
-          </div>
-          <div class="spotlight-grid">
-            <figure class="spotlight-visual spotlight-portrait" role="img" aria-label="Author photo placeholder">
-              <figcaption>Author Photo</figcaption>
-            </figure>
-            <div class="spotlight-copy">
-              <p class="eyebrow">Featured author</p>
-              <div class="spotlight-author-heading">
-                <div>
-                  <h3>Author Name</h3>
-                  <a class="spotlight-email" href="mailto:author@example.com"
-                    >author@example.com</a
-                  >
-                </div>
-                <a class="button" href="mailto:author@example.com">Contact</a>
-              </div>
-              <p>
-                A short biography highlighting the featured author's work,
-                background, and connection to readers will appear here.
-              </p>
-              <div class="spotlight-actions">
-                <a class="button" href="about.html">Learn More</a>
-              </div>
-            </div>
-            <figure class="spotlight-visual spotlight-book" role="img" aria-label="Book photo placeholder">
-              <figcaption>Featured Book</figcaption>
-            </figure>
-            <p class="spotlight-disclaimer">
-              <em
-                >Authors and books featured in the JPP Author Spotlight are
-                presented for informational and promotional purposes. A feature
-                does not mean that Jackrabbit Punkin Publishing LLC published,
-                represents, or endorses the featured author or their work.
-                Jackrabbit Punkin Publishing LLC is not responsible for the
-                views, opinions, claims, themes, or content contained in a
-                featured author’s book or other work.</em
-              >
-            </p>
-          </div>
         </div>
       </section>
     </main>

@@ -57,7 +57,7 @@
               thoughtful conversation, and a genuine desire to leave audiences
               with something meaningful to carry forward.
             </p>
-            <a class="button ink" href="#request">Request Barbara</a>
+            <a class="button ink" href="#request">Request Barbara to Speak</a>
           </div>
         </div>
       </section>
@@ -158,7 +158,7 @@
           </div>
           <form
             data-form-type="speaking"
-            data-success-message="Thank you for your event request."
+            data-success-message="JPP received your speaking request and will follow up regarding availability and event details."
             class="form-grid"
           >
             <label
@@ -178,6 +178,13 @@
                 type="tel"
                 name="phone"
                 autocomplete="tel" /></label
+            ><label
+              >Preferred Speaker<select name="preferredSpeaker">
+                <option>Barbara J. Ratliff</option>
+                <option>Charles Ratliff</option>
+                <option>Either</option>
+                <option>Not Sure</option>
+              </select></label
             ><label
               >Event Type<select name="type">
                 <option>Keynote</option>
@@ -204,10 +211,10 @@
                 name="audience"
                 min="1" /></label
             ><label
-              >Is this a paid speaking engagement?<select name="notes">
-                <option>Yes</option>
-                <option>No</option>
-                <option>To Be Discussed</option>
+              >Speaking Budget<select name="speakingBudget">
+                <option>Budget Available</option>
+                <option>Community or Nonprofit Request</option>
+                <option>Not Yet Determined</option>
               </select></label
             ><label class="span-2"
               >Additional Details<textarea name="details" required></textarea>
@@ -216,7 +223,8 @@
               <button class="button" type="submit">Submit Request</button>
             </div>
             <div class="form-message span-2" role="status">
-              Thank you for your event request.
+              JPP received your speaking request and will follow up regarding
+              availability and event details.
             </div>
           </form>
         </div>

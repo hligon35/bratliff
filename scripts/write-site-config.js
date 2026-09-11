@@ -74,12 +74,29 @@ const publicConfig = {
   authLogoutEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/logout') : '',
   googleClientId: normalizeUrl(values.GOOGLE_CLIENT_ID),
   adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL),
-  spreadsheetId: normalizeUrl(values.SHEETS_EXPORT_SPREADSHEET_ID || values.GOOGLE_SPREADSHEET_ID)
+  spreadsheetId: normalizeUrl(values.SHEETS_EXPORT_SPREADSHEET_ID || values.GOOGLE_SPREADSHEET_ID),
+  squareLinks: {
+    books: {
+      battlesHardcover: normalizeUrl(values.SQUARE_BATTLES_HARDCOVER_URL),
+      battlesPaperback: normalizeUrl(values.SQUARE_BATTLES_PAPERBACK_URL)
+    },
+    sponsorships: {
+      pagePal: normalizeUrl(values.SQUARE_PAGE_PAL_URL),
+      chapterChampion: normalizeUrl(values.SQUARE_CHAPTER_CHAMPION_URL),
+      bookshelfBuilder: normalizeUrl(values.SQUARE_BOOKSHELF_BUILDER_URL),
+      literacyTrailblazer: normalizeUrl(values.SQUARE_LITERACY_TRAILBLAZER_URL)
+    }
+  }
 };
 
 fs.writeFileSync(
   outputPath,
-  'window.siteConfig = Object.freeze(' + JSON.stringify(publicConfig, null, 2) + ');\n',
+  'window.siteConfig = (function freeze(value) {\n' +
+    '  Object.values(value).forEach(function (entry) {\n' +
+    '    if (entry && typeof entry === "object") freeze(entry);\n' +
+    '  });\n' +
+    '  return Object.freeze(value);\n' +
+    '})(' + JSON.stringify(publicConfig, null, 2) + ');\n',
   'utf8'
 );
 

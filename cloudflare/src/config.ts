@@ -15,7 +15,14 @@ export const FORM_ROUTES: Record<
     rateLimitWindowSeconds: 20,
   },
   speaking: {
-    required: ["name", "organization", "email", "details"],
+    required: [
+      "name",
+      "organization",
+      "email",
+      "preferredSpeaker",
+      "speakingBudget",
+      "details",
+    ],
     summaryLabel: "Speaking Requests",
     rateLimitWindowSeconds: 20,
   },

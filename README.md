@@ -47,6 +47,8 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `SITE_URL`: the public website URL.
 - `PUBLIC_API_URL`: the Worker base URL used by forms, checkout, media, and admin API requests.
 - `PUBLIC_ADMIN_URL`: the admin dashboard URL shown after successful sign-in.
+- `SQUARE_BATTLES_HARDCOVER_URL` and `SQUARE_BATTLES_PAPERBACK_URL`: public Square checkout links for direct book sales.
+- `SQUARE_PAGE_PAL_URL`, `SQUARE_CHAPTER_CHAMPION_URL`, `SQUARE_BOOKSHELF_BUILDER_URL`, and `SQUARE_LITERACY_TRAILBLAZER_URL`: public Square sponsorship checkout links.
 - `CORS_ORIGIN`: origin allowed for browser requests to the Worker.
 - `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
 - `GOOGLE_CLIENT_ID`: Google Identity Services web client ID used by the branded login screen.
@@ -59,6 +61,10 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `ADMIN_SESSION_SECRET`: HMAC secret used by the Worker to sign the admin session cookie.
 
 Legacy Apps Script URLs remain as optional fallback variables for public forms/store during migration, but the admin UI path is website-first and branded emails can be relayed to Apps Script.
+
+When the Apps Script data relay is enabled, Cloudflare `GOOGLE_APPS_SCRIPT_DATA_SECRET` and Apps Script `WORKER_RELAY_SECRET` must contain the same secret value. Redeploy both sides after aligning them, then test the relay end to end. Never expose either value in public site configuration.
+
+Existing D1 deployments must apply [cloudflare/migrations/0002_review_form_fields.sql](cloudflare/migrations/0002_review_form_fields.sql) after the initial migration.
 
 ## Temporary launch page
 
