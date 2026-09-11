@@ -60,6 +60,10 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 
 Legacy Apps Script URLs remain as optional fallback variables for public forms/store during migration, but the admin UI path is website-first and branded emails can be relayed to Apps Script.
 
+## Temporary launch page
+
+The public homepage temporarily redirects visitors to `coming-soon.html`, while the admin, login, API, and completed site files remain intact. Remove the temporary redirect block marked in `index.html` when the full website is ready to launch.
+
 ## Admin dashboard
 
 The website footer shows an `Admin` link to the website admin route. The static admin console now lives at [admin/index.html](admin/index.html) and calls the Worker at `/api/admin/*`.
