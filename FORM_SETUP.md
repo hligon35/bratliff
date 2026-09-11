@@ -38,11 +38,12 @@ If Sheets exports are enabled, also set:
 
 1. Create the D1 database and R2 bucket referenced by [cloudflare/wrangler.jsonc](cloudflare/wrangler.jsonc).
 2. Apply [cloudflare/migrations/0001_initial.sql](cloudflare/migrations/0001_initial.sql) to D1.
-3. Configure the required Wrangler vars and secrets.
-4. Protect the admin URL and the admin API with Cloudflare Access using Google identity.
-5. Run `npm run prepare:config` so [assets/site-config.js](assets/site-config.js) points at the Worker.
-6. Run `npm run worker:prepare` to stage the site into `cloudflare/public`.
-7. Deploy the Worker and static assets with Wrangler.
+3. Apply [cloudflare/migrations/0002_review_form_fields.sql](cloudflare/migrations/0002_review_form_fields.sql) to add the current speaking-request fields without changing existing submissions.
+4. Configure the required Wrangler vars and secrets.
+5. Protect the admin URL and the admin API with Cloudflare Access using Google identity.
+6. Run `npm run prepare:config` so [assets/site-config.js](assets/site-config.js) points at the Worker.
+7. Run `npm run worker:prepare` to stage the site into `cloudflare/public`.
+8. Deploy the Worker and static assets with Wrangler.
 
 ## Confirmation emails
 
@@ -61,6 +62,8 @@ If email delivery fails, the submission still remains in D1 and the API responds
 3. Set the same value as `GOOGLE_APPS_SCRIPT_EMAIL_SECRET` in Cloudflare.
 4. Set `GOOGLE_APPS_SCRIPT_EMAIL_URL` to the Apps Script web app URL.
 5. Share the Google Sheet with the service account if Sheets export is enabled.
+
+For the data/admin relay, configure Cloudflare `GOOGLE_APPS_SCRIPT_DATA_SECRET` and Apps Script `WORKER_RELAY_SECRET` with the same secret value. Redeploy both services and complete an end-to-end relay test after any change. Do not disable signature verification.
 
 ## Reporting exports
 

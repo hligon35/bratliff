@@ -44,6 +44,39 @@ function isConfiguredUrl(value) {
   return Boolean(value) && !/your-deployment-id|example\.com/i.test(value);
 }
 
+function getConfigValue(path) {
+  return String(path || "")
+    .split(".")
+    .filter(Boolean)
+    .reduce((value, key) => {
+      if (!value || typeof value !== "object") return "";
+      return Object.prototype.hasOwnProperty.call(value, key) ? value[key] : "";
+    }, siteConfig);
+}
+
+function hydrateConfiguredLinks() {
+  document.querySelectorAll("[data-config-url]").forEach((link) => {
+    const value = normalizeUrl(getConfigValue(link.dataset.configUrl));
+    let url;
+    try {
+      url = new URL(value);
+    } catch {
+      link.removeAttribute("href");
+      link.hidden = true;
+      return;
+    }
+    if (!/^https?:$/.test(url.protocol)) {
+      link.removeAttribute("href");
+      link.hidden = true;
+      return;
+    }
+    link.href = url.toString();
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.hidden = false;
+  });
+}
+
 function withAdminAction(value, action) {
   const url = normalizeUrl(value);
   if (!isConfiguredUrl(url)) return '';
@@ -198,6 +231,7 @@ document
 
 ensureFavicon();
 wireArtwork();
+hydrateConfiguredLinks();
 
 const menu = document.querySelector(".menu-toggle");
 const nav = document.querySelector(".site-nav");
@@ -311,10 +345,6 @@ async function submitLiveForm(form) {
       form.dataset.successMessage || "Thank you. Your request has been sent.",
     );
     form.reset();
-    if (form.dataset.formType === "bookNotification") {
-      syncNotificationTitle("");
-      modal?.classList.remove("open");
-    }
   } catch (error) {
     setFormMessage(
       form,
@@ -452,8 +482,18 @@ if (counters.length) {
 }
 
 const modal = document.querySelector(".modal");
+let modalTrigger = null;
+
+function closeNotificationModal() {
+  if (!modal?.classList.contains("open")) return;
+  modal.classList.remove("open");
+  modalTrigger?.focus();
+  modalTrigger = null;
+}
+
 document.querySelectorAll("[data-notify]").forEach((button) =>
   button.addEventListener("click", () => {
+    modalTrigger = button;
     const title = getNotifyTitle(button);
     const form = document.querySelector(
       'form[data-form-type="bookNotification"]',
@@ -466,12 +506,28 @@ document.querySelectorAll("[data-notify]").forEach((button) =>
 );
 document
   .querySelector(".modal-close")
-  ?.addEventListener("click", () => modal.classList.remove("open"));
+  ?.addEventListener("click", closeNotificationModal);
 modal?.addEventListener("click", (event) => {
-  if (event.target === modal) modal.classList.remove("open");
+  if (event.target === modal) closeNotificationModal();
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") modal?.classList.remove("open");
+  if (event.key === "Escape") closeNotificationModal();
+  if (event.key !== "Tab" || !modal?.classList.contains("open")) return;
+  const focusable = [
+    ...modal.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
+    ),
+  ].filter((element) => !element.hidden);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 
 const requestedSubject = new URLSearchParams(location.search).get("subject");

@@ -28,7 +28,14 @@ const FORM_ROUTES = Object.freeze({
   },
   speaking: {
     sheet: "Speaking Requests",
-    required: ["name", "organization", "email", "details"],
+    required: [
+      "name",
+      "organization",
+      "email",
+      "preferredSpeaker",
+      "speakingBudget",
+      "details",
+    ],
     fields: [
       "name",
       "organization",
@@ -42,6 +49,7 @@ const FORM_ROUTES = Object.freeze({
       "pageUrl",
       "userAgent",
     ],
+    appendedFields: ["preferredSpeaker", "speakingBudget"],
   },
   bookClub: {
     sheet: "Book Club Requests",
@@ -58,6 +66,7 @@ const FORM_ROUTES = Object.freeze({
       "pageUrl",
       "userAgent",
     ],
+    appendedFields: ["title"],
   },
   bookNotification: {
     sheet: "Book Notifications",
@@ -71,6 +80,17 @@ const ADMIN_ROLE_ORDER_ = Object.freeze([
   "fulfillment",
   "editor",
   "owner",
+]);
+const PREFERRED_SPEAKERS_ = Object.freeze([
+  "Barbara J. Ratliff",
+  "Charles Ratliff",
+  "Either",
+  "Not Sure",
+]);
+const SPEAKING_BUDGETS_ = Object.freeze([
+  "Budget Available",
+  "Community or Nonprofit Request",
+  "Not Yet Determined",
 ]);
 
 let ACTIVE_RELAY_CONTEXT_ = null;
@@ -175,6 +195,14 @@ function handleFormSubmissionPayload_(payload) {
         throw new Error("Missing required field: " + field);
       }
     });
+    if (payload.formType === "speaking") {
+      if (PREFERRED_SPEAKERS_.indexOf(String(payload.preferredSpeaker || "")) === -1) {
+        throw new Error("Select a valid preferred speaker.");
+      }
+      if (SPEAKING_BUDGETS_.indexOf(String(payload.speakingBudget || "")) === -1) {
+        throw new Error("Select a valid speaking budget.");
+      }
+    }
 
     throttle_(payload.formType, payload.email || payload.name || "anonymous");
 
@@ -194,11 +222,15 @@ function handleFormSubmissionPayload_(payload) {
       }
     });
     row.push("New", "");
+    (route.appendedFields || []).forEach(function (field) {
+      row.push(clean_(payload[field], 500));
+    });
 
     const sheet = SpreadsheetApp.openById(getSpreadsheetId_()).getSheetByName(
       route.sheet,
     );
     if (!sheet) throw new Error("Destination sheet not found.");
+    ensureAppendedFormHeaders_(sheet, route);
     sheet.appendRow(row);
 
     let emailSent = false;
@@ -592,6 +624,9 @@ function mapStaticSubmissionRow_(formType, route, row, reverseIndex) {
   route.fields.forEach(function (field, index) {
     payload[field] = row[index + 1] || "";
   });
+  (route.appendedFields || []).forEach(function (field, index) {
+    payload[field] = row[route.fields.length + 3 + index] || "";
+  });
   const status = row[route.fields.length + 1] || "New";
   const name = payload.name || payload.group || payload.organization || payload.title || "";
   const summary = getRowSummary_(formType, row) || route.sheet;
@@ -852,6 +887,8 @@ function getAdminDetails_(payload, route) {
     location: "Location",
     audience: "Audience",
     details: "Event details",
+    preferredSpeaker: "Preferred speaker",
+    speakingBudget: "Speaking budget",
     group: "Book club / group",
     size: "Group size",
     format: "Preferred format",
@@ -863,7 +900,7 @@ function getAdminDetails_(payload, route) {
     userAgent: "Browser / device",
   };
 
-  return route.fields.map(function (field) {
+  return route.fields.concat(route.appendedFields || []).map(function (field) {
     let value = payload[field];
     if (field === "consent")
       value = /^(true|yes|on|1)$/i.test(String(value || "")) ? "Yes" : "No";
@@ -1297,14 +1334,36 @@ function getPrimaryContact_(formType, row) {
 }
 
 function getRowSummary_(formType, row) {
+  const route = FORM_ROUTES[formType];
+  const appended = {};
+  (route && route.appendedFields ? route.appendedFields : []).forEach(function (field, index) {
+    appended[field] = row[route.fields.length + 3 + index] || "";
+  });
   const summaries = {
     contact: [row[4], row[5]].filter(Boolean).join(" · "),
     newsletter: row[2] ? "Consent: " + row[2] : "Newsletter signup",
-    speaking: [row[2], row[5], row[6]].filter(Boolean).join(" · "),
-    bookClub: [row[1], row[6], row[7]].filter(Boolean).join(" · "),
+    speaking: [row[2], appended.preferredSpeaker, appended.speakingBudget, row[5], row[6]].filter(Boolean).join(" · "),
+    bookClub: [row[1], appended.title, row[6], row[7]].filter(Boolean).join(" · "),
     bookNotification: row[2] || "",
   };
   return summaries[formType] || "";
+}
+
+function ensureAppendedFormHeaders_(sheet, route) {
+  const fields = route.appendedFields || [];
+  if (!fields.length) return;
+  const labels = {
+    preferredSpeaker: "Preferred Speaker",
+    speakingBudget: "Speaking Budget",
+    title: "Book Title",
+  };
+  const startColumn = route.fields.length + 4;
+  fields.forEach(function (field, index) {
+    const cell = sheet.getRange(1, startColumn + index);
+    if (!String(cell.getValue() || "").trim()) {
+      cell.setValue(labels[field] || field);
+    }
+  });
 }
 
 function getAuthorizedAdminEmail_() {

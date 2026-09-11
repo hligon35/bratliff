@@ -8,7 +8,7 @@
     </title>
     <meta
       name="description"
-      content="Awards, podcast interviews, media features, and speaking highlights for veteran author Barbara J. Ratliff and Jackrabbit Punkin Publishing LLC."
+      content="Awards, formal recognition, and meaningful milestones for Barbara J. Ratliff and Jackrabbit Punkin Publishing LLC."
     />
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
@@ -22,94 +22,34 @@
           <div class="breadcrumb">
             <a href="index.html">Home</a> / Awards & Recognition
           </div>
-          <p class="eyebrow light">Honors • Appearances • Milestones</p>
-          <h1>Awards, Recognition & Media Appearances</h1>
+          <p class="eyebrow light">Honors • Recognition • Milestones</p>
+          <h1>Awards &amp; Recognition</h1>
           <p class="lede">
-            JPP is grateful for every opportunity to share our stories, connect
-            with readers, and contribute to conversations about service,
-            resilience, literacy, and community.
+            A record of verified honors, formal recognition, and meaningful
+            milestones for Barbara J. Ratliff and Jackrabbit Punkin Publishing.
           </p>
         </div>
       </section>
 
-      <section class="section surface">
+      <section class="section surface" aria-labelledby="recognition-title">
         <div class="container">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Podcast interview</p>
-              <h2>In conversation.</h2>
+              <p class="eyebrow">Recognition archive</p>
+              <h2 id="recognition-title">Verified honors and milestones.</h2>
             </div>
+            <p>Entries will be published here after details are confirmed.</p>
           </div>
-          <article class="card podcast-card">
-  <span class="tag">Confirmed appearance</span>
-
-  <h3 style="margin-top: 1rem">
-    B3U Podcast - Interview with Barbara J. Ratliff
-  </h3>
-
-  <p>
-    Barbara J. Ratliff joins the B3U Podcast for a conversation about
-    <em>Battles Beyond the Waves</em>, resilience, healing, faith, and
-    the experiences that shaped her journey from Navy veteran to author
-    and publisher.
-  </p>
-
-  <div class="podcast-video">
-    <iframe
-      src="https://www.youtube-nocookie.com/embed/0BgpwH0UkhE?si=KvyfCTCqlJvW2ltS"
-      title="YouTube video player"
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-      referrerpolicy="strict-origin-when-cross-origin"
-      allowfullscreen>
-    </iframe>
-  </div>
-</article>
-        </div>
-      </section>
-      <section class="section">
-        <div class="container card-grid recognition-grid">
-          <div class="recognition-column">
-            <div class="recognition-title">
-              <p class="eyebrow">Speaking engagements</p>
-              <h2>On the stage</h2>
-            </div>
-            <p>
-              Speaking engagements, panels, workshops, summits, book
-              discussions, and community appearances.
-            </p>
-            <div class="empty-state">
-              <a class="button ghost" href="speaking.html">Explore Speaking</a>
-            </div>
+          <div class="empty-state">
+            No verified awards or formal recognition have been published yet.
           </div>
-          <div class="recognition-column">
-            <div class="recognition-title">
-              <p class="eyebrow">Media features</p>
-              <h2>In the press</h2>
-            </div>
-            <p>
-              Podcast interviews, media features, articles, interviews, and
-              other coverage of Barbara or JPP.
-            </p>
-            <div class="empty-state">
-              <a class="button ghost" href="media.html">Visit the Media Room</a>
-            </div>
-          </div>
-          <div class="recognition-column">
-            <div class="recognition-title">
-              <p class="eyebrow">Community recognition</p>
-              <h2>Local impact</h2>
-            </div>
-            <p>
-              Literacy initiatives, community partnerships, Read It Forward
-              activity, veteran-community engagement, and other meaningful JPP
-              community work.
-            </p>
-            <div class="empty-state">
-              <a class="button ghost" href="read-it-forward.html"
-                >Explore Community Impact</a
-              >
-            </div>
-          </div>
+          <template id="award-entry-template">
+            <article class="card recognition-entry">
+              <p class="eyebrow" data-award-year></p>
+              <h3 data-award-title></h3>
+              <p data-award-details></p>
+            </article>
+          </template>
         </div>
       </section>
     </main>

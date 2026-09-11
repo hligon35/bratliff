@@ -1,4 +1,9 @@
-window.siteConfig = Object.freeze({
+window.siteConfig = (function freeze(value) {
+  Object.values(value).forEach(function (entry) {
+    if (entry && typeof entry === "object") freeze(entry);
+  });
+  return Object.freeze(value);
+})({
   "siteUrl": "https://jrpp.alphazonelabs.com",
   "publicApiUrl": "https://jrpp.alphazonelabs.com",
   "formEndpoint": "https://jrpp.alphazonelabs.com/api/forms/submit",
@@ -12,5 +17,17 @@ window.siteConfig = Object.freeze({
   "authLogoutEndpoint": "https://jrpp.alphazonelabs.com/api/auth/logout",
   "googleClientId": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
   "adminEmail": "hligon@getsparqd.com",
-  "spreadsheetId": "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g"
+  "spreadsheetId": "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g",
+  "squareLinks": {
+    "books": {
+      "battlesHardcover": "",
+      "battlesPaperback": ""
+    },
+    "sponsorships": {
+      "pagePal": "",
+      "chapterChampion": "",
+      "bookshelfBuilder": "",
+      "literacyTrailblazer": ""
+    }
+  }
 });

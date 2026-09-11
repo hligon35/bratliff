@@ -46,6 +46,8 @@ import {
 const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
+const SPEAKING_BUDGETS = new Set(["Budget Available", "Community or Nonprofit Request", "Not Yet Determined"]);
 
 type VerifiedGoogleIdentity = {
   email: string;
@@ -245,6 +247,8 @@ async function handleAppsScriptFormRequest(
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
   }
   const body = payload || (await parseBody(request));
+  if (body.website) return json(request, env, { ok: true, emailSent: false });
+  validateFormPayload(body);
   const relay = await callAppsScriptRelay(env, {
     endpoint: getAppsScriptPublicEndpoint(env),
     action: "form-submit",
@@ -304,7 +308,10 @@ async function handleAppsScriptAdminApi(
   return json(request, env, relay);
 }
 
-function mapAppsScriptAdminAction(path: string, method: string) {
+function mapAppsScriptAdminAction(
+  path: string,
+  method: string,
+): { action: string; requiredRole: AdminRole; query?: Record<string, string> } {
   const cleanPath = path.replace(/^\/+|\/+$/g, "");
   const segments = cleanPath ? cleanPath.split("/") : [];
   const verb = method.toUpperCase();
@@ -655,19 +662,34 @@ async function handleFormRequest(request: Request, env: Env): Promise<Response> 
   return handleFormSubmission(request, env, await parseBody(request));
 }
 
+function validateFormPayload(payload: Record<string, string>): FormType {
+  const formType = text(payload.formType, 80) as FormType;
+  const route = FORM_ROUTES[formType];
+  if (!route) throw new HttpError(400, "Unknown form type.");
+  for (const field of route.required) {
+    if (!cleanInput(payload[field], 5000)) {
+      throw new HttpError(400, "Missing required field: " + field);
+    }
+  }
+  if (formType === "speaking") {
+    if (!PREFERRED_SPEAKERS.has(cleanInput(payload.preferredSpeaker, 120))) {
+      throw new HttpError(400, "Select a valid preferred speaker.");
+    }
+    if (!SPEAKING_BUDGETS.has(cleanInput(payload.speakingBudget, 120))) {
+      throw new HttpError(400, "Select a valid speaking budget.");
+    }
+  }
+  return formType;
+}
+
 async function handleFormSubmission(
   request: Request,
   env: Env,
   payload: Record<string, string>,
 ): Promise<Response> {
-  const formType = text(payload.formType, 80) as FormType;
-  const route = FORM_ROUTES[formType];
-  if (!route) throw new HttpError(400, "Unknown form type.");
   if (payload.website) return json(request, env, { ok: true, emailSent: false });
-
-  for (const field of route.required) {
-    if (!cleanInput(payload[field], 5000)) throw new HttpError(400, "Missing required field: " + field);
-  }
+  const formType = validateFormPayload(payload);
+  const route = FORM_ROUTES[formType];
 
   const recent = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM form_submissions WHERE form_type = ?1 AND identity_key = ?2 AND created_at > datetime('now', ?3)",
@@ -683,8 +705,9 @@ async function handleFormSubmission(
       id, form_type, created_at, identity_key, status,
       name, email, phone, subject, message, organization, event_type,
       event_date, location, audience, details, group_name, group_size,
-      preferred_format, request_text, notes, title, page_url, user_agent, consent
-    ) VALUES (?1, ?2, datetime('now'), ?3, 'New', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)`,
+      preferred_format, request_text, notes, title, page_url, user_agent, consent,
+      preferred_speaker, speaking_budget
+    ) VALUES (?1, ?2, datetime('now'), ?3, 'New', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)`,
   )
     .bind(
       submissionId,
@@ -710,6 +733,8 @@ async function handleFormSubmission(
       record.pageUrl,
       record.userAgent,
       record.consent ? 1 : 0,
+      record.preferredSpeaker,
+      record.speakingBudget,
     )
     .run();
 
@@ -752,6 +777,8 @@ function normalizeFormRecord(payload: Record<string, string>) {
     location: cleanInput(payload.location, 250),
     audience: cleanInput(payload.audience, 250),
     details: cleanInput(payload.details, 5000),
+    preferredSpeaker: cleanInput(payload.preferredSpeaker, 120),
+    speakingBudget: cleanInput(payload.speakingBudget, 120),
     groupName: cleanInput(payload.group, 250),
     groupSize: cleanInput(payload.size, 120),
     preferredFormat: cleanInput(payload.format, 120),
@@ -1175,8 +1202,8 @@ async function buildAdminBootstrap(env: Env, admin: AuthenticatedAdmin) {
 
 async function listSubmissions(env: Env, formType: string, limit: number) {
   const query = formType
-    ? "SELECT id, form_type AS formType, created_at AS createdAt, name, email, subject, title, organization, group_name AS groupName, status, page_url AS pageUrl FROM form_submissions WHERE form_type = ?1 ORDER BY created_at DESC LIMIT ?2"
-    : "SELECT id, form_type AS formType, created_at AS createdAt, name, email, subject, title, organization, group_name AS groupName, status, page_url AS pageUrl FROM form_submissions ORDER BY created_at DESC LIMIT ?1";
+    ? "SELECT id, form_type AS formType, created_at AS createdAt, name, email, subject, title, organization, preferred_speaker AS preferredSpeaker, speaking_budget AS speakingBudget, group_name AS groupName, status, page_url AS pageUrl FROM form_submissions WHERE form_type = ?1 ORDER BY created_at DESC LIMIT ?2"
+    : "SELECT id, form_type AS formType, created_at AS createdAt, name, email, subject, title, organization, preferred_speaker AS preferredSpeaker, speaking_budget AS speakingBudget, group_name AS groupName, status, page_url AS pageUrl FROM form_submissions ORDER BY created_at DESC LIMIT ?1";
   const rows = formType ? await env.DB.prepare(query).bind(formType, limit).all() : await env.DB.prepare(query).bind(limit).all();
   return (rows.results || []).map((row) => ({
     ...row,
@@ -1186,9 +1213,9 @@ async function listSubmissions(env: Env, formType: string, limit: number) {
         : row.formType === "bookNotification"
           ? row.title
           : row.formType === "speaking"
-            ? row.organization
+            ? [row.preferredSpeaker, row.organization, row.speakingBudget].filter(Boolean).join(" - ")
             : row.formType === "bookClub"
-              ? row.groupName
+              ? [row.groupName, row.title].filter(Boolean).join(" - ")
               : "Newsletter signup",
   }));
 }
@@ -1691,6 +1718,8 @@ function buildAdminMessage(formType: FormType, record: ReturnType<typeof normali
     ["Location", record.location],
     ["Audience", record.audience],
     ["Event details", record.details],
+    ["Preferred speaker", record.preferredSpeaker],
+    ["Speaking budget", record.speakingBudget],
     ["Book club / group", record.groupName],
     ["Group size", record.groupSize],
     ["Preferred format", record.preferredFormat],
@@ -1854,7 +1883,7 @@ async function exportReportingSheets(env: Env) {
 }
 
 async function buildSheetExports(env: Env) {
-  const submissions = (await env.DB.prepare("SELECT form_type AS formType, created_at AS createdAt, status, name, email, phone, subject, message, organization, event_type AS eventType, event_date AS eventDate, location, audience, details, group_name AS groupName, group_size AS groupSize, preferred_format AS preferredFormat, request_text AS requestText, notes, title, page_url AS pageUrl, user_agent AS userAgent, consent FROM form_submissions ORDER BY datetime(created_at) DESC").all<Record<string, unknown>>()).results || [];
+  const submissions = (await env.DB.prepare("SELECT form_type AS formType, created_at AS createdAt, status, name, email, phone, subject, message, organization, event_type AS eventType, event_date AS eventDate, location, audience, details, preferred_speaker AS preferredSpeaker, speaking_budget AS speakingBudget, group_name AS groupName, group_size AS groupSize, preferred_format AS preferredFormat, request_text AS requestText, notes, title, page_url AS pageUrl, user_agent AS userAgent, consent FROM form_submissions ORDER BY datetime(created_at) DESC").all<Record<string, unknown>>()).results || [];
   const byType = (type: FormType) => submissions.filter((row) => row.formType === type);
   const subscribers = (await env.DB.prepare("SELECT email, first_seen_at AS firstSeenAt, last_seen_at AS lastSeenAt, consent, status, source, notes FROM newsletter_subscribers ORDER BY datetime(last_seen_at) DESC").all<Record<string, unknown>>()).results || [];
   const campaigns = (await env.DB.prepare("SELECT * FROM newsletter_campaigns ORDER BY datetime(updated_at) DESC").all<Record<string, unknown>>()).results || [];
@@ -1866,8 +1895,8 @@ async function buildSheetExports(env: Env) {
   return [
     { title: "Contact", values: [["Submitted", "Name", "Email", "Phone", "Subject", "Message", "Page URL", "User Agent", "Status"], ...byType("contact").map((row) => [row.createdAt, row.name, row.email, row.phone, row.subject, row.message, row.pageUrl, row.userAgent, row.status])] },
     { title: "Newsletter", values: [["Submitted", "Email", "Page URL", "Consent", "Status"], ...byType("newsletter").map((row) => [row.createdAt, row.email, row.pageUrl, row.consent ? "TRUE" : "FALSE", row.status])] },
-    { title: "Speaking Requests", values: [["Submitted", "Name", "Organization", "Email", "Phone", "Event Type", "Preferred Date", "Location", "Audience", "Details", "Page URL", "User Agent", "Status"], ...byType("speaking").map((row) => [row.createdAt, row.name, row.organization, row.email, row.phone, row.eventType, row.eventDate, row.location, row.audience, row.details, row.pageUrl, row.userAgent, row.status])] },
-    { title: "Book Club Requests", values: [["Submitted", "Group", "Name", "Email", "Size", "Format", "Date", "Request", "Notes", "Page URL", "User Agent", "Status"], ...byType("bookClub").map((row) => [row.createdAt, row.groupName, row.name, row.email, row.groupSize, row.preferredFormat, row.eventDate, row.requestText, row.notes, row.pageUrl, row.userAgent, row.status])] },
+    { title: "Speaking Requests", values: [["Submitted", "Name", "Organization", "Email", "Phone", "Event Type", "Preferred Date", "Location", "Audience", "Details", "Preferred Speaker", "Speaking Budget", "Page URL", "User Agent", "Status"], ...byType("speaking").map((row) => [row.createdAt, row.name, row.organization, row.email, row.phone, row.eventType, row.eventDate, row.location, row.audience, row.details, row.preferredSpeaker, row.speakingBudget, row.pageUrl, row.userAgent, row.status])] },
+    { title: "Book Club Requests", values: [["Submitted", "Group", "Name", "Email", "Size", "Format", "Date", "Request", "Notes", "Book Title", "Page URL", "User Agent", "Status"], ...byType("bookClub").map((row) => [row.createdAt, row.groupName, row.name, row.email, row.groupSize, row.preferredFormat, row.eventDate, row.requestText, row.notes, row.title, row.pageUrl, row.userAgent, row.status])] },
     { title: "Book Notifications", values: [["Submitted", "Email", "Title", "Page URL", "User Agent", "Status"], ...byType("bookNotification").map((row) => [row.createdAt, row.email, row.title, row.pageUrl, row.userAgent, row.status])] },
     { title: "Newsletter Subscribers", values: [["Email", "First Seen", "Last Seen", "Consent", "Status", "Source", "Notes"], ...subscribers.map((row) => [row.email, row.firstSeenAt, row.lastSeenAt, row.consent ? "TRUE" : "FALSE", row.status, row.source, row.notes])] },
     { title: "Newsletter Campaigns", values: [["Campaign ID", "Created", "Updated", "Status", "Title", "Subject", "Preview Text", "Audience", "From Name", "Hero Message", "Hero CTA Label", "Hero CTA URL", "Featured Book ID", "Featured Book Title", "Featured Book Description", "Featured Book Image URL", "Featured CTA Label", "Featured CTA URL", "Quick Update 1 Title", "Quick Update 1 Text", "Quick Update 1 URL", "Quick Update 2 Title", "Quick Update 2 Text", "Quick Update 2 URL", "Closing Note", "Send Date", "Send Time", "Time Zone", "Scheduled At", "Sent At", "Recipients", "Sent", "Failed", "Last Error"], ...campaigns.map((row) => [row.campaign_id, row.created_at, row.updated_at, row.status, row.title, row.subject, row.preview_text, row.audience, row.from_name, row.hero_message, row.hero_cta_label, row.hero_cta_url, row.featured_book_id, row.featured_book_title, row.featured_book_description, row.featured_book_image_url, row.featured_cta_label, row.featured_cta_url, row.quick1_title, row.quick1_text, row.quick1_url, row.quick2_title, row.quick2_text, row.quick2_url, row.closing_note, row.send_date, row.send_time, row.time_zone, row.scheduled_at, row.sent_at, row.recipients, row.sent, row.failed, row.last_error])] },
