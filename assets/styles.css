@@ -982,6 +982,7 @@ body[data-page="books"] .future-title-grid .button {
 }
 .price-card h3 {
   margin-top: 0.75rem;
+  min-height: 2.16em;
 }
 .price-card.featured {
   background: var(--purple-deep);
