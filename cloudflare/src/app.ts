@@ -396,12 +396,31 @@ function validateFormPayload(payload: Record<string, string>): FormType {
   return formType;
 }
 
+async function verifyTurnstile(env: Env, token: string, remoteIp: string | null): Promise<boolean> {
+  if (!env.TURNSTILE_SECRET_KEY || !token) return false;
+  const params = new URLSearchParams();
+  params.set("secret", env.TURNSTILE_SECRET_KEY);
+  params.set("response", token);
+  if (remoteIp) params.set("remoteip", remoteIp);
+  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: params.toString(),
+  });
+  const data = (await response.json().catch(() => ({}))) as { success?: boolean };
+  return data.success === true;
+}
+
 async function handleFormSubmission(
   request: Request,
   env: Env,
   payload: Record<string, string>,
 ): Promise<Response> {
   if (payload.website) return json(request, env, { ok: true, emailSent: false });
+  const turnstileToken = text(payload["cf-turnstile-response"], 2000);
+  if (!(await verifyTurnstile(env, turnstileToken, request.headers.get("CF-Connecting-IP")))) {
+    throw new HttpError(400, "Verification failed. Please try again.");
+  }
   const formType = validateFormPayload(payload);
   const route = FORM_ROUTES[formType];
 

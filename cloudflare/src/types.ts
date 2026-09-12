@@ -70,6 +70,7 @@ export interface Env {
   STRIPE_WEBHOOK_SECRET: string;
   MAIL_FROM_EMAIL: string;
   ADMIN_NOTIFICATION_EMAIL: string;
+  TURNSTILE_SECRET_KEY: string;
 }
 
 export type FormType =

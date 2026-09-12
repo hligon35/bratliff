@@ -5,6 +5,7 @@ Before deployment, copy `.env.example` to `.env` (or `.env.local`) and fill in t
 ## Current runtime
 
 - Public forms post to `/api/forms/submit`.
+- Every public form is protected by a Cloudflare Turnstile widget; submissions are rejected server-side if the token fails `siteverify`.
 - Submissions are stored in D1 (the system of record — no external spreadsheet or Apps Script involved).
 - Confirmation and admin-notification emails are sent directly by the Worker via the Resend API.
 - Newsletter unsubscribe links are HMAC-signed by the Worker.
@@ -21,6 +22,8 @@ Before deployment, copy `.env.example` to `.env` (or `.env.local`) and fill in t
 - `RESEND_API_KEY`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `TURNSTILE_SITE_KEY` (public; baked into `assets/site-config.js` at build time)
+- `TURNSTILE_SECRET_KEY` (server-side only; verified in `handleFormSubmission`)
 
 ## Deployment flow
 
