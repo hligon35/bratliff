@@ -35,7 +35,6 @@ import {
   money,
   parseBody,
   safeUrl,
-  signJwtWithPem,
   signValue,
   splitEmails,
   text,
@@ -71,14 +70,14 @@ const app: AppHandler = {
       }
 
       if (url.pathname.startsWith("/media/books/")) {
-        if (hasAppsScriptDataRelay(env) || !env.BOOK_ASSETS) {
+        if (!env.BOOK_ASSETS) {
           return new Response("Not found", { status: 404 });
         }
         return await serveBookImage(url, env);
       }
 
       if (url.pathname === "/stripe/webhook") {
-        if (hasAppsScriptDataRelay(env) || !env.DB) {
+        if (!env.DB) {
           return new Response("Not configured", { status: 404 });
         }
         return await handleStripeWebhook(request, env);
@@ -97,30 +96,18 @@ const app: AppHandler = {
       }
 
       if (url.pathname.startsWith("/api/admin/")) {
-        if (hasAppsScriptDataRelay(env)) {
-          return await handleAppsScriptAdminApi(request, env, url);
-        }
         return await handleAdminApi(request, env, ctx, url);
       }
 
       if (url.pathname === "/api/forms/submit") {
-        if (hasAppsScriptDataRelay(env)) {
-          return await handleAppsScriptFormRequest(request, env);
-        }
         return await handleFormRequest(request, env);
       }
 
       if (url.pathname === "/api/store/books") {
-        if (hasAppsScriptDataRelay(env)) {
-          return await handleAppsScriptStoreRequest(request, env, "store-books", Object.fromEntries(url.searchParams.entries()));
-        }
         return json(request, env, { ok: true, books: await listPublishedStoreBooks(env) });
       }
 
       if (url.pathname === "/api/store/book") {
-        if (hasAppsScriptDataRelay(env)) {
-          return await handleAppsScriptStoreRequest(request, env, "store-book", Object.fromEntries(url.searchParams.entries()));
-        }
         const book = await getStoreBookById(env, url.searchParams.get("id") || "");
         if (!book || !isPublicBookStatus(book.status)) {
           return json(request, env, { ok: false, error: "Book not found." }, 404);
@@ -132,9 +119,6 @@ const app: AppHandler = {
         if (request.method !== "POST") {
           return json(request, env, { ok: false, error: "Method not allowed." }, 405);
         }
-        if (hasAppsScriptDataRelay(env)) {
-          return await handleAppsScriptStoreRequest(request, env, "store-checkout");
-        }
         return await handleStoreCheckout(request, env, await parseBody(request));
       }
 
@@ -142,10 +126,7 @@ const app: AppHandler = {
         if (request.method !== "POST") {
           return json(request, env, { ok: false, error: "Method not allowed." }, 405);
         }
-        if (!hasAppsScriptDataRelay(env)) {
-          return json(request, env, { ok: false, error: "Order confirmation is not configured for this environment." }, 404);
-        }
-        return await handleAppsScriptStoreRequest(request, env, "store-confirm-checkout");
+        return await handleConfirmCheckout(request, env);
       }
 
       if (url.pathname === "/" || url.pathname === "/index" || url.pathname === "") {
@@ -160,7 +141,7 @@ const app: AppHandler = {
   },
 
   async scheduled(_controller, env, ctx) {
-    if (hasAppsScriptDataRelay(env) || !env.DB) return;
+    if (!env.DB) return;
     ctx.waitUntil(runScheduledTasks(env));
   },
 };
@@ -174,9 +155,6 @@ async function handleCompatibilityRoot(
 ): Promise<Response> {
   if (request.method === "GET") {
     const action = String(url.searchParams.get("action") || "").trim();
-    if (hasAppsScriptDataRelay(env) && (action === "store-books" || action === "store-book" || action === "store-health")) {
-      return handleAppsScriptStoreRequest(request, env, action, Object.fromEntries(url.searchParams.entries()));
-    }
     if (action === "store-books") {
       return json(request, env, { ok: true, books: await listPublishedStoreBooks(env) });
     }
@@ -198,10 +176,6 @@ async function handleCompatibilityRoot(
 
   if (request.method === "POST") {
     const payload = await parseBody(request);
-    if (hasAppsScriptDataRelay(env) && (text(payload.action, 80) === "store-checkout" || text(payload.action, 80) === "store-confirm-checkout" || payload.formType)) {
-      if (payload.formType) return handleAppsScriptFormRequest(request, env, payload);
-      return handleAppsScriptStoreRequest(request, env, text(payload.action, 80), {}, payload);
-    }
     if (text(payload.action, 80) === "store-checkout") {
       return handleStoreCheckout(request, env, payload);
     }
@@ -211,10 +185,6 @@ async function handleCompatibilityRoot(
   }
 
   return json(request, env, { ok: false, error: "Unsupported route." }, 404);
-}
-
-function hasAppsScriptDataRelay(env: Env) {
-  return Boolean(safeUrl(env.GOOGLE_APPS_SCRIPT_WEB_APP_URL));
 }
 
 function hasGoogleClientId(env: Env) {
@@ -228,140 +198,6 @@ function hasAdminSessionConfig(env: Env) {
 
 function getGoogleClientId(env: Env) {
   return hasGoogleClientId(env) ? text(env.GOOGLE_CLIENT_ID, 320) : "";
-}
-
-function getAppsScriptPublicEndpoint(env: Env) {
-  return safeUrl(env.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
-}
-
-function getAppsScriptAdminEndpoint(env: Env) {
-  return safeUrl(env.GOOGLE_APPS_SCRIPT_ADMIN_URL || env.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
-}
-
-async function handleAppsScriptFormRequest(
-  request: Request,
-  env: Env,
-  payload?: Record<string, string>,
-): Promise<Response> {
-  if (request.method !== "POST") {
-    return json(request, env, { ok: false, error: "Method not allowed." }, 405);
-  }
-  const body = payload || (await parseBody(request));
-  if (body.website) return json(request, env, { ok: true, emailSent: false });
-  validateFormPayload(body);
-  const relay = await callAppsScriptRelay(env, {
-    endpoint: getAppsScriptPublicEndpoint(env),
-    action: "form-submit",
-    method: "POST",
-    body,
-  });
-  return json(request, env, relay);
-}
-
-async function handleAppsScriptStoreRequest(
-  request: Request,
-  env: Env,
-  action: string,
-  query: Record<string, string> = {},
-  payload?: Record<string, string>,
-): Promise<Response> {
-  const method = request.method === "GET" ? "GET" : "POST";
-  const body =
-    method === "GET"
-      ? {}
-      : payload || (await parseRelayRequestBody(request));
-  const relay = await callAppsScriptRelay(env, {
-    endpoint: getAppsScriptPublicEndpoint(env),
-    action,
-    method,
-    query,
-    body,
-  });
-  return json(request, env, relay);
-}
-
-async function handleAppsScriptAdminApi(
-  request: Request,
-  env: Env,
-  url: URL,
-): Promise<Response> {
-  const session = await getAppsScriptAdminSession(request, env);
-  const path = url.pathname.replace(/^\/api\/admin\/?/, "");
-  if (request.method === "GET" && path === "bootstrap") {
-    return json(request, env, session.bootstrap);
-  }
-
-  const route = mapAppsScriptAdminAction(path, request.method);
-  requireRole(session.viewer, route.requiredRole);
-  const body =
-    request.method === "GET" || request.method === "DELETE"
-      ? {}
-      : await parseRelayRequestBody(request);
-  const relay = await callAppsScriptRelay(env, {
-    endpoint: getAppsScriptAdminEndpoint(env),
-    action: route.action,
-    method: request.method,
-    query: { ...Object.fromEntries(url.searchParams.entries()), ...(route.query || {}) },
-    body,
-    viewer: session.viewer,
-  });
-  return json(request, env, relay);
-}
-
-function mapAppsScriptAdminAction(
-  path: string,
-  method: string,
-): { action: string; requiredRole: AdminRole; query?: Record<string, string> } {
-  const cleanPath = path.replace(/^\/+|\/+$/g, "");
-  const segments = cleanPath ? cleanPath.split("/") : [];
-  const verb = method.toUpperCase();
-
-  if (verb === "GET" && cleanPath === "submissions") return { action: "admin-submissions", requiredRole: "marketing" as AdminRole };
-  if (verb === "GET" && cleanPath === "books") return { action: "admin-books", requiredRole: "marketing" as AdminRole };
-  if (verb === "GET" && cleanPath === "orders") return { action: "admin-orders", requiredRole: "marketing" as AdminRole };
-  if (verb === "GET" && cleanPath === "newsletter/state") return { action: "admin-newsletter-state", requiredRole: "marketing" as AdminRole };
-  if (verb === "GET" && cleanPath === "newsletter/subscribers") return { action: "admin-newsletter-subscribers", requiredRole: "marketing" as AdminRole };
-  if (verb === "GET" && cleanPath === "admins") return { action: "admin-admins", requiredRole: "owner" as AdminRole };
-  if (verb === "POST" && cleanPath === "books") return { action: "admin-save-book", requiredRole: "editor" as AdminRole };
-  if (verb === "POST" && segments[0] === "books" && segments[2] === "image") return { action: "admin-upload-book-image", requiredRole: "editor" as AdminRole, query: { bookId: decodeURIComponent(segments[1] || "") } };
-  if (verb === "POST" && cleanPath === "inventory/adjust") return { action: "admin-adjust-inventory", requiredRole: "fulfillment" as AdminRole };
-  if (verb === "POST" && segments[0] === "orders" && segments[2] === "fulfillment") return { action: "admin-update-fulfillment", requiredRole: "fulfillment" as AdminRole, query: { orderNumber: decodeURIComponent(segments[1] || "") } };
-  if (verb === "POST" && cleanPath === "newsletter/campaigns") return { action: "admin-save-campaign", requiredRole: "marketing" as AdminRole };
-  if (verb === "POST" && cleanPath === "newsletter/test") return { action: "admin-send-newsletter-test", requiredRole: "marketing" as AdminRole };
-  if (verb === "POST" && cleanPath === "newsletter/send") return { action: "admin-send-newsletter-now", requiredRole: "marketing" as AdminRole };
-  if (verb === "POST" && segments[0] === "newsletter" && segments[1] === "campaigns" && segments[3] === "cancel") return { action: "admin-cancel-newsletter-schedule", requiredRole: "marketing" as AdminRole, query: { campaignId: decodeURIComponent(segments[2] || "") } };
-  if (verb === "POST" && cleanPath === "admins") return { action: "admin-save-admin", requiredRole: "owner" as AdminRole };
-  if (verb === "DELETE" && segments[0] === "admins" && segments[1]) return { action: "admin-remove-admin", requiredRole: "owner" as AdminRole, query: { email: decodeURIComponent(segments[1]) } };
-  if (verb === "POST" && cleanPath === "exports/sheets") return { action: "admin-export-sheets", requiredRole: "owner" as AdminRole };
-  throw new HttpError(404, "Admin route not found.");
-}
-
-async function parseRelayRequestBody(request: Request) {
-  const contentType = request.headers.get("content-type") || "";
-  if (contentType.includes("multipart/form-data")) {
-    const formData = await request.formData();
-    const values: Record<string, unknown> = {};
-    for (const [key, value] of formData.entries()) {
-      if (typeof value === "string") {
-        values[key] = value;
-        continue;
-      }
-      values[key] = {
-        name: value.name,
-        type: value.type,
-        data: `data:${value.type || "application/octet-stream"};base64,${arrayBufferToBase64(await value.arrayBuffer())}`,
-      };
-    }
-    return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value == null ? "" : value as string]));
-  }
-  return parseBody(request);
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
 }
 
 async function handleGoogleAuthRequest(request: Request, env: Env) {
@@ -388,10 +224,6 @@ async function handleAdminSessionRequest(request: Request, env: Env) {
   if (request.method !== "GET") {
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
   }
-  if (hasAppsScriptDataRelay(env)) {
-    const session = await getAppsScriptAdminSession(request, env);
-    return json(request, env, { ok: true, viewer: session.viewer });
-  }
   const viewer = await authorizeAdmin(request, env);
   return json(request, env, { ok: true, viewer });
 }
@@ -401,34 +233,6 @@ function handleAdminLogoutRequest(request: Request, env: Env) {
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
   }
   return clearAdminSessionCookie(json(request, env, { ok: true }));
-}
-
-async function getAppsScriptAdminSession(request: Request, env: Env) {
-  return resolveAppsScriptAdminIdentity(env, await requireAdminSession(request, env));
-}
-
-async function resolveAppsScriptAdminIdentity(env: Env, identity: AuthenticatedAdmin) {
-  const bootstrap = await callAppsScriptRelay(env, {
-    endpoint: getAppsScriptAdminEndpoint(env),
-    action: "admin-bootstrap",
-    method: "GET",
-    viewer: { email: identity.email, displayName: identity.displayName, role: "marketing" },
-  });
-  const viewer = ((bootstrap.viewer || {}) as Record<string, unknown>);
-  const email = text(viewer.email, 320).toLowerCase();
-  const role = text(viewer.role, 40) as AdminRole;
-  if (!email || email !== identity.email || !ADMIN_ROLE_ORDER.includes(role)) {
-    throw new HttpError(403, "This Google account is not authorized for admin access.");
-  }
-  return {
-    viewer: {
-      email,
-      role,
-      displayName: text(viewer.displayName, 200) || identity.displayName,
-      token: identity.token,
-    } satisfies AuthenticatedAdmin,
-    bootstrap,
-  };
 }
 
 async function verifyGoogleIdentityToken(token: string, env: Env): Promise<VerifiedGoogleIdentity> {
@@ -457,20 +261,6 @@ async function verifyGoogleIdentityToken(token: string, env: Env): Promise<Verif
 }
 
 async function authorizeAdminIdentity(env: Env, identity: VerifiedGoogleIdentity): Promise<AuthenticatedAdmin> {
-  if (hasAppsScriptDataRelay(env)) {
-    try {
-      return (await resolveAppsScriptAdminIdentity(env, identity)).viewer;
-    } catch (error) {
-      const message = getErrorMessage(error);
-      if (/not authorized for admin access/i.test(message)) {
-        throw new HttpError(
-          403,
-          `Signed in as ${identity.email}, but that email is not authorized by the live Apps Script admin backend.`,
-        );
-      }
-      throw error;
-    }
-  }
   return resolveDatabaseAdminIdentity(env, identity);
 }
 
@@ -577,82 +367,6 @@ async function requireAdminSession(request: Request, env: Env): Promise<Authenti
       exp,
     },
   };
-}
-
-async function callAppsScriptRelay(
-  env: Env,
-  options: {
-    endpoint: string;
-    action: string;
-    method: string;
-    query?: Record<string, string>;
-    body?: Record<string, unknown>;
-    viewer?: { email: string; displayName: string; role: AdminRole };
-  },
-) {
-  if (!options.endpoint) throw new HttpError(503, "Apps Script relay URL is not configured.");
-  if (!env.GOOGLE_APPS_SCRIPT_DATA_SECRET) throw new HttpError(503, "GOOGLE_APPS_SCRIPT_DATA_SECRET is not configured.");
-  const relayUrl = new URL(options.endpoint);
-  relayUrl.searchParams.set("action", "relay");
-  const payload = {
-    action: text(options.action, 80),
-    method: text(options.method, 10).toUpperCase() || "POST",
-    query: sanitizeRelayObject(options.query || {}),
-    body: sanitizeRelayObject(options.body || {}),
-    viewer: sanitizeRelayViewer(options.viewer),
-  };
-  const timestamp = String(Date.now());
-  const signature = await signValue(`${timestamp}.${stableJsonStringify(payload)}`, env.GOOGLE_APPS_SCRIPT_DATA_SECRET);
-  const response = await fetch(relayUrl.toString(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json;charset=UTF-8" },
-    body: JSON.stringify({ timestamp, signature, ...payload }),
-  });
-  const responseText = await response.text();
-  if (!response.ok) throw new HttpError(502, responseText || "Apps Script relay request failed.");
-  try {
-    return responseText ? (JSON.parse(responseText) as Record<string, unknown>) : { ok: true };
-  } catch {
-    throw new HttpError(502, "Apps Script relay returned invalid JSON.");
-  }
-}
-
-function sanitizeRelayViewer(viewer?: { email: string; displayName: string; role: AdminRole }) {
-  if (!viewer) return {};
-  return sanitizeRelayObject({
-    email: viewer.email,
-    displayName: viewer.displayName,
-    role: viewer.role,
-  });
-}
-
-function sanitizeRelayObject(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, sanitizeRelayValue(entry)]));
-}
-
-function sanitizeRelayValue(value: unknown): unknown {
-  if (value == null) return null;
-  if (Array.isArray(value)) return value.map((entry) => sanitizeRelayValue(entry));
-  if (typeof value === "object") return sanitizeRelayObject(value);
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "boolean") return value;
-  return String(value);
-}
-
-function stableJsonStringify(value: unknown): string {
-  if (value == null) return "null";
-  if (Array.isArray(value)) return `[${value.map((entry) => stableJsonStringify(entry)).join(",")}]`;
-  if (typeof value === "object") {
-    return `{${Object.keys(value as Record<string, unknown>)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJsonStringify((value as Record<string, unknown>)[key])}`)
-      .join(",")}}`;
-  }
-  if (typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  return "null";
 }
 
 async function handleFormRequest(request: Request, env: Env): Promise<Response> {
@@ -1050,6 +764,33 @@ async function recordPaidOrderFromSession(
   }
 }
 
+async function handleConfirmCheckout(request: Request, env: Env): Promise<Response> {
+  const payload = await parseBody(request);
+  const sessionId = text(payload.sessionId, 200);
+  if (!sessionId) throw new HttpError(400, "A checkout session id is required.");
+
+  const existing = await env.DB.prepare("SELECT order_number FROM orders WHERE stripe_session_id = ?1")
+    .bind(sessionId)
+    .first();
+  if (existing) {
+    return json(request, env, { ok: true, duplicate: true });
+  }
+
+  const stripeResponse = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+    headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY },
+  });
+  if (!stripeResponse.ok) {
+    throw new HttpError(502, "Unable to retrieve the checkout session from Stripe.");
+  }
+  const session = (await stripeResponse.json()) as Record<string, JsonValue>;
+  if (text(session.payment_status, 40) !== "paid") {
+    return json(request, env, { ok: false, error: "This checkout session has not completed payment yet." }, 409);
+  }
+
+  await recordPaidOrderFromSession(env, `manual-confirm-${sessionId}`, session);
+  return json(request, env, { ok: true, duplicate: false });
+}
+
 async function handleAdminApi(
   request: Request,
   env: Env,
@@ -1132,11 +873,6 @@ async function handleAdminApi(
     requireRole(admin, "owner");
     await env.DB.prepare("DELETE FROM admins WHERE lower(email) = ?1").bind(decodeURIComponent(path.slice("admins/".length)).toLowerCase()).run();
     return json(request, env, { ok: true });
-  }
-  if (request.method === "POST" && path === "exports/sheets") {
-    requireRole(admin, "owner");
-    await exportReportingSheets(env);
-    return json(request, env, { ok: true, message: "Google Sheets export completed." });
   }
   if (request.method === "POST" && path.startsWith("books/") && path.endsWith("/image")) {
     requireRole(admin, "editor");
@@ -1628,10 +1364,12 @@ async function saveAdmin(env: Env, body: Record<string, string>): Promise<AdminU
 
 async function sendSubmissionEmails(env: Env, formType: FormType, record: ReturnType<typeof normalizeFormRecord>) {
   const submitterEmail = record.email.toLowerCase();
-  const adminMessage = buildAdminMessage(formType, record, env.SITE_URL);
-  const userMessage = buildUserMessage(formType, record, env.SITE_URL, await getUnsubscribeUrl(env, submitterEmail));
-  await sendEmail(env, { to: env.ADMIN_NOTIFICATION_EMAIL, subject: adminMessage.subject, html: adminMessage.html, text: adminMessage.text, replyTo: isValidEmail(submitterEmail) ? submitterEmail : env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing Website" });
+  if (formType !== "bookNotification") {
+    const adminMessage = buildAdminMessage(formType, record, env.SITE_URL);
+    await sendEmail(env, { to: env.ADMIN_NOTIFICATION_EMAIL, subject: adminMessage.subject, html: adminMessage.html, text: adminMessage.text, replyTo: isValidEmail(submitterEmail) ? submitterEmail : env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing Website" });
+  }
   if (isValidEmail(submitterEmail)) {
+    const userMessage = buildUserMessage(formType, record, env.SITE_URL, await getUnsubscribeUrl(env, submitterEmail));
     await sendEmail(env, { to: submitterEmail, subject: userMessage.subject, html: userMessage.html, text: userMessage.text, replyTo: env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing LLC" });
   }
 }
@@ -1640,62 +1378,24 @@ async function sendEmail(
   env: Env,
   message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
 ) {
-  if (env.GOOGLE_APPS_SCRIPT_EMAIL_URL && env.GOOGLE_APPS_SCRIPT_EMAIL_SECRET) {
-    await sendEmailWithAppsScript(env, message);
-    return;
-  }
-  if (!env.RESEND_API_KEY || !env.MAIL_FROM_EMAIL) throw new Error("Email provider is not configured.");
-  await sendEmailWithResend(env, message);
-}
-
-async function sendEmailWithResend(
-  env: Env,
-  message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
-) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: `${message.fromName} <${env.MAIL_FROM_EMAIL}>`, to: [message.to], subject: message.subject, text: message.text, html: message.html, reply_to: message.replyTo }),
+    headers: {
+      Authorization: "Bearer " + env.RESEND_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: message.fromName + " <" + env.MAIL_FROM_EMAIL + ">",
+      to: [message.to],
+      reply_to: message.replyTo,
+      subject: message.subject,
+      html: message.html,
+      text: message.text,
+    }),
   });
-  if (!response.ok) throw new Error(await response.text());
-}
-
-async function sendEmailWithAppsScript(
-  env: Env,
-  message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
-) {
-  let relayUrl: URL;
-  try {
-    relayUrl = new URL(env.GOOGLE_APPS_SCRIPT_EMAIL_URL);
-  } catch {
-    throw new Error("GOOGLE_APPS_SCRIPT_EMAIL_URL is not a valid URL.");
+  if (!response.ok) {
+    throw new Error("Resend send failed (" + response.status + "): " + (await response.text()));
   }
-  relayUrl.searchParams.set("action", "send-email");
-  const relayMessage = {
-    to: text(message.to, 320),
-    subject: text(message.subject, 200),
-    text: text(message.text, 20000),
-    html: String(message.html || "").slice(0, 200000),
-    replyTo: text(message.replyTo, 320),
-    fromName: text(message.fromName, 160),
-  };
-  const timestamp = String(Date.now());
-  const relayBody = JSON.stringify(relayMessage);
-  const signature = await signValue(`${timestamp}.${relayBody}`, env.GOOGLE_APPS_SCRIPT_EMAIL_SECRET);
-  const response = await fetch(relayUrl.toString(), {
-    method: "POST",
-    headers: { "Content-Type": "application/json;charset=UTF-8" },
-    body: JSON.stringify({ timestamp, signature, message: relayMessage }),
-  });
-  const responseText = await response.text();
-  if (!response.ok) throw new Error(responseText || "Apps Script email relay request failed.");
-  let payload: { ok?: boolean; error?: string } | null = null;
-  try {
-    payload = responseText ? (JSON.parse(responseText) as { ok?: boolean; error?: string }) : null;
-  } catch {
-    throw new Error("Apps Script email relay returned invalid JSON.");
-  }
-  if (!payload?.ok) throw new Error(payload?.error || "Apps Script email relay failed.");
 }
 
 function buildAdminMessage(formType: FormType, record: ReturnType<typeof normalizeFormRecord>, siteUrl: string) {
@@ -1799,7 +1499,6 @@ function renderUnsubscribePage(success: boolean, message: string) {
 
 async function runScheduledTasks(env: Env) {
   await sendDueCampaigns(env);
-  await exportReportingSheets(env);
 }
 
 async function sendDueCampaigns(env: Env) {
@@ -1862,66 +1561,6 @@ async function sendNewsletterCampaign(env: Env, campaign: NewsletterCampaignReco
   )
     .bind(campaign.campaignId, failed ? "Sent with Errors" : "Sent", subscribers.length, sent, failed)
     .run();
-}
-
-async function exportReportingSheets(env: Env) {
-  if (String(env.SHEETS_EXPORT_ENABLED || "false").toLowerCase() !== "true") return;
-  if (!env.SHEETS_EXPORT_SPREADSHEET_ID) return;
-  const token = await getGoogleAccessToken(env);
-  const spreadsheetId = env.SHEETS_EXPORT_SPREADSHEET_ID;
-  const sheetDefinitions = await buildSheetExports(env);
-  const metaResponse = await googleApi(token, `/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`, { method: "GET" });
-  const titles = new Set((((metaResponse as Record<string, JsonValue>).sheets as JsonValue[]) || []).map((sheet) => String(((sheet as Record<string, JsonValue>).properties as Record<string, JsonValue>)?.title || "")).filter(Boolean));
-  const addRequests = sheetDefinitions.filter((sheet) => !titles.has(sheet.title)).map((sheet) => ({ addSheet: { properties: { title: sheet.title } } }));
-  if (addRequests.length) {
-    await googleApi(token, `/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`, { method: "POST", body: JSON.stringify({ requests: addRequests }) });
-  }
-  for (const sheet of sheetDefinitions) {
-    await googleApi(token, `/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(sheet.title + "!A:ZZ")}:clear`, { method: "POST", body: "{}" });
-    await googleApi(token, `/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(sheet.title + "!A1")}?valueInputOption=RAW`, { method: "PUT", body: JSON.stringify({ values: sheet.values }) });
-  }
-}
-
-async function buildSheetExports(env: Env) {
-  const submissions = (await env.DB.prepare("SELECT form_type AS formType, created_at AS createdAt, status, name, email, phone, subject, message, organization, event_type AS eventType, event_date AS eventDate, location, audience, details, preferred_speaker AS preferredSpeaker, speaking_budget AS speakingBudget, group_name AS groupName, group_size AS groupSize, preferred_format AS preferredFormat, request_text AS requestText, notes, title, page_url AS pageUrl, user_agent AS userAgent, consent FROM form_submissions ORDER BY datetime(created_at) DESC").all<Record<string, unknown>>()).results || [];
-  const byType = (type: FormType) => submissions.filter((row) => row.formType === type);
-  const subscribers = (await env.DB.prepare("SELECT email, first_seen_at AS firstSeenAt, last_seen_at AS lastSeenAt, consent, status, source, notes FROM newsletter_subscribers ORDER BY datetime(last_seen_at) DESC").all<Record<string, unknown>>()).results || [];
-  const campaigns = (await env.DB.prepare("SELECT * FROM newsletter_campaigns ORDER BY datetime(updated_at) DESC").all<Record<string, unknown>>()).results || [];
-  const books = await listAllStoreBooks(env);
-  const orders = await listOrders(env, 5000);
-  const orderItems = (await env.DB.prepare("SELECT order_number AS orderNumber, book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items ORDER BY id DESC").all<Record<string, unknown>>()).results || [];
-  const inventory = (await env.DB.prepare("SELECT created_at AS createdAt, sku, title, change_qty AS changeQty, previous_qty AS previousQty, new_qty AS newQty, reason, order_number AS orderNumber, admin_email AS adminEmail, notes FROM inventory_events ORDER BY datetime(created_at) DESC").all<Record<string, unknown>>()).results || [];
-  const admins = await listAdmins(env);
-  return [
-    { title: "Contact", values: [["Submitted", "Name", "Email", "Phone", "Subject", "Message", "Page URL", "User Agent", "Status"], ...byType("contact").map((row) => [row.createdAt, row.name, row.email, row.phone, row.subject, row.message, row.pageUrl, row.userAgent, row.status])] },
-    { title: "Newsletter", values: [["Submitted", "Email", "Page URL", "Consent", "Status"], ...byType("newsletter").map((row) => [row.createdAt, row.email, row.pageUrl, row.consent ? "TRUE" : "FALSE", row.status])] },
-    { title: "Speaking Requests", values: [["Submitted", "Name", "Organization", "Email", "Phone", "Event Type", "Preferred Date", "Location", "Audience", "Details", "Preferred Speaker", "Speaking Budget", "Page URL", "User Agent", "Status"], ...byType("speaking").map((row) => [row.createdAt, row.name, row.organization, row.email, row.phone, row.eventType, row.eventDate, row.location, row.audience, row.details, row.preferredSpeaker, row.speakingBudget, row.pageUrl, row.userAgent, row.status])] },
-    { title: "Book Club Requests", values: [["Submitted", "Group", "Name", "Email", "Size", "Format", "Date", "Request", "Notes", "Book Title", "Page URL", "User Agent", "Status"], ...byType("bookClub").map((row) => [row.createdAt, row.groupName, row.name, row.email, row.groupSize, row.preferredFormat, row.eventDate, row.requestText, row.notes, row.title, row.pageUrl, row.userAgent, row.status])] },
-    { title: "Book Notifications", values: [["Submitted", "Email", "Title", "Page URL", "User Agent", "Status"], ...byType("bookNotification").map((row) => [row.createdAt, row.email, row.title, row.pageUrl, row.userAgent, row.status])] },
-    { title: "Newsletter Subscribers", values: [["Email", "First Seen", "Last Seen", "Consent", "Status", "Source", "Notes"], ...subscribers.map((row) => [row.email, row.firstSeenAt, row.lastSeenAt, row.consent ? "TRUE" : "FALSE", row.status, row.source, row.notes])] },
-    { title: "Newsletter Campaigns", values: [["Campaign ID", "Created", "Updated", "Status", "Title", "Subject", "Preview Text", "Audience", "From Name", "Hero Message", "Hero CTA Label", "Hero CTA URL", "Featured Book ID", "Featured Book Title", "Featured Book Description", "Featured Book Image URL", "Featured CTA Label", "Featured CTA URL", "Quick Update 1 Title", "Quick Update 1 Text", "Quick Update 1 URL", "Quick Update 2 Title", "Quick Update 2 Text", "Quick Update 2 URL", "Closing Note", "Send Date", "Send Time", "Time Zone", "Scheduled At", "Sent At", "Recipients", "Sent", "Failed", "Last Error"], ...campaigns.map((row) => [row.campaign_id, row.created_at, row.updated_at, row.status, row.title, row.subject, row.preview_text, row.audience, row.from_name, row.hero_message, row.hero_cta_label, row.hero_cta_url, row.featured_book_id, row.featured_book_title, row.featured_book_description, row.featured_book_image_url, row.featured_cta_label, row.featured_cta_url, row.quick1_title, row.quick1_text, row.quick1_url, row.quick2_title, row.quick2_text, row.quick2_url, row.closing_note, row.send_date, row.send_time, row.time_zone, row.scheduled_at, row.sent_at, row.recipients, row.sent, row.failed, row.last_error])] },
-    { title: "Books", values: [["Book ID", "SKU", "ISBN", "Title", "Subtitle", "Author", "Synopsis", "Short Description", "Format", "Category", "Price", "Compare Price", "Stock", "Low Stock Threshold", "Image Key", "Image URL", "Featured", "Coming Soon", "Preorder", "Status", "Publication Date", "Created", "Updated"], ...books.map((row) => [row.bookId, row.sku, row.isbn, row.title, row.subtitle, row.author, row.synopsis, row.shortDescription, row.format, row.category, row.price, row.comparePrice, row.stock, row.lowStockThreshold, row.imageKey, row.imageUrl, row.featured ? "TRUE" : "FALSE", row.comingSoon ? "TRUE" : "FALSE", row.preorder ? "TRUE" : "FALSE", row.status, row.publicationDate, row.createdAt, row.updatedAt])] },
-    { title: "Orders", values: [["Order #", "Stripe Session ID", "Stripe Payment ID", "Date", "Customer", "Email", "Subtotal", "Shipping", "Tax", "Total", "Payment Status", "Fulfillment Status", "Tracking #", "Shipping Address", "Notes"], ...orders.map((row) => [row.orderNumber, row.stripeSessionId, row.stripePaymentId, row.date, row.customer, row.email, row.subtotal, row.shipping, row.tax, row.total, row.paymentStatus, row.fulfillmentStatus, row.trackingNumber, row.shippingAddress, row.notes])] },
-    { title: "Order Items", values: [["Order #", "Book ID", "SKU", "Title", "Quantity", "Unit Price", "Line Total"], ...orderItems.map((row) => [row.orderNumber, row.bookId, row.sku, row.title, row.quantity, row.unitPrice, row.lineTotal])] },
-    { title: "Inventory Log", values: [["Date", "SKU", "Title", "Change", "Previous Qty", "New Qty", "Reason", "Order #", "Admin", "Notes"], ...inventory.map((row) => [row.createdAt, row.sku, row.title, row.changeQty, row.previousQty, row.newQty, row.reason, row.orderNumber, row.adminEmail, row.notes])] },
-    { title: "Admin Users", values: [["Email", "Role", "Display Name", "Created", "Updated"], ...admins.map((row) => [row.email, row.role, row.displayName, row.createdAt, row.updatedAt])] },
-  ];
-}
-
-async function getGoogleAccessToken(env: Env) {
-  const now = Math.floor(Date.now() / 1000);
-  const unsigned = `${base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${base64UrlEncode(JSON.stringify({ iss: env.GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL, scope: "https://www.googleapis.com/auth/spreadsheets", aud: env.GOOGLE_SERVICE_ACCOUNT_TOKEN_URI, exp: now + 3600, iat: now }))}`;
-  const assertion = `${unsigned}.${await signJwtWithPem(unsigned, env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY)}`;
-  const response = await fetch(env.GOOGLE_SERVICE_ACCOUNT_TOKEN_URI, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }).toString() });
-  if (!response.ok) throw new Error("Google token request failed: " + (await response.text()));
-  const data = (await response.json()) as Record<string, JsonValue>;
-  return String(data.access_token || "");
-}
-
-async function googleApi(token: string, path: string, init: RequestInit) {
-  const response = await fetch("https://sheets.googleapis.com" + path, { ...init, headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", ...(init.headers || {}) } });
-  if (!response.ok) throw new Error("Google Sheets API request failed: " + (await response.text()));
-  return (await response.json()) as JsonValue;
 }
 
 async function countQuery(env: Env, query: string) {

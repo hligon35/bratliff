@@ -27,6 +27,19 @@
     "not_found_handling": "404-page",
     "run_worker_first": ["/api/*", "/stripe/*", "/healthz"]
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bratliff-platform-db",
+      "database_id": "490e1480-46ca-4a06-88f7-994b7dc4acc4"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BOOK_ASSETS",
+      "bucket_name": "jppsubs-r2"
+    }
+  ],
   "vars": {
     "SITE_URL": "https://jackrabbitpunkinpublishing.com",
     "PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/",
@@ -36,20 +49,17 @@
     "STRIPE_CURRENCY": "usd",
     "ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=success",
     "ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
-    "SHEETS_EXPORT_SPREADSHEET_ID": "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g",
-    "SHEETS_EXPORT_ENABLED": "false",
     "CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com",
-    "GOOGLE_APPS_SCRIPT_WEB_APP_URL": "https://script.google.com/macros/s/AKfycby6bzOdebhTco70LXlvf3TAy7ulu-KYT5vFXmFh5jwjyXdx66KrUaGkU3i7blgpi7oR/exec",
-    "GOOGLE_APPS_SCRIPT_ADMIN_URL": "https://script.google.com/macros/s/AKfycby6bzOdebhTco70LXlvf3TAy7ulu-KYT5vFXmFh5jwjyXdx66KrUaGkU3i7blgpi7oR/exec"
+    "MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
+    "ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com"
   },
   "secrets": {
     "required": [
       "UNSUBSCRIBE_SECRET",
       "ADMIN_SESSION_SECRET",
-      "GOOGLE_APPS_SCRIPT_DATA_SECRET",
-      "GOOGLE_APPS_SCRIPT_EMAIL_URL",
-      "GOOGLE_APPS_SCRIPT_EMAIL_SECRET",
-      "ADMIN_NOTIFICATION_EMAIL"
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "RESEND_API_KEY"
     ]
   },
   "dev": {

@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <!-- TEMPORARY LAUNCH REDIRECT: remove this block when the full site is ready. -->
     <meta name="robots" content="noindex,nofollow" />
-    <meta http-equiv="refresh" content="0;url=/coming-soon.html" />
-    <script>window.location.replace("/coming-soon.html");</script>
+    <script>
+      if (window.localStorage.getItem("jppSiteUnlocked") !== "1") {
+        window.location.replace("/coming-soon.html");
+      }
+    </script>
     <!-- END TEMPORARY LAUNCH REDIRECT -->
     <title>
       Jackrabbit Punkin Publishing LLC | Stories That Inspire, Books That Endure

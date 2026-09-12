@@ -1,14 +1,14 @@
 # Website form connection
 
-Before deployment, copy `.env.example` to `.env` and fill in the Cloudflare and Google values used by the new Worker.
+Before deployment, copy `.env.example` to `.env` (or `.env.local`) and fill in the Cloudflare values used by the Worker.
 
 ## Current runtime
 
 - Public forms post to `/api/forms/submit`.
-- Submissions are stored in D1 first.
-- Confirmation, admin-notification, and newsletter emails can be relayed to Apps Script for branded delivery.
+- Submissions are stored in D1 (the system of record — no external spreadsheet or Apps Script involved).
+- Confirmation and admin-notification emails are sent directly by the Worker via the Resend API.
 - Newsletter unsubscribe links are HMAC-signed by the Worker.
-- Optional reporting exports write D1 data into Google Sheets on demand or from the Worker cron.
+- The "Notify Me" book-notification form only sends a confirmation email to the submitter; it does **not** send a publisher notification email.
 
 ## Required variables
 
@@ -16,68 +16,35 @@ Before deployment, copy `.env.example` to `.env` and fill in the Cloudflare and 
 - `PUBLIC_ADMIN_URL`
 - `ADMIN_NOTIFICATION_EMAIL`
 - `UNSUBSCRIBE_SECRET`
-- `GOOGLE_APPS_SCRIPT_EMAIL_URL`
-- `GOOGLE_APPS_SCRIPT_EMAIL_SECRET`
-- `TEAM_DOMAIN`
-- `POLICY_AUD`
-
-If you prefer direct Worker email instead of the Apps Script relay, set:
-
+- `ADMIN_SESSION_SECRET`
+- `MAIL_FROM_EMAIL` (the address Resend sends from, e.g. `no-reply@jackrabbitpunkinpublishing.com`)
 - `RESEND_API_KEY`
-- `MAIL_FROM_EMAIL`
-
-If Sheets exports are enabled, also set:
-
-- `GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL`
-- `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
-- `GOOGLE_SERVICE_ACCOUNT_TOKEN_URI`
-- `SHEETS_EXPORT_SPREADSHEET_ID`
-- `SHEETS_EXPORT_ENABLED=true`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
 
 ## Deployment flow
 
-1. Create the D1 database and R2 bucket referenced by [cloudflare/wrangler.jsonc](cloudflare/wrangler.jsonc).
+1. Create the D1 database and R2 bucket referenced by [cloudflare/wrangler.jsonc](cloudflare/wrangler.jsonc) (`wrangler d1 create`, `wrangler r2 bucket create`).
 2. Apply [cloudflare/migrations/0001_initial.sql](cloudflare/migrations/0001_initial.sql) to D1.
 3. Apply [cloudflare/migrations/0002_review_form_fields.sql](cloudflare/migrations/0002_review_form_fields.sql) to add the current speaking-request fields without changing existing submissions.
-4. Configure the required Wrangler vars and secrets.
-5. Protect the admin URL and the admin API with Cloudflare Access using Google identity.
-6. Run `npm run prepare:config` so [assets/site-config.js](assets/site-config.js) points at the Worker.
-7. Run `npm run worker:prepare` to stage the site into `cloudflare/public`.
-8. Deploy the Worker and static assets with Wrangler.
+4. Verify the sending domain in the [Resend dashboard](https://resend.com/domains) and add the SPF/DKIM DNS records it provides.
+5. Configure the required Wrangler vars and secrets (`wrangler secret put ...`), including `RESEND_API_KEY`.
+6. Google Sign-In for the admin dashboard is handled natively by the Worker via `GOOGLE_CLIENT_ID` and signed admin session cookies.
+7. Run `npm run prepare:config` so [assets/site-config.js](assets/site-config.js) points at the Worker.
+8. Run `npm run worker:prepare` to stage the site into `cloudflare/public`.
+9. Deploy the Worker and static assets with `npm run worker:deploy` (or `wrangler deploy --config cloudflare/wrangler.jsonc`).
 
 ## Confirmation emails
 
 Every accepted submission is saved in D1 and attempts to generate:
 
-- An administrative notification to `ADMIN_NOTIFICATION_EMAIL`.
+- An administrative notification to `ADMIN_NOTIFICATION_EMAIL` (skipped for the book-notification form).
 - A form-specific confirmation to the submitter.
 - A plain-text fallback for mail clients that do not render HTML.
 
 If email delivery fails, the submission still remains in D1 and the API responds with `emailSent: false`.
 
-## Apps Script relay setup
+## Newsletter campaigns
 
-1. Deploy the Apps Script web app.
-2. Add `EMAIL_RELAY_SECRET` to Apps Script Script Properties.
-3. Set the same value as `GOOGLE_APPS_SCRIPT_EMAIL_SECRET` in Cloudflare.
-4. Set `GOOGLE_APPS_SCRIPT_EMAIL_URL` to the Apps Script web app URL.
-5. Share the Google Sheet with the service account if Sheets export is enabled.
+Newsletter campaigns are stored in D1 and sent in batches directly through the Resend API, the same mechanism used for form confirmations. Keep campaign batch sizes reasonable and monitor delivery via the Resend dashboard.
 
-For the data/admin relay, configure Cloudflare `GOOGLE_APPS_SCRIPT_DATA_SECRET` and Apps Script `WORKER_RELAY_SECRET` with the same secret value. Redeploy both services and complete an end-to-end relay test after any change. Do not disable signature verification.
-
-## Reporting exports
-
-The Google Sheet is now a reporting sink rather than the system of record. The Worker can export:
-
-- Contact
-- Newsletter
-- Speaking Requests
-- Book Club Requests
-- Book Notifications
-- Newsletter Subscribers
-- Newsletter Campaigns
-- Books
-- Orders
-- Order Items
-- Inventory Log
-- Admin Users

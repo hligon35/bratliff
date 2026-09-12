@@ -87,5 +87,23 @@
         <span>Independent publishing with purpose</span>
       </footer>
     </main>
+    <script>
+      (function () {
+        var logo = document.querySelector(".brand-logo");
+        if (!logo) return;
+        var taps = [];
+        logo.addEventListener("click", function () {
+          var now = Date.now();
+          taps.push(now);
+          taps = taps.filter(function (t) {
+            return now - t <= 3000;
+          });
+          if (taps.length >= 5) {
+            window.localStorage.setItem("jppSiteUnlocked", "1");
+            window.location.href = "/index.html";
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
