@@ -73,6 +73,7 @@ const publicConfig = {
   authLogoutEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/logout') : '',
   googleClientId: normalizeUrl(values.GOOGLE_CLIENT_ID),
   adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL),
+  turnstileSiteKey: normalizeUrl(values.TURNSTILE_SITE_KEY),
   squareLinks: {
     books: {
       battlesHardcover: normalizeUrl(values.SQUARE_BATTLES_HARDCOVER_URL),

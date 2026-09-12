@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
   </head>
   <body data-page="club">
     <div data-header></div>
@@ -150,6 +151,7 @@
               >Additional Notes<textarea name="notes"></textarea>
             </label>
             <div class="span-2">
+              <div class="cf-turnstile" data-action="turnstile-spin-v1"></div>
               <button class="button ink" type="submit">
                 Submit Book Club Request
               </button>

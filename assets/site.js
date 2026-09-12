@@ -366,6 +366,20 @@ document.querySelectorAll("form[data-form-type]").forEach((form) => {
   });
 });
 
+function renderTurnstileWidgets() {
+  const sitekey = normalizeUrl(siteConfig.turnstileSiteKey);
+  if (!sitekey || typeof window.turnstile === "undefined") return;
+  document.querySelectorAll(".cf-turnstile").forEach((el) => {
+    if (el.dataset.rendered) return;
+    el.dataset.rendered = "true";
+    window.turnstile.render(el, { sitekey, action: "turnstile-spin-v1" });
+  });
+}
+
+window.onloadTurnstileCallback = renderTurnstileWidgets;
+if (document.readyState !== "loading") renderTurnstileWidgets();
+else document.addEventListener("DOMContentLoaded", renderTurnstileWidgets);
+
 function initAdminEntryPages() {
   const loginButton = document.querySelector("[data-login-continue]");
   const loginStatus = document.querySelector("[data-login-status]");

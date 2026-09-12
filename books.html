@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="assets/store.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
     <script src="assets/store.js" defer></script>
   </head>
   <body data-page="books">
@@ -284,7 +285,9 @@
         >
           <label
             >Email address<input type="email" name="email" required /></label
-          ><input type="hidden" name="title" /><button
+          ><input type="hidden" name="title" />
+          <div class="cf-turnstile" data-action="turnstile-spin-v1"></div>
+          <button
             class="button ink"
             type="submit"
           >

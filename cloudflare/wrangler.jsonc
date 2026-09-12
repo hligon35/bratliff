@@ -59,7 +59,8 @@
       "ADMIN_SESSION_SECRET",
       "STRIPE_SECRET_KEY",
       "STRIPE_WEBHOOK_SECRET",
-      "RESEND_API_KEY"
+      "RESEND_API_KEY",
+      "TURNSTILE_SECRET_KEY"
     ]
   },
   "dev": {

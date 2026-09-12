@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback" async defer></script>
   </head>
   <body data-page="contact">
     <div data-header></div>
@@ -99,6 +100,7 @@
               >Message<textarea name="message" required></textarea>
             </label>
             <div class="span-2">
+              <div class="cf-turnstile" data-action="turnstile-spin-v1"></div>
               <button class="button ink" type="submit">Send Message</button>
             </div>
             <div class="form-message span-2" role="status">
