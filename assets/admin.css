@@ -1011,10 +1011,7 @@ textarea {
   height: 52px;
   border: 2px solid #d4ad55;
   border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #d4ad55;
-  font: 700 18px Georgia, serif;
+  object-fit: cover;
   flex: 0 0 52px;
 }
 
