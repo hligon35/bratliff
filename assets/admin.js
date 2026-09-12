@@ -1426,6 +1426,7 @@
     qs("#mobilePreviewBtn")?.classList.remove("active");
     const pill = qs("#previewModePill");
     if (pill) pill.textContent = "Desktop";
+    updateNewsletterStats(newsletterPayload(), newsletterSelectedBook());
   });
   qs("#mobilePreviewBtn")?.addEventListener("click", function () {
     qs("#emailWrap")?.classList.add("mobile");
@@ -1433,6 +1434,7 @@
     qs("#desktopPreviewBtn")?.classList.remove("active");
     const pill = qs("#previewModePill");
     if (pill) pill.textContent = "Mobile";
+    updateNewsletterStats(newsletterPayload(), newsletterSelectedBook());
   });
   qs("#bookImage")?.addEventListener("change", function (event) {
     const file = event.target.files && event.target.files[0];
