@@ -17,7 +17,6 @@ window.siteConfig = (function freeze(value) {
   "authLogoutEndpoint": "https://jackrabbitpunkinpublishing.com/api/auth/logout",
   "googleClientId": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
   "adminEmail": "hligon@getsparqd.com",
-  "spreadsheetId": "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g",
   "squareLinks": {
     "books": {
       "battlesHardcover": "",

@@ -106,30 +106,6 @@ export async function signValue(value: string, secret: string) {
   return base64UrlFromBytes(new Uint8Array(signature));
 }
 
-export async function signJwtWithPem(unsigned: string, privateKey: string) {
-  const normalized = privateKey.replace(/\\n/g, "\n");
-  const pem = normalized
-    .replace("-----BEGIN PRIVATE KEY-----", "")
-    .replace("-----END PRIVATE KEY-----", "")
-    .replace(/\s+/g, "");
-  const binary = atob(pem);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    bytes.buffer,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    new TextEncoder().encode(unsigned),
-  );
-  return base64UrlFromBytes(new Uint8Array(signature));
-}
-
 export function withCors(request: Request, env: Env, response: Response) {
   const origin = request.headers.get("Origin") || "";
   const allowedOrigins = new Set(

@@ -11,9 +11,6 @@
       (publicApiRoot ? publicApiRoot + "/api/auth/logout" : ""),
   ).replace(/\/$/, "");
   const adminApiRoot = resolveApiRoot(siteConfig.adminApiUrl, "/api/admin");
-  const legacyApiRoot = String(siteConfig.formEndpoint || adminApiRoot || "").replace(/\/$/, "");
-  const useLegacyAdminApi = !publicApiRoot && /script\.google\.com/i.test(legacyApiRoot);
-  const spreadsheetId = String(siteConfig.spreadsheetId || "").trim();
   const dashboardForms = [
     { key: "contact", label: "Contact" },
     { key: "speaking", label: "Speaking Requests" },
@@ -197,118 +194,7 @@
     return element && typeof element.value !== "undefined" ? element.value : "";
   }
 
-  function legacyAction(path, method) {
-    const requestUrl = new URL(path, "https://admin.local/");
-    const cleanPath = requestUrl.pathname.replace(/^\/+|\/+$/g, "");
-    const segments = cleanPath ? cleanPath.split("/") : [];
-    const verb = String(method || "GET").toUpperCase();
-    const query = Object.fromEntries(requestUrl.searchParams.entries());
-
-    if (verb === "GET" && cleanPath === "bootstrap") return { action: "admin-bootstrap", query: query };
-    if (verb === "GET" && cleanPath === "submissions") return { action: "admin-submissions", query: query };
-    if (verb === "GET" && cleanPath === "books") return { action: "admin-books", query: query };
-    if (verb === "GET" && cleanPath === "orders") return { action: "admin-orders", query: query };
-    if (verb === "GET" && cleanPath === "newsletter/state") return { action: "admin-newsletter-state", query: query };
-    if (verb === "GET" && cleanPath === "newsletter/subscribers") return { action: "admin-newsletter-subscribers", query: query };
-    if (verb === "GET" && cleanPath === "admins") return { action: "admin-admins", query: query };
-    if (verb === "POST" && cleanPath === "books") return { action: "admin-save-book", query: query };
-    if (verb === "POST" && segments[0] === "books" && segments[2] === "image") return { action: "admin-upload-book-image", query: { bookId: decodeURIComponent(segments[1] || "") } };
-    if (verb === "POST" && cleanPath === "inventory/adjust") return { action: "admin-adjust-inventory", query: query };
-    if (verb === "POST" && segments[0] === "orders" && segments[2] === "fulfillment") return { action: "admin-update-fulfillment", query: { orderNumber: decodeURIComponent(segments[1] || "") } };
-    if (verb === "POST" && cleanPath === "newsletter/campaigns") return { action: "admin-save-campaign", query: query };
-    if (verb === "POST" && cleanPath === "newsletter/test") return { action: "admin-send-newsletter-test", query: query };
-    if (verb === "POST" && cleanPath === "newsletter/send") return { action: "admin-send-newsletter-now", query: query };
-    if (verb === "POST" && segments[0] === "newsletter" && segments[1] === "campaigns" && segments[3] === "cancel") return { action: "admin-cancel-newsletter-schedule", query: { campaignId: decodeURIComponent(segments[2] || "") } };
-    if (verb === "POST" && cleanPath === "admins") return { action: "admin-save-admin", query: query };
-    if (verb === "DELETE" && segments[0] === "admins" && segments[1]) return { action: "admin-remove-admin", query: { email: decodeURIComponent(segments[1]) } };
-    if (verb === "POST" && cleanPath === "exports/sheets") return { action: "admin-export-sheets", query: query };
-    throw new Error("This admin action is not supported by the Google Sheets backend yet.");
-  }
-
-  function readFileAsDataUrl(file) {
-    return new Promise(function (resolve, reject) {
-      const reader = new FileReader();
-      reader.onload = function () {
-        resolve(String(reader.result || ""));
-      };
-      reader.onerror = function () {
-        reject(new Error("The selected file could not be read."));
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async function buildLegacyBody(body) {
-    if (!body) return {};
-    if (body instanceof FormData) {
-      const values = {};
-      for (const [key, value] of body.entries()) {
-        if (value instanceof File) {
-          values[key] = {
-            name: value.name,
-            type: value.type,
-            data: await readFileAsDataUrl(value),
-          };
-        } else {
-          values[key] = String(value == null ? "" : value);
-        }
-      }
-      return values;
-    }
-    if (typeof body === "string") {
-      try {
-        return JSON.parse(body);
-      } catch {
-        return { value: body };
-      }
-    }
-    return body;
-  }
-
-  async function legacyApi(path, options) {
-    if (!legacyApiRoot) {
-      throw new Error("GOOGLE_APPS_SCRIPT_WEB_APP_URL is not configured in assets/site-config.js yet.");
-    }
-    const init = options || {};
-    const route = legacyAction(path, init.method || "GET");
-    const body = await buildLegacyBody(init.body);
-    const url = new URL(legacyApiRoot);
-    url.searchParams.set("action", route.action);
-    Object.entries(route.query || {}).forEach(function (entry) {
-      const key = entry[0];
-      const value = entry[1];
-      if (value != null && value !== "") url.searchParams.set(key, value);
-    });
-    const getActions = {
-      "admin-bootstrap": true,
-      "admin-submissions": true,
-      "admin-books": true,
-      "admin-orders": true,
-      "admin-newsletter-state": true,
-      "admin-newsletter-subscribers": true,
-      "admin-admins": true,
-    };
-    const requestInit = {
-      method: getActions[route.action] ? "GET" : "POST",
-      credentials: "include",
-      cache: "no-store",
-    };
-    if (requestInit.method === "POST") {
-      requestInit.headers = { "Content-Type": "application/json" };
-      requestInit.body = JSON.stringify(body || {});
-    }
-    const response = await fetch(url.toString(), requestInit);
-    const data = await response.json().catch(function () {
-      return {};
-    });
-    if (!response.ok || data.ok === false) {
-      throw new Error(data.error || "The Google Sheets admin request failed.");
-    }
-    return data;
-  }
-
   async function api(path, options) {
-    if (useLegacyAdminApi) return legacyApi(path, options);
     if (!adminApiRoot) {
       throw new Error("PUBLIC_API_URL is not configured in assets/site-config.js yet.");
     }
@@ -343,7 +229,7 @@
   }
 
   async function ensureSession() {
-    if (useLegacyAdminApi || !authSessionEndpoint) return null;
+    if (!authSessionEndpoint) return null;
     const response = await fetch(authSessionEndpoint, {
       method: "GET",
       credentials: "include",
@@ -374,12 +260,6 @@
       }).catch(function () {});
     }
     redirectToLogin("Signed out.");
-  }
-
-  function spreadsheetUrl() {
-    return spreadsheetId
-      ? "https://docs.google.com/spreadsheets/d/" + encodeURIComponent(spreadsheetId) + "/edit"
-      : "";
   }
 
   function showWorkspace(name) {
@@ -456,15 +336,9 @@
     const metrics = bootstrap.metrics || {};
     const root = qs("#dashboardSummary");
     if (!root) return;
-    const sheetLink = spreadsheetUrl();
     root.innerHTML = [
       '<div class="dashboard-summary-card"><div class="label">TOTAL SUBMISSIONS</div><div class="value">' + escapeHtml(String(metrics.submissions || 0)) + "</div></div>",
       '<div class="dashboard-summary-card"><div class="label">AUTHORIZED ADMIN</div><div class="copy">' + escapeHtml(state.viewer ? state.viewer.email : "") + "</div></div>",
-      '<div class="dashboard-summary-card"><div class="label">LIVE SPREADSHEET</div><div class="copy">' +
-        (sheetLink
-          ? '<a href="' + escapeHtml(sheetLink) + '" target="_blank" rel="noreferrer">Open Google Sheet</a>'
-          : "Configure GOOGLE_SPREADSHEET_ID") +
-        "</div></div>",
     ].join("");
   }
 
@@ -1331,15 +1205,6 @@
     await loadAdmins();
   }
 
-  async function exportSheets() {
-    try {
-      const data = await api("exports/sheets", { method: "POST" });
-      window.alert(data.message || "Google Sheets is already the primary database for this admin system.");
-    } catch (error) {
-      window.alert(error.message || "Google Sheets export failed.");
-    }
-  }
-
   async function saveNewsletterDraft() {
     try {
       setStatus("#status", "Saving draft...", null);
@@ -1503,7 +1368,6 @@
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);
   qs("#publishBtn")?.addEventListener("click", publishCurrentBook);
   qs("#archiveBtn")?.addEventListener("click", archiveCurrentBook);
-  qs("#exportSheetsBtn")?.addEventListener("click", exportSheets);
   qs("#bookForm")?.addEventListener("submit", saveBook);
   qs("#orderForm")?.addEventListener("submit", updateOrder);
   qs("#inventoryForm")?.addEventListener("submit", adjustInventory);

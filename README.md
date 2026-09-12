@@ -53,16 +53,12 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
 - `GOOGLE_CLIENT_ID`: Google Identity Services web client ID used by the branded login screen.
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`: Stripe checkout and webhook secrets.
-- `GOOGLE_APPS_SCRIPT_EMAIL_URL` and `GOOGLE_APPS_SCRIPT_EMAIL_SECRET`: signed mail relay settings when Apps Script should send branded email.
-- `RESEND_API_KEY` and `MAIL_FROM_EMAIL`: optional direct-send fallback if you do not want to relay mail through Apps Script.
-- `GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, and `GOOGLE_SERVICE_ACCOUNT_TOKEN_URI`: Google Sheets export credentials.
-- `SHEETS_EXPORT_SPREADSHEET_ID` and `SHEETS_EXPORT_ENABLED`: reporting export target and on/off switch.
+- `RESEND_API_KEY`: API key used to send transactional and newsletter email via Resend.
+- `MAIL_FROM_EMAIL`: the sending address used with Resend for all transactional and newsletter email.
 - `UNSUBSCRIBE_SECRET`: private signing secret for newsletter unsubscribe links.
 - `ADMIN_SESSION_SECRET`: HMAC secret used by the Worker to sign the admin session cookie.
 
-Legacy Apps Script URLs remain as optional fallback variables for public forms/store during migration, but the admin UI path is website-first and branded emails can be relayed to Apps Script.
-
-When the Apps Script data relay is enabled, Cloudflare `GOOGLE_APPS_SCRIPT_DATA_SECRET` and Apps Script `WORKER_RELAY_SECRET` must contain the same secret value. Redeploy both sides after aligning them, then test the relay end to end. Never expose either value in public site configuration.
+All forms, the store, checkout, and the admin API run natively on Cloudflare (D1 for storage, R2 for book images, Stripe for payments, and Resend for outbound email). There is no external relay.
 
 Existing D1 deployments must apply [cloudflare/migrations/0002_review_form_fields.sql](cloudflare/migrations/0002_review_form_fields.sql) after the initial migration.
 
@@ -76,7 +72,7 @@ The website footer shows an `Admin` link to the website admin route. The static 
 
 The branded publisher login lives at [login/index.html](login/index.html). It uses Google Identity Services in the page, posts the returned Google credential to the Worker, and the Worker issues an HttpOnly admin session cookie after validating the Google account and the admin role.
 
-In Apps Script relay mode, the Worker confirms the Google account against the Apps Script-backed admin directory before each admin request. In D1 mode, the Worker confirms the email against the `admins` table.
+The Worker confirms the Google account against the `admins` table in D1 before each admin request.
 
 ## Launch assets still needed
 

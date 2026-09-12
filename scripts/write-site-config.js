@@ -50,12 +50,11 @@ const publicApiUrl = isPlaceholder(values.PUBLIC_API_URL) ? '' : normalizeUrl(va
 const publicAdminUrl = isPlaceholder(values.PUBLIC_ADMIN_URL)
   ? ''
   : normalizeUrl(values.PUBLIC_ADMIN_URL);
-const legacyFormEndpoint = normalizeUrl(values.GOOGLE_APPS_SCRIPT_WEB_APP_URL);
 
-const formEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/forms/submit') : legacyFormEndpoint;
-const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/books') : (legacyFormEndpoint ? legacyFormEndpoint + (legacyFormEndpoint.includes('?') ? '&' : '?') + 'action=store-books' : '');
-const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : legacyFormEndpoint;
-const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : legacyFormEndpoint;
+const formEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/forms/submit') : '';
+const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/books') : '';
+const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : '';
+const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : '';
 const adminUrl = publicAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
 const loginUrl = siteUrl ? joinUrl(siteUrl, '/login/') : 'login/';
 const authApiRoot = publicApiUrl || '';
@@ -74,7 +73,6 @@ const publicConfig = {
   authLogoutEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/logout') : '',
   googleClientId: normalizeUrl(values.GOOGLE_CLIENT_ID),
   adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL),
-  spreadsheetId: normalizeUrl(values.SHEETS_EXPORT_SPREADSHEET_ID || values.GOOGLE_SPREADSHEET_ID),
   squareLinks: {
     books: {
       battlesHardcover: normalizeUrl(values.SQUARE_BATTLES_HARDCOVER_URL),
