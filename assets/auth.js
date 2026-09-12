@@ -39,14 +39,6 @@
     return value || buildDefaultReturnTo();
   }
 
-  function toggleContinueLink(url, visible) {
-    const link = qs('[data-login-continue]');
-    if (!link) return;
-    link.href = url || adminUrl || 'admin/';
-    if (visible) link.removeAttribute('hidden');
-    else link.setAttribute('hidden', 'hidden');
-  }
-
   async function fetchSession() {
     if (!authSessionEndpoint) return null;
     const response = await fetch(authSessionEndpoint, {
@@ -88,10 +80,8 @@
       callback: async function (response) {
         try {
           setLoginStatus('Signing in with Google...');
-          toggleContinueLink('', false);
           const data = await exchangeCredential(String(response.credential || ''));
           const destination = new URL(String(data.redirectUrl || buildDefaultReturnTo()), window.location.origin);
-          toggleContinueLink(destination.toString(), true);
           window.location.assign(destination.toString());
         } catch (error) {
           setLoginStatus(error.message || 'Google sign-in could not be completed.', true);
@@ -110,7 +100,6 @@
 
   async function initLoginPage() {
     if (document.body?.dataset.page !== 'login') return;
-    toggleContinueLink('', false);
 
     if (!authGoogleEndpoint || !authSessionEndpoint) {
       setLoginStatus('Google sign-in is not configured yet. Finish PUBLIC_API_URL and redeploy the Worker.', true);
@@ -126,7 +115,6 @@
     if (existingSession) {
       setLoginStatus('You are already signed in. Redirecting to the admin console.');
       const destination = new URL(getRequestedReturnTo(), window.location.origin);
-      toggleContinueLink(destination.toString(), true);
       window.location.replace(destination.toString());
       return;
     }

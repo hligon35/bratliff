@@ -1012,7 +1012,7 @@
     const payload = newsletterPayload();
     const book = newsletterSelectedBook();
     preview.innerHTML =
-      '<div class="nl-email-header"><div class="nl-email-brand"><div class="nl-logo">JP</div><div><h3>Jackrabbit Punkin Publishing</h3><p>Stories That Inspire. Books That Endure.</p></div></div></div>' +
+      '<div class="nl-email-header"><div class="nl-email-brand"><img class="nl-logo" src="assets/jrppLogo2.png" alt="Jackrabbit Punkin Publishing"><div><h3>Jackrabbit Punkin Publishing</h3><p>Stories That Inspire. Books That Endure.</p></div></div></div>' +
       '<section class="nl-email-hero"><div class="nl-kicker">' +
       escapeHtml(payload.title || "The Jackrabbit Journal") +
       "</div><h1>" +

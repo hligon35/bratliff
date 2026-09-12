@@ -381,14 +381,9 @@ if (document.readyState !== "loading") renderTurnstileWidgets();
 else document.addEventListener("DOMContentLoaded", renderTurnstileWidgets);
 
 function initAdminEntryPages() {
-  const loginButton = document.querySelector("[data-login-continue]");
   const loginStatus = document.querySelector("[data-login-status]");
-  const dashboardUrl = buildAdminDashboardUrl(adminUrl);
   const entryUrl = buildAdminLoginUrl(loginUrl);
 
-  if (loginButton) {
-    loginButton.setAttribute('href', dashboardUrl || 'contact.html?subject=Admin%20Access');
-  }
   if (loginStatus) {
     loginStatus.textContent = adminApiUrl
       ? 'Sign in with your authorized Google account to open the publisher admin system.'
