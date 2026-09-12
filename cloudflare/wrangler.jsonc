@@ -1,14 +1,19 @@
 {
   "name": "bratliff-platform",
   "main": "src/index.ts",
+  "account_id": "a66d8ad6d673f957cc07a4499662d694",
   "compatibility_date": "2026-08-31",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
   "routes": [
     {
-      "pattern": "jrpp.alphazonelabs.com/*",
-      "zone_name": "alphazonelabs.com"
+      "pattern": "jackrabbitpunkinpublishing.com/*",
+      "zone_name": "jackrabbitpunkinpublishing.com"
+    },
+    {
+      "pattern": "www.jackrabbitpunkinpublishing.com/*",
+      "zone_name": "jackrabbitpunkinpublishing.com"
     }
   ],
   "observability": {
@@ -23,17 +28,17 @@
     "run_worker_first": ["/api/*", "/stripe/*", "/healthz"]
   },
   "vars": {
-    "SITE_URL": "https://jrpp.alphazonelabs.com",
-    "PUBLIC_ADMIN_URL": "https://jrpp.alphazonelabs.com/admin/",
-    "PUBLIC_API_URL": "https://jrpp.alphazonelabs.com",
+    "SITE_URL": "https://jackrabbitpunkinpublishing.com",
+    "PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/",
+    "PUBLIC_API_URL": "https://jackrabbitpunkinpublishing.com",
     "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
     "GOOGLE_CLIENT_ID": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
     "STRIPE_CURRENCY": "usd",
-    "ORDER_SUCCESS_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=success",
-    "ORDER_CANCEL_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=cancelled",
+    "ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=success",
+    "ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
     "SHEETS_EXPORT_SPREADSHEET_ID": "1301NQv9MQwOXOp88wPBW4HmJpqzd234sHhrVUrp3I9g",
     "SHEETS_EXPORT_ENABLED": "false",
-    "CORS_ORIGIN": "https://jrpp.alphazonelabs.com",
+    "CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com",
     "GOOGLE_APPS_SCRIPT_WEB_APP_URL": "https://script.google.com/macros/s/AKfycby6bzOdebhTco70LXlvf3TAy7ulu-KYT5vFXmFh5jwjyXdx66KrUaGkU3i7blgpi7oR/exec",
     "GOOGLE_APPS_SCRIPT_ADMIN_URL": "https://script.google.com/macros/s/AKfycby6bzOdebhTco70LXlvf3TAy7ulu-KYT5vFXmFh5jwjyXdx66KrUaGkU3i7blgpi7oR/exec"
   },
