@@ -6,23 +6,27 @@ The Publisher Store Manager now runs on the Cloudflare Worker stack while preser
 
 ### Cloudflare Worker
 
-- [cloudflare/src/app.ts](cloudflare/src/app.ts) — public routes, admin API, Stripe webhook, and newsletter scheduling.
+- [cloudflare/src/app.ts](cloudflare/src/app.ts) — public routes, admin API, Square webhook, and newsletter scheduling.
 - [cloudflare/migrations/0001_initial.sql](cloudflare/migrations/0001_initial.sql) — D1 schema for books, orders, subscribers, campaigns, submissions, and admins.
-- R2 bucket binding `BOOK_ASSETS` — book-cover storage.
+- [cloudflare/migrations/0003_square_sponsors_content.sql](cloudflare/migrations/0003_square_sponsors_content.sql) — D1 schema additions for Square sponsor payments, sponsor recognition, contacts, and authors.
+- R2 bucket binding `BOOK_ASSETS` — book-cover and sponsor logo storage.
 
 ### Website
 
 - [assets/store.css](assets/store.css) — storefront/cart styles using the existing navy, purple, gold, cream brand variables.
-- [assets/store.js](assets/store.js) — live catalog loader, local cart, quantity control, cart drawer, and Stripe Checkout redirect.
+- [assets/store.js](assets/store.js) — live catalog loader, local cart, quantity control, cart drawer, and Square Payment Link redirect.
 - [admin/index.html](admin/index.html), [assets/admin.js](assets/admin.js), and [assets/admin.css](assets/admin.css) — protected static admin console.
 
 ## Public routes
 
 - `GET /api/store/books` — published, coming-soon, and out-of-stock catalog.
 - `GET /api/store/book?id=BK-...` — one public book.
-- `POST /api/store/checkout` — validates live inventory and creates a Stripe Checkout Session.
-- `POST /stripe/webhook` — authenticated Stripe payment completion.
+- `POST /api/store/checkout` — validates live inventory and creates a Square Payment Link.
+- `POST /square/webhook` — authenticated Square payment/refund completion.
+- `GET /api/sponsors` — public, redacted sponsor recognition listing.
+- `POST /api/sponsors/checkout` — validates a sponsorship tier and creates a Square Payment Link.
 - `GET /media/books/...` — public R2 image delivery.
+- `GET /media/sponsors/...` — public R2 sponsor logo delivery.
 
 ## Admin routes
 
@@ -38,12 +42,18 @@ The Publisher Store Manager now runs on the Cloudflare Worker stack while preser
 - `POST /api/admin/newsletter/test`
 - `GET /api/admin/newsletter/subscribers`
 - `GET|POST|DELETE /api/admin/admins`
+- `GET /api/admin/sponsors`
+- `GET /api/admin/sponsors/:sponsorId`
+- `POST /api/admin/sponsors`
+- `POST /api/admin/sponsors/:sponsorId/publish`
+- `POST /api/admin/sponsors/:sponsorId/hide`
+- `POST|DELETE /api/admin/sponsors/:sponsorId/image`
 
 ## Initial setup
 
 1. Configure the D1 database and R2 bucket in [cloudflare/wrangler.jsonc](cloudflare/wrangler.jsonc).
 2. Apply [cloudflare/migrations/0001_initial.sql](cloudflare/migrations/0001_initial.sql).
-3. Add Stripe values and other Wrangler secrets to `.env.local` and to the deployed Worker.
+3. Add Square values and other Wrangler secrets to `.env.local` and to the deployed Worker.
 4. Run `npm run prepare:config`.
 5. Run `npm run worker:prepare`.
 6. Protect `/admin/*` and `/api/admin/*` with Cloudflare Access.
@@ -53,7 +63,7 @@ The existing legacy `?action=store-books` and `action=store-checkout` compatibil
 
 ## Payment webhook
 
-The Worker creates Stripe Checkout Sessions, but only the authenticated Stripe webhook records a paid order and reduces inventory. Browser redirects are never treated as proof of payment. The storefront also confirms successful sessions server-side after Stripe redirects back (`POST /api/store/confirm-checkout`), which idempotently records the order in D1 if the webhook has not already done so.
+The Worker creates Square Payment Links, but only the authenticated Square webhook (`POST /square/webhook`, signature verified with `SQUARE_WEBHOOK_SIGNATURE_KEY`) records a paid order or sponsorship and reduces inventory. Browser redirects are never treated as proof of payment. The storefront's `POST /api/store/confirm-checkout` call after a Square redirect is a read-only status poll (webhook is the sole source of truth) used only to update the UI.
 
 ## Storefront integration
 

@@ -31,6 +31,9 @@
         <a href="admin/index.html">Admin Dashboard</a>
         <a href="admin/store.html">Book Store Manager</a>
         <a class="active" href="admin/newsletter.html" aria-current="page">Newsletter Builder</a>
+        <a href="admin/sponsors.html">Sponsor Recognition</a>
+        <a href="admin/author.html">Featured Author</a>
+        <a href="admin/analytics.html">Analytics</a>
       </div>
       <div class="jrpp-admin-actions">
         <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
@@ -80,6 +83,19 @@
                 </div>
                 <div class="nl-field">
                   <label>From name</label><input id="fromName" title="From name" />
+                </div>
+              </div>
+              <div class="nl-grid2">
+                <div class="nl-field">
+                  <label>Send to</label>
+                  <select id="targetType" title="Send to">
+                    <option value="all">All active subscribers</option>
+                    <option value="book_interest">Book Buzz: notify-me signups for a title</option>
+                  </select>
+                </div>
+                <div class="nl-field" id="targetValueField" hidden>
+                  <label>Book title</label>
+                  <select id="targetValue" title="Book title"><option value="">Select a title</option></select>
                 </div>
               </div>
               <div class="nl-section-label">Newsletter sections</div>

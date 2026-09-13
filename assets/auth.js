@@ -1,13 +1,30 @@
 (function () {
   const siteConfig = window.siteConfig || {};
   const loginUrl = String(siteConfig.loginUrl || 'login/').trim();
-  const adminUrl = String(siteConfig.adminUrl || 'admin/').trim();
+  const adminUrl = pickUrlForCurrentOrigin(siteConfig.adminUrl, 'admin/');
   const authGoogleEndpoint = String(siteConfig.authGoogleEndpoint || '').replace(/\/$/, '');
   const authSessionEndpoint = String(siteConfig.authSessionEndpoint || '').replace(/\/$/, '');
   const googleClientId = String(siteConfig.googleClientId || '').trim();
 
   function normalizeUrl(value) {
     return String(value || '').trim();
+  }
+
+  // siteConfig URLs (adminUrl, publicApiUrl, etc.) may be a comma-separated list, one per served domain.
+  function pickUrlForCurrentOrigin(rawValue, fallback) {
+    const candidates = String(rawValue || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!candidates.length) return fallback;
+    const match = candidates.find((candidate) => {
+      try {
+        return new URL(candidate, window.location.href).origin === window.location.origin;
+      } catch {
+        return false;
+      }
+    });
+    return match || candidates[0];
   }
 
   function isConfiguredGoogleClientId(value) {

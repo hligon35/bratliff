@@ -252,6 +252,25 @@ function setFormMessage(form, message, isError) {
   panel.classList.toggle("error", Boolean(isError));
 }
 
+function formatPhoneNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 10);
+  if (digits.length < 4) return digits ? `(${digits}` : "";
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function bindPhoneFormatting() {
+  document.querySelectorAll('input[type="tel"]').forEach((input) => {
+    input.addEventListener("input", () => {
+      const atEnd = input.selectionStart === input.value.length;
+      input.value = formatPhoneNumber(input.value);
+      if (atEnd) input.setSelectionRange(input.value.length, input.value.length);
+    });
+  });
+}
+
+bindPhoneFormatting();
+
 function clearFormMessage(form) {
   const panel = form.querySelector(".form-message");
   if (!panel) return;
@@ -344,6 +363,7 @@ async function submitLiveForm(form) {
       form,
       form.dataset.successMessage || "Thank you. Your request has been sent.",
     );
+    trackEvent("form_submit", { meta: { formType: payload.get("formType") } });
     form.reset();
   } catch (error) {
     setFormMessage(
@@ -362,6 +382,10 @@ async function submitLiveForm(form) {
 document.querySelectorAll("form[data-form-type]").forEach((form) => {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
     submitLiveForm(form);
   });
 });
@@ -547,4 +571,351 @@ if (requestedSubject) {
     [...subject.options].some((option) => option.value === requestedSubject)
   )
     subject.value = requestedSubject;
+}
+
+if (document.body.dataset.page === "forward") {
+  initSponsorProgram();
+}
+
+initFeaturedAuthor();
+
+function initFeaturedAuthor() {
+  const section = document.querySelector("[data-featured-author]");
+  if (!section) return;
+  const apiBase = resolvePublicApiBase();
+  if (!apiBase) return;
+
+  fetch(`${apiBase}/api/authors/featured`, { cache: "no-store" })
+    .then((response) => response.json())
+    .then((data) => {
+      if (!data || !data.ok || !data.author) return;
+      renderFeaturedAuthor(section, data.author);
+    })
+    .catch(() => {});
+
+  function renderFeaturedAuthor(root, author) {
+    const nameEl = root.querySelector("[data-featured-author-name]");
+    const titleEl = root.querySelector("[data-featured-author-title]");
+    const introEl = root.querySelector("[data-featured-author-intro]");
+    const bioEl = root.querySelector("[data-featured-author-bio]");
+    const portraitEl = root.querySelector("[data-featured-author-portrait]");
+    const portraitCaptionEl = root.querySelector("[data-featured-author-portrait-caption]");
+    const ctaEl = root.querySelector("[data-featured-author-cta]");
+    const bookCoverEl = root.querySelector("[data-featured-author-book-cover]");
+    const bookTitleEl = root.querySelector("[data-featured-author-book-title]");
+
+    if (nameEl) nameEl.textContent = author.name || "";
+    if (titleEl) titleEl.textContent = author.title || "Featured Author";
+    if (introEl) introEl.textContent = author.shortIntro || "";
+    if (bioEl) bioEl.textContent = author.biography || "";
+    if (portraitEl) {
+      if (author.portraitUrl) {
+        portraitEl.src = author.portraitUrl;
+        portraitEl.alt = author.portraitAlt || author.name || "";
+        portraitEl.style.objectPosition = `${author.portraitFocalX ?? 50}% ${author.portraitFocalY ?? 50}%`;
+        portraitEl.hidden = false;
+        portraitEl.closest(".spotlight-visual")?.classList.add("has-image");
+        if (portraitCaptionEl) portraitCaptionEl.hidden = true;
+        else portraitEl.closest(".featured-author-portrait")?.remove();
+      }
+    }
+    if (ctaEl) {
+      if (author.ctaLabel) ctaEl.textContent = author.ctaLabel;
+      if (author.ctaUrl) ctaEl.href = author.ctaUrl;
+      if (author.ctaLabel || author.ctaUrl) ctaEl.hidden = false;
+    }
+    const firstBook = Array.isArray(author.relatedBooks)
+      ? author.relatedBooks.find((book) => book && book.imageUrl)
+      : null;
+    if (firstBook) {
+      if (bookCoverEl) {
+        bookCoverEl.src = firstBook.imageUrl;
+        bookCoverEl.alt = firstBook.title || "";
+        bookCoverEl.hidden = false;
+        bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
+      }
+      if (bookTitleEl) bookTitleEl.textContent = firstBook.title || "Featured Book";
+    }
+    root.hidden = false;
+  }
+}
+
+function resolvePublicApiBase() {
+  const raw = String(siteConfig.publicApiUrl || "").split(",")[0];
+  return normalizeUrl(raw).replace(/\/$/, "");
+}
+
+function trackEvent(eventType, extra) {
+  const apiBase = resolvePublicApiBase();
+  if (!apiBase || document.body.dataset.page === "login") return;
+  const payload = new URLSearchParams();
+  payload.set("eventType", eventType);
+  payload.set("pagePath", window.location.pathname);
+  if (extra && extra.bookId) payload.set("bookId", extra.bookId);
+  if (extra && extra.meta) payload.set("meta", JSON.stringify(extra.meta));
+  const url = `${apiBase}/api/analytics/event`;
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload.toString()], { type: "application/x-www-form-urlencoded;charset=UTF-8" });
+    navigator.sendBeacon(url, blob);
+  } else {
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: payload.toString(),
+      keepalive: true,
+    }).catch(() => {});
+  }
+}
+
+trackEvent("page_view");
+
+function escapeHtmlSponsor(value) {
+  return String(value == null ? "" : value).replace(
+    /[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]),
+  );
+}
+
+function initSponsorProgram() {
+  const apiBase = resolvePublicApiBase();
+  const packageButtons = [...document.querySelectorAll("[data-sponsor-package]")];
+  const recognitionMount = document.querySelector("[data-sponsor-recognition]");
+  handleSponsorPaymentReturn();
+  if (!packageButtons.length && !recognitionMount) return;
+
+  const packageInfo = {
+    pagePal: { label: "Page Pal", price: "$100", books: 5 },
+    chapterChampion: { label: "Chapter Champion", price: "$250", books: 12 },
+    bookshelfBuilder: { label: "Bookshelf Builder", price: "$500", books: 25 },
+    literacyTrailblazer: { label: "Literacy Trailblazer", pricePerBook: 20, minBooks: 50 },
+  };
+  const pageSize = 12;
+  let trailblazerPage = 1;
+
+  ensureSponsorModal();
+  packageButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!apiBase) {
+        window.alert("Sponsorship checkout is not configured yet.");
+        return;
+      }
+      openSponsorModal(button.dataset.sponsorPackage);
+    });
+  });
+
+  window.addEventListener("message", (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (event.data && event.data.type === "jrpp-sponsor-success") {
+      closeSponsorModal();
+      if (recognitionMount) loadSponsorRecognition();
+      window.alert("Thank you! Your sponsorship payment was received.");
+    }
+  });
+
+  if (recognitionMount) loadSponsorRecognition();
+
+  // If this page was opened as the Square checkout popup and payment just completed,
+  // notify the original tab and close this one instead of leaving two windows open.
+  function handleSponsorPaymentReturn() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sponsor") !== "success") return;
+    const sponsorId = params.get("sponsorId") || "";
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "jrpp-sponsor-success", sponsorId }, window.location.origin);
+      window.close();
+      return;
+    }
+    window.history.replaceState({}, "", window.location.pathname);
+    window.alert("Thank you! Your sponsorship payment was received.");
+  }
+
+  function ensureSponsorModal() {
+    if (document.querySelector(".sponsor-modal-backdrop")) return;
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div class="sponsor-modal-backdrop" aria-hidden="true">
+        <div class="sponsor-modal" role="dialog" aria-modal="true" aria-labelledby="sponsor-modal-title">
+          <button type="button" class="sponsor-modal-close" data-sponsor-close aria-label="Close sponsorship form">&times;</button>
+          <h2 id="sponsor-modal-title">Sponsor books</h2>
+          <p data-sponsor-modal-summary></p>
+          <form data-sponsor-form novalidate>
+            <input type="hidden" name="package" data-sponsor-package-field />
+            <label>Your name
+              <input type="text" name="payerName" required maxlength="200" autocomplete="name" />
+            </label>
+            <label>Email
+              <input type="email" name="payerEmail" required maxlength="320" autocomplete="email" />
+            </label>
+            <label>Display name (how you'd like to be recognized)
+              <input type="text" name="displayName" maxlength="200" autocomplete="off" />
+            </label>
+            <label data-sponsor-books-field hidden>Number of books (50 minimum)
+              <input type="number" name="books" min="50" step="1" value="50" />
+            </label>
+            <div class="sponsor-checkbox-group">
+              <label class="sponsor-checkbox">
+                <input type="checkbox" name="anonymous" /> Keep my sponsorship anonymous
+              </label>
+              <label class="sponsor-checkbox">
+                <input type="checkbox" name="publishPermission" checked /> I give JPP permission to publicly recognize this sponsorship
+              </label>
+            </div>
+            <div data-sponsor-error class="form-error" role="alert" hidden></div>
+            <button type="submit" class="button ink" style="width:100%">Continue to payment</button>
+          </form>
+        </div>
+      </div>`,
+    );
+    document.querySelector("[data-sponsor-close]").addEventListener("click", closeSponsorModal);
+    document.querySelector(".sponsor-modal-backdrop").addEventListener("click", (event) => {
+      if (event.target.classList.contains("sponsor-modal-backdrop")) closeSponsorModal();
+    });
+    document.querySelector("[data-sponsor-form]").addEventListener("submit", handleSponsorSubmit);
+  }
+
+  function openSponsorModal(packageKey) {
+    const definition = packageInfo[packageKey];
+    if (!definition) return;
+    const backdrop = document.querySelector(".sponsor-modal-backdrop");
+    const summary = document.querySelector("[data-sponsor-modal-summary]");
+    const booksField = document.querySelector("[data-sponsor-books-field]");
+    const packageField = document.querySelector("[data-sponsor-package-field]");
+    const errorBox = document.querySelector("[data-sponsor-error]");
+    packageField.value = packageKey;
+    errorBox.hidden = true;
+    if (packageKey === "literacyTrailblazer") {
+      booksField.hidden = false;
+      summary.textContent = `${definition.label} - $${definition.pricePerBook} per book, ${definition.minBooks}-book minimum.`;
+    } else {
+      booksField.hidden = true;
+      summary.textContent = `${definition.label} - ${definition.price} sponsors ${definition.books} books.`;
+    }
+    backdrop.classList.add("open");
+    backdrop.setAttribute("aria-hidden", "false");
+    document.querySelector('[data-sponsor-form] input[name="payerName"]').focus();
+  }
+
+  function closeSponsorModal() {
+    const backdrop = document.querySelector(".sponsor-modal-backdrop");
+    backdrop?.classList.remove("open");
+    backdrop?.setAttribute("aria-hidden", "true");
+  }
+
+  async function handleSponsorSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    const errorBox = form.querySelector("[data-sponsor-error]");
+    errorBox.hidden = true;
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = "Redirecting to secure payment...";
+    // Open the popup synchronously (before any await) so browsers don't block it, then
+    // point it at the checkout URL once the API responds.
+    const checkoutWindow = window.open("", "_blank");
+    try {
+      const formData = new FormData(form);
+      const body = {
+        package: formData.get("package"),
+        payerName: formData.get("payerName"),
+        payerEmail: formData.get("payerEmail"),
+        displayName: formData.get("displayName"),
+        anonymous: formData.get("anonymous") ? "true" : "false",
+        publishPermission: formData.get("publishPermission") ? "true" : "false",
+        books: formData.get("books") || "",
+      };
+      const response = await fetch(`${apiBase}/api/sponsors/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!data.ok || !data.url) throw new Error(data.error || "Sponsorship checkout could not be started.");
+      trackEvent("sponsor_checkout_start", { meta: { package: body.package } });
+      if (checkoutWindow && !checkoutWindow.closed) {
+        checkoutWindow.location.href = data.url;
+        submitButton.disabled = false;
+        submitButton.textContent = "Complete your payment in the new window";
+      } else {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      if (checkoutWindow && !checkoutWindow.closed) checkoutWindow.close();
+      errorBox.textContent = error.message || "Something went wrong. Please try again.";
+      errorBox.hidden = false;
+      submitButton.disabled = false;
+      submitButton.textContent = "Continue to payment";
+    }
+  }
+
+  async function loadSponsorRecognition(append) {
+    try {
+      const response = await fetch(`${apiBase}/api/sponsors?page=${trailblazerPage}&pageSize=${pageSize}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!data.ok) throw new Error(data.error || "Could not load sponsor recognition.");
+      renderSponsorRecognition(data, append);
+    } catch {
+      if (!append) {
+        recognitionMount.innerHTML = '<p class="asset-note">Sponsor recognition is temporarily unavailable.</p>';
+      }
+    }
+  }
+
+  function renderSponsorRecognition(data, append) {
+    const groupsHtml = (data.groups || [])
+      .filter((group) => (group.names && group.names.length) || group.anonymousCount)
+      .map((group) => {
+        const names = group.names.map(escapeHtmlSponsor);
+        if (group.anonymousCount) {
+          names.push(`${group.anonymousCount} anonymous sponsor${group.anonymousCount === 1 ? "" : "s"}`);
+        }
+        return `<p><strong>${escapeHtmlSponsor(group.label)}:</strong> ${names.join(", ")}</p>`;
+      })
+      .join("");
+
+    const trailblazerCards = (data.trailblazers || [])
+      .map((sponsor) => {
+        const name = sponsor.anonymous ? "Anonymous sponsor" : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
+        const logo = sponsor.logoUrl
+          ? `<img src="${escapeHtmlSponsor(sponsor.logoUrl)}" alt="${escapeHtmlSponsor(sponsor.logoAlt || name)}" loading="lazy">`
+          : "";
+        return `<div class="sponsor-card">${logo}<span>${name}</span><small>${sponsor.booksSponsored} books</small></div>`;
+      })
+      .join("");
+
+    const groupsBlock = groupsHtml ? `<div class="sponsor-groups">${groupsHtml}</div>` : "";
+    const trailblazerBlock = trailblazerCards ? `<div class="sponsor-grid" data-sponsor-grid>${trailblazerCards}</div>` : "";
+
+    if (append) {
+      const grid = recognitionMount.querySelector("[data-sponsor-grid]");
+      if (grid) grid.insertAdjacentHTML("beforeend", trailblazerCards);
+    } else {
+      recognitionMount.innerHTML =
+        groupsBlock || trailblazerBlock
+          ? groupsBlock + trailblazerBlock
+          : '<p class="asset-note">Sponsor recognition will appear here as sponsorships are approved.</p>';
+    }
+
+    const existingMore = document.querySelector("[data-sponsor-more]");
+    existingMore?.remove();
+    const loadedCount = trailblazerPage * pageSize;
+    if (data.trailblazers && data.trailblazers.length === pageSize && loadedCount < data.total) {
+      const moreButton = document.createElement("button");
+      moreButton.type = "button";
+      moreButton.className = "button ghost";
+      moreButton.dataset.sponsorMore = "true";
+      moreButton.style.marginTop = "1rem";
+      moreButton.textContent = "Show more sponsors";
+      moreButton.addEventListener("click", () => {
+        trailblazerPage += 1;
+        loadSponsorRecognition(true);
+      });
+      recognitionMount.insertAdjacentElement("afterend", moreButton);
+    }
+  }
 }

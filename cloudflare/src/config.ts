@@ -1,4 +1,4 @@
-import type { AdminRole, FormType } from "./types";
+import type { AdminRole, FormType, SponsorPackageKey } from "./types";
 
 export const FORM_ROUTES: Record<
   FormType,
@@ -50,6 +50,8 @@ export const NEWSLETTER_DEFAULTS = Object.freeze({
   subject: "A quick update from Jackrabbit Punkin Publishing",
   previewText: "New stories, milestones, and what is ahead.",
   audience: "All active subscribers",
+  targetType: "all",
+  targetValue: "",
   heroMessage:
     "There is a lot happening at Jackrabbit Punkin Publishing, and we are excited to share a few highlights with you.",
   heroCtaLabel: "Visit Jackrabbit Punkin Publishing",
@@ -66,3 +68,34 @@ export const NEWSLETTER_DEFAULTS = Object.freeze({
     "Thank you for reading, sharing, and helping meaningful stories reach more people.",
   timeZone: "America/New_York",
 });
+
+/**
+ * Read It Forward sponsorship packages. Every tier is a fixed price for a
+ * fixed book count, except Literacy Trailblazer which is a 50-book minimum
+ * with each additional book adding `perBookCents`.
+ */
+export const SPONSOR_PACKAGES: Record<
+  SponsorPackageKey,
+  {
+    label: string;
+    buttonLabel: string;
+    priceCents: number;
+    books: number;
+    perBookCents?: number;
+    minBooks?: number;
+  }
+> = {
+  pagePal: { label: "Page Pal", buttonLabel: "Sponsor 5 Books", priceCents: 10000, books: 5 },
+  chapterChampion: { label: "Chapter Champion", buttonLabel: "Sponsor 12 Books", priceCents: 25000, books: 12 },
+  bookshelfBuilder: { label: "Bookshelf Builder", buttonLabel: "Sponsor 25 Books", priceCents: 50000, books: 25 },
+  literacyTrailblazer: {
+    label: "Literacy Trailblazer",
+    buttonLabel: "Sponsor 50+ Books",
+    priceCents: 100000,
+    books: 50,
+    perBookCents: 2000,
+    minBooks: 50,
+  },
+};
+
+export const SPONSOR_MAX_BOOKS = 1000;

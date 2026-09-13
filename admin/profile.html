@@ -31,6 +31,9 @@
         <a href="admin/index.html">Admin Dashboard</a>
         <a href="admin/store.html">Book Store Manager</a>
         <a href="admin/newsletter.html">Newsletter Builder</a>
+        <a href="admin/sponsors.html">Sponsor Recognition</a>
+        <a href="admin/author.html">Featured Author</a>
+        <a href="admin/analytics.html">Analytics</a>
       </div>
       <div class="jrpp-admin-actions">
         <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
@@ -67,7 +70,7 @@
                 <form id="adminForm">
                   <div class="form-grid">
                     <div class="field full">
-                      <label>Email</label><input name="email" type="email" title="Email" required />
+                      <label>Email</label><input name="email" type="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]{2,}" title="Enter a valid email address (e.g. name@example.com)" required />
                     </div>
                     <div class="field full">
                       <label>Display Name</label><input name="displayName" title="Display Name" />

@@ -31,6 +31,9 @@
         <a href="admin/index.html">Admin Dashboard</a>
         <a class="active" href="admin/store.html" aria-current="page">Book Store Manager</a>
         <a href="admin/newsletter.html">Newsletter Builder</a>
+        <a href="admin/sponsors.html">Sponsor Recognition</a>
+        <a href="admin/author.html">Featured Author</a>
+        <a href="admin/analytics.html">Analytics</a>
       </div>
       <div class="jrpp-admin-actions">
         <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
@@ -63,6 +66,7 @@
             </p>
           </div>
           <button class="btn" id="setupBtn" type="button">Initialize / Repair Store</button>
+          <button class="btn alt" id="syncSquareStockBtn" type="button">Sync Square Stock</button>
         </div>
         <div class="tabs">
           <section data-store-view="overview" class="show">
@@ -129,6 +133,15 @@
                       </div>
                       <div class="field">
                         <label>Low Stock Alert</label><input type="number" min="0" name="lowStockThreshold" title="Low Stock Alert" value="5" />
+                      </div>
+                      <div class="field">
+                        <label>Square Catalog Variation ID</label><input name="squareCatalogVariationId" title="Square Catalog Variation ID" placeholder="From Square Dashboard > Items" />
+                      </div>
+                      <div class="field">
+                        <label>Square Catalog Item ID</label><input name="squareCatalogItemId" title="Square Catalog Item ID" placeholder="Optional" />
+                      </div>
+                      <div class="field full">
+                        <small>When a Square Catalog Variation ID is set, Stock is treated as Square-managed: it is refreshed automatically from Square's inventory count (every 15 minutes, or immediately via "Sync Square Stock" above) instead of being maintained by hand.</small>
                       </div>
                       <div class="field full">
                         <label>Short Description</label><textarea name="shortDescription" title="Short Description"></textarea>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="../" />
+    <title>Analytics | Jackrabbit Punkin Publishing LLC</title>
+    <meta
+      name="description"
+      content="Protected publisher analytics dashboard for Jackrabbit Punkin Publishing LLC."
+    />
+    <link rel="stylesheet" href="assets/admin.css" />
+    <script src="assets/site-config.js" defer></script>
+    <script src="assets/admin.js" defer></script>
+  </head>
+  <body data-page="admin" data-admin-page="analytics">
+    <div class="jrpp-admin-switcher">
+      <a class="jrpp-admin-home" href="index.html" aria-label="Jackrabbit Punkin Publishing home">
+        <img class="jrpp-admin-logo" src="assets/jrppLogo2.png" alt="Jackrabbit Punkin Publishing" />
+        <span class="jrpp-admin-brandcopy">
+          Jackrabbit Punkin Publishing
+          <small>Secure Admin System</small>
+        </span>
+      </a>
+      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages">
+        <a class="jrpp-admin-profile-link" href="admin/profile.html" aria-label="Admin users and access">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12.2a4.1 4.1 0 1 0-4.1-4.1 4.1 4.1 0 0 0 4.1 4.1Zm0 2c-4.05 0-7.35 2.1-7.35 4.7V21h14.7v-2.1c0-2.6-3.3-4.7-7.35-4.7Z" />
+          </svg>
+        </a>
+        <a href="admin/index.html">Admin Dashboard</a>
+        <a href="admin/store.html">Book Store Manager</a>
+        <a href="admin/newsletter.html">Newsletter Builder</a>
+        <a href="admin/sponsors.html">Sponsor Recognition</a>
+        <a href="admin/author.html">Featured Author</a>
+        <a class="active" href="admin/analytics.html" aria-current="page">Analytics</a>
+      </div>
+      <div class="jrpp-admin-actions">
+        <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
+        <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="shell">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand">
+            Jackrabbit Punkin
+            <small>Analytics Dashboard</small>
+          </div>
+        </div>
+      </header>
+      <main class="main">
+        <div class="hero">
+          <div>
+            <h1>Analytics Dashboard</h1>
+            <p>
+              Privacy-respecting site analytics: page views, top pages, and
+              conversion events. No cookies or third-party trackers are used.
+            </p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Overview</h2>
+            <select id="analyticsRangeFilter" title="Date range">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+          <div class="panel-body">
+            <div class="grid metrics" id="analyticsMetrics"></div>
+          </div>
+        </div>
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Top Pages</h2></div>
+            <div class="panel-body">
+              <div class="table-wrap" id="analyticsTopPages"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Event Breakdown</h2></div>
+            <div class="panel-body">
+              <div class="table-wrap" id="analyticsEventBreakdown"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Daily Page Views</h2></div>
+          <div class="panel-body">
+            <div id="analyticsTrend"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Sponsorships by Package</h2></div>
+          <div class="panel-body">
+            <p>Paid sponsorships reconciled from the Square webhook, for the selected date range.</p>
+            <div class="table-wrap" id="analyticsSponsorBreakdown"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

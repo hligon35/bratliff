@@ -10,6 +10,63 @@
       name="description"
       content="Barbara J. Ratliff is a veteran speaker available for keynotes on military resilience, women in the military, faith, and storytelling."
     />
+    <link rel="canonical" href="https://jackrabbitpunkinpublishing.com/speaking.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jackrabbit Punkin Publishing LLC" />
+    <meta property="og:title" content="Book Barbara J. Ratliff | Veteran Speaker & Military Resilience Keynote" />
+    <meta property="og:description" content="Barbara J. Ratliff is a veteran speaker available for keynotes on military resilience, women in the military, faith, and storytelling." />
+    <meta property="og:url" content="https://jackrabbitpunkinpublishing.com/speaking.html" />
+    <meta property="og:image" content="https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Book Barbara J. Ratliff | Veteran Speaker & Military Resilience Keynote" />
+    <meta name="twitter:description" content="Barbara J. Ratliff is a veteran speaker available for keynotes on military resilience, women in the military, faith, and storytelling." />
+    <meta name="twitter:image" content="https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://jackrabbitpunkinpublishing.com/#organization",
+        "name": "Jackrabbit Punkin Publishing LLC",
+        "url": "https://jackrabbitpunkinpublishing.com/",
+        "logo": "https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png",
+        "sameAs": [
+          "https://www.facebook.com/barbara.ratliff.771",
+          "https://www.linkedin.com/in/barbara-ratliff-765",
+          "https://www.tiktok.com/@barbararatliff765"
+        ],
+        "founder": [
+          { "@type": "Person", "name": "Barbara J. Ratliff" },
+          { "@type": "Person", "name": "Charles Ratliff" }
+        ],
+        "contactPoint": [
+          { "@type": "ContactPoint", "email": "Publisher@JackrabbitPunkinPublishing.com", "contactType": "customer service" }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Person",
+            "name": "Barbara J. Ratliff",
+            "jobTitle": "Author, Publisher & Speaker",
+            "description": "Barbara J. Ratliff draws from more than two decades of military service, her work with veterans, and her journey as an author and publisher.",
+            "url": "https://jackrabbitpunkinpublishing.com/speaking.html",
+            "image": "https://jackrabbitpunkinpublishing.com/assets/barbaraRatliff3.png",
+            "worksFor": { "@id": "https://jackrabbitpunkinpublishing.com/#organization" }
+          },
+          {
+            "@type": "Service",
+            "name": "Speaking Engagements with Barbara J. Ratliff",
+            "serviceType": "Keynote speaking, panel discussions, workshops, and book club visits",
+            "provider": { "@type": "Person", "name": "Barbara J. Ratliff" },
+            "url": "https://jackrabbitpunkinpublishing.com/speaking.html",
+            "description": "Barbara J. Ratliff is a veteran speaker available for keynotes on military resilience, women in the military, faith, and storytelling."
+          }
+        ]
+      }
+    </script>
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
@@ -173,12 +230,19 @@
                 type="email"
                 name="email"
                 autocomplete="email"
+                pattern="[^\s@]+@[^\s@]+\.[^\s@]{2,}"
+                title="Enter a valid email address (e.g. name@example.com)"
                 required /></label
             ><label
               >Phone Number<input
                 type="tel"
                 name="phone"
-                autocomplete="tel" /></label
+                autocomplete="tel"
+                inputmode="tel"
+                placeholder="(555) 555-5555"
+                pattern="\(\d{3}\) \d{3}-\d{4}"
+                title="Enter a phone number in the format (555) 555-5555"
+                maxlength="14" /></label
             ><label
               >Preferred Speaker<select name="preferredSpeaker">
                 <option>Barbara J. Ratliff</option>

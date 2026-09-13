@@ -1,0 +1,43 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /login/
+Disallow: /coming-soon.html
+
+# Generative-engine / AI-assistant crawlers explicitly welcomed for discovery and citation
+User-agent: GPTBot
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: ChatGPT-User
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: OAI-SearchBot
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: ClaudeBot
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: anthropic-ai
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: Google-Extended
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: PerplexityBot
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: Applebot-Extended
+Disallow: /admin/
+Disallow: /login/
+
+User-agent: Amazonbot
+Disallow: /admin/
+Disallow: /login/
+
+Sitemap: https://jackrabbitpunkinpublishing.com/sitemap.xml

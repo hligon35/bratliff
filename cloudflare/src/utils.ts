@@ -106,11 +106,45 @@ export async function signValue(value: string, secret: string) {
   return base64UrlFromBytes(new Uint8Array(signature));
 }
 
+/**
+ * SITE_URL/PUBLIC_ADMIN_URL/PUBLIC_API_URL support multiple comma-separated
+ * URLs (one per domain the site is served from). Use these helpers instead of
+ * reading the raw env value directly whenever a single URL is required.
+ */
+export function splitUrlList(rawValue: string | undefined): string[] {
+  return String(rawValue || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+export function firstUrlValue(rawValue: string | undefined, fallback = ""): string {
+  return splitUrlList(rawValue)[0] || fallback;
+}
+
+export function matchOriginUrl(rawValue: string | undefined, request: Request, fallback = ""): string {
+  const candidates = splitUrlList(rawValue);
+  if (!candidates.length) return fallback;
+  try {
+    const currentOrigin = new URL(request.url).origin;
+    const match = candidates.find((candidate) => {
+      try {
+        return new URL(candidate).origin === currentOrigin;
+      } catch {
+        return false;
+      }
+    });
+    if (match) return match;
+  } catch {
+    // fall through to first candidate
+  }
+  return candidates[0];
+}
+
 export function withCors(request: Request, env: Env, response: Response) {
   const origin = request.headers.get("Origin") || "";
   const allowedOrigins = new Set(
-    [env.CORS_ORIGIN, env.SITE_URL, env.PUBLIC_ADMIN_URL]
-      .filter(Boolean)
+    [...splitUrlList(env.CORS_ORIGIN), ...splitUrlList(env.SITE_URL), ...splitUrlList(env.PUBLIC_ADMIN_URL)]
       .map((value) => {
         try {
           return new URL(value).origin;
@@ -125,7 +159,7 @@ export function withCors(request: Request, env: Env, response: Response) {
     headers.set("Access-Control-Allow-Credentials", "true");
   }
   headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  headers.set("Access-Control-Allow-Headers", "Content-Type, Cf-Access-Jwt-Assertion, Stripe-Signature");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, Cf-Access-Jwt-Assertion, x-square-hmacsha256-signature");
   headers.set("Vary", "Origin");
   return new Response(response.body, { status: response.status, headers });
 }
@@ -179,7 +213,7 @@ export function buildIdentityKey(request: Request, payload: Record<string, strin
 }
 
 export function buildPublicBookImageUrl(env: Env, imageKey: string) {
-  const base = env.PUBLIC_API_URL.replace(/\/$/, "");
+  const base = firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "");
   return `${base}/media/books/${encodeURIComponent(imageKey)}`;
 }
 
@@ -188,11 +222,27 @@ export function getFirstName(name: string) {
   return firstName || "there";
 }
 
-export function formatStripeAddress(address: Record<string, unknown>) {
-  return [
-    text(address.line1, 200),
-    text(address.line2, 200),
-    [text(address.city, 100), text(address.state, 100), text(address.postal_code, 40)].filter(Boolean).join(", "),
-    text(address.country, 40),
-  ].filter(Boolean).join("\n");
+/**
+ * Square signs webhook notifications as base64(HMAC-SHA256(notificationUrl + rawBody)).
+ * The exact notification URL configured in the Square dashboard must be used.
+ */
+export async function verifySquareSignature(
+  rawBody: string,
+  header: string,
+  signatureKey: string,
+  notificationUrl: string,
+): Promise<boolean> {
+  if (!header || !signatureKey || !notificationUrl) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(signatureKey),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(notificationUrl + rawBody));
+  let binary = "";
+  for (const byte of new Uint8Array(signature)) binary += String.fromCharCode(byte);
+  const expected = btoa(binary);
+  return constantTimeEqual(expected, header);
 }

@@ -1,6 +1,24 @@
 (function () {
   const siteConfig = window.siteConfig || {};
-  const publicApiRoot = String(siteConfig.publicApiUrl || "").replace(/\/$/, "");
+
+  // siteConfig URLs (publicApiUrl, adminUrl, etc.) may be a comma-separated list, one per served domain.
+  function pickUrlForCurrentOrigin(rawValue, fallback) {
+    const candidates = String(rawValue || "")
+      .split(",")
+      .map(function (value) { return value.trim(); })
+      .filter(Boolean);
+    if (!candidates.length) return fallback || "";
+    const match = candidates.find(function (candidate) {
+      try {
+        return new URL(candidate, window.location.href).origin === window.location.origin;
+      } catch {
+        return false;
+      }
+    });
+    return match || candidates[0];
+  }
+
+  const publicApiRoot = pickUrlForCurrentOrigin(siteConfig.publicApiUrl, "").replace(/\/$/, "");
   const loginUrl = String(siteConfig.loginUrl || "login/").trim();
   const authSessionEndpoint = String(
     siteConfig.authSessionEndpoint ||
@@ -35,6 +53,7 @@
     subscribers: [],
     newsletterDefaults: {},
     newsletterBooks: [],
+    bookBuzzTargets: [],
     subscriberCount: 0,
     adminEmail: String(siteConfig.adminEmail || ""),
     orderFilters: {
@@ -49,6 +68,16 @@
       health: "",
       sort: "updated-desc",
     },
+    sponsors: [],
+    sponsorFilters: {
+      status: "",
+      package: "",
+    },
+    authors: [],
+    authorFilters: {
+      status: "",
+    },
+    analyticsRangeDays: 30,
   };
 
   function resolveApiRoot(configuredValue, defaultPath) {
@@ -650,7 +679,7 @@
         { label: "Price", render: function (book) { return escapeHtml(formatMoney(book.price)); } },
         { label: "Stock", key: "stock" },
         { label: "Status", render: function (book) { return '<span class="badge">' + escapeHtml(book.status || "") + "</span>"; } },
-        { label: "", render: function (book) { return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button>'; } },
+        { label: "", render: function (book) { return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button> <button class="btn warn" type="button" data-delete-book="' + escapeHtml(book.bookId) + '">Delete</button>'; } },
       ],
       state.books,
       "No books yet.",
@@ -674,6 +703,20 @@
     setStatus("#bookStatus", "", null);
   }
 
+  async function deleteBookRow(bookId) {
+    const book = state.books.find(function (entry) {
+      return entry.bookId === bookId;
+    });
+    if (!window.confirm("Delete " + (book ? '"' + book.title + '"' : "this book") + "? This can't be undone.")) return;
+    try {
+      await api("books/" + encodeURIComponent(bookId), { method: "DELETE" });
+      if (safeValue(field(qs("#bookForm"), "bookId")) === bookId) resetBookForm();
+      await loadBooks();
+    } catch (error) {
+      setStatus("#bookStatus", error.message || "Book could not be deleted.", false);
+    }
+  }
+
   function populateBookForm(book) {
     const form = qs("#bookForm");
     if (!form || !book) return;
@@ -694,6 +737,8 @@
       "shortDescription",
       "synopsis",
       "status",
+      "squareCatalogItemId",
+      "squareCatalogVariationId",
     ].forEach(function (name) {
       const control = field(form, name);
       if (control) control.value = book[name] == null ? "" : book[name];
@@ -856,6 +901,8 @@
       subject: safeValue(qs("#subject")),
       previewText: safeValue(qs("#previewText")),
       audience: safeValue(qs("#audience")),
+      targetType: safeValue(qs("#targetType")) || "all",
+      targetValue: safeValue(qs("#targetType")) === "book_interest" ? safeValue(qs("#targetValue")) : "",
       fromName: safeValue(qs("#fromName")),
       heroMessage: safeValue(qs("#heroMessage")),
       heroCtaLabel: safeValue(qs("#heroCtaLabel")),
@@ -886,6 +933,7 @@
     });
     const campaignId = qs("#campaignId");
     if (campaignId) campaignId.value = "";
+    toggleNewsletterTargetField();
   }
 
   function fillNewsletterCampaign(campaign) {
@@ -895,6 +943,8 @@
       "subject",
       "previewText",
       "audience",
+      "targetType",
+      "targetValue",
       "fromName",
       "heroMessage",
       "heroCtaLabel",
@@ -917,8 +967,15 @@
       const element = qs("#" + key);
       if (element) element.value = campaign[key] || "";
     });
+    toggleNewsletterTargetField();
     updateNewsletterPreview();
     window.scrollTo(0, 0);
+  }
+
+  function toggleNewsletterTargetField() {
+    const targetType = safeValue(qs("#targetType")) || "all";
+    const field = qs("#targetValueField");
+    if (field) field.hidden = targetType !== "book_interest";
   }
 
   function campaignSavedLabel(campaign) {
@@ -1147,6 +1204,7 @@
     const subscribersData = wantsSubscribers ? await api("newsletter/subscribers") : { subscribers: [] };
     state.campaigns = Array.isArray(stateData.campaigns) ? stateData.campaigns : [];
     state.newsletterBooks = Array.isArray(stateData.books) ? stateData.books : [];
+    state.bookBuzzTargets = Array.isArray(stateData.bookBuzzTargets) ? stateData.bookBuzzTargets : [];
     state.newsletterDefaults = stateData.defaults || {};
     state.subscriberCount = Number(stateData.subscriberCount || 0);
     state.adminEmail = String(stateData.adminEmail || state.adminEmail || "");
@@ -1162,6 +1220,17 @@
         .join("");
       if (current) featuredBook.value = current;
     }
+    const targetValueSelect = qs("#targetValue");
+    if (targetValueSelect) {
+      const current = targetValueSelect.value;
+      targetValueSelect.innerHTML = '<option value="">Select a title</option>' + state.bookBuzzTargets
+        .map(function (target) {
+          return '<option value="' + escapeHtml(target.title) + '">' + escapeHtml(target.title) + " (" + Number(target.signups || 0) + " signups)</option>";
+        })
+        .join("");
+      if (current) targetValueSelect.value = current;
+    }
+    toggleNewsletterTargetField();
     if (!safeValue(qs("#subject"))) fillNewsletterDefaults(state.newsletterDefaults);
     renderCampaigns();
     renderSubscribers();
@@ -1181,6 +1250,10 @@
   async function saveAdmin(event) {
     event.preventDefault();
     const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
     setStatus("#adminStatus", "Saving...", null);
     try {
       await api("admins", {
@@ -1203,6 +1276,524 @@
     if (!window.confirm("Remove admin access for " + email + "?")) return;
     await api("admins/" + encodeURIComponent(email), { method: "DELETE" });
     await loadAdmins();
+  }
+
+  async function loadSponsors() {
+    const params = new URLSearchParams();
+    if (state.sponsorFilters.status) params.set("status", state.sponsorFilters.status);
+    if (state.sponsorFilters.package) params.set("package", state.sponsorFilters.package);
+    const query = params.toString();
+    const data = await api("sponsors" + (query ? "?" + query : ""));
+    state.sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
+    renderSponsorList();
+  }
+
+  function renderSponsorList() {
+    const packageLabels = {
+      pagePal: "Page Pal",
+      chapterChampion: "Chapter Champion",
+      bookshelfBuilder: "Bookshelf Builder",
+      literacyTrailblazer: "Literacy Trailblazer",
+    };
+    const markup = tableMarkup(
+      "table",
+      [
+        { label: "Sponsor", render: function (row) { return escapeHtml(row.displayName || row.payerName || row.id); } },
+        { label: "Package", render: function (row) { return escapeHtml(packageLabels[row.package] || row.package); } },
+        { label: "Books", key: "booksSponsored" },
+        { label: "Status", render: function (row) { return '<span class="badge">' + escapeHtml(row.recognitionStatus) + "</span>"; } },
+        {
+          label: "",
+          render: function (row) {
+            return '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">Edit</button> <button class="btn warn" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '">Delete</button>';
+          },
+        },
+      ],
+      state.sponsors,
+      "No sponsors match these filters.",
+    );
+    const list = qs("#sponsorList");
+    if (list) list.innerHTML = markup;
+  }
+
+  function resetSponsorForm() {
+    const form = qs("#sponsorForm");
+    if (!form) return;
+    form.reset();
+    const sponsorIdField = field(form, "sponsorId");
+    if (sponsorIdField) sponsorIdField.value = "";
+    const title = qs("#sponsorFormTitle");
+    if (title) title.textContent = "New Sponsor";
+    const preview = qs("#sponsorLogoPreview");
+    if (preview) preview.innerHTML = "<span>No logo</span>";
+    setStatus("#sponsorStatus", "", null);
+  }
+
+  async function deleteSponsorRow(sponsorId) {
+    const sponsor = state.sponsors.find(function (entry) {
+      return entry.id === sponsorId;
+    });
+    const label = sponsor ? sponsor.displayName || sponsor.payerName || sponsorId : "this sponsor";
+    if (!window.confirm("Delete " + label + "? This can't be undone.")) return;
+    try {
+      await api("sponsors/" + encodeURIComponent(sponsorId), { method: "DELETE" });
+      if (safeValue(field(qs("#sponsorForm"), "sponsorId")) === sponsorId) resetSponsorForm();
+      await loadSponsors();
+    } catch (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsor could not be deleted.", false);
+    }
+  }
+
+  function populateSponsorForm(sponsor) {
+    const form = qs("#sponsorForm");
+    if (!form || !sponsor) return;
+    [
+      "sponsorId",
+      "package",
+      "booksSponsored",
+      "payerName",
+      "payerEmail",
+      "displayName",
+      "entityType",
+      "recognitionStatus",
+      "websiteUrl",
+      "adminNotes",
+    ].forEach(function (name) {
+      const control = field(form, name === "sponsorId" ? "sponsorId" : name);
+      if (!control) return;
+      const sourceKey = name === "sponsorId" ? "id" : name;
+      control.value = sponsor[sourceKey] == null ? "" : sponsor[sourceKey];
+    });
+    ["anonymous", "publishPermission"].forEach(function (name) {
+      const control = field(form, name);
+      if (control) control.checked = Boolean(sponsor[name]);
+    });
+    const title = qs("#sponsorFormTitle");
+    if (title) title.textContent = "Edit Sponsor";
+    const preview = qs("#sponsorLogoPreview");
+    if (preview) {
+      preview.innerHTML = sponsor.logoUrl ? '<img src="' + escapeHtml(sponsor.logoUrl) + '" alt="">' : "<span>No logo</span>";
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function sponsorPayload() {
+    const form = qs("#sponsorForm");
+    const payload = {};
+    if (!form) return payload;
+    new FormData(form).forEach(function (value, key) {
+      if (key !== "logo") payload[key] = value;
+    });
+    ["anonymous", "publishPermission"].forEach(function (name) {
+      const control = field(form, name);
+      payload[name] = Boolean(control && control.checked);
+    });
+    return payload;
+  }
+
+  async function saveSponsor(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    setStatus("#sponsorStatus", "Saving...", null);
+    try {
+      const data = await api("sponsors", { method: "POST", body: sponsorPayload() });
+      const fileInput = qs("#sponsorLogo");
+      const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+      let sponsor = data.sponsor;
+      if (file && sponsor && sponsor.id) {
+        const upload = new FormData();
+        upload.set("file", file);
+        await api("sponsors/" + encodeURIComponent(sponsor.id) + "/image", { method: "POST", body: upload });
+      }
+      await loadSponsors();
+      sponsor = state.sponsors.find(function (entry) {
+        return entry.id === (sponsor && sponsor.id);
+      }) || sponsor;
+      if (sponsor) populateSponsorForm(sponsor);
+      if (fileInput) fileInput.value = "";
+      setStatus("#sponsorStatus", "Saved.", true);
+    } catch (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsor could not be saved.", false);
+    }
+  }
+
+  async function publishCurrentSponsor() {
+    const form = qs("#sponsorForm");
+    const sponsorId = form ? safeValue(field(form, "sponsorId")) : "";
+    if (!sponsorId) {
+      window.alert("Save the sponsor first.");
+      return;
+    }
+    setStatus("#sponsorStatus", "Publishing...", null);
+    try {
+      await api("sponsors/" + encodeURIComponent(sponsorId) + "/publish", { method: "POST" });
+      await loadSponsors();
+      const sponsor = state.sponsors.find(function (entry) {
+        return entry.id === sponsorId;
+      });
+      if (sponsor) populateSponsorForm(sponsor);
+      setStatus("#sponsorStatus", "Published.", true);
+    } catch (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsor could not be published.", false);
+    }
+  }
+
+  async function hideCurrentSponsor() {
+    const form = qs("#sponsorForm");
+    const sponsorId = form ? safeValue(field(form, "sponsorId")) : "";
+    if (!sponsorId) return;
+    setStatus("#sponsorStatus", "Hiding...", null);
+    try {
+      await api("sponsors/" + encodeURIComponent(sponsorId) + "/hide", { method: "POST" });
+      await loadSponsors();
+      const sponsor = state.sponsors.find(function (entry) {
+        return entry.id === sponsorId;
+      });
+      if (sponsor) populateSponsorForm(sponsor);
+      setStatus("#sponsorStatus", "Hidden.", true);
+    } catch (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsor could not be hidden.", false);
+    }
+  }
+
+  async function loadAuthors() {
+    const params = new URLSearchParams();
+    if (state.authorFilters.status) params.set("status", state.authorFilters.status);
+    const query = params.toString();
+    const data = await api("authors" + (query ? "?" + query : ""));
+    state.authors = Array.isArray(data.authors) ? data.authors : [];
+    renderAuthorList();
+  }
+
+  function renderAuthorList() {
+    const markup = tableMarkup(
+      "table",
+      [
+        { label: "Author", render: function (row) { return escapeHtml(row.name || row.id); } },
+        { label: "Title", render: function (row) { return escapeHtml(row.title || "—"); } },
+        { label: "Status", render: function (row) { return '<span class="badge">' + escapeHtml(row.status) + "</span>"; } },
+        {
+          label: "",
+          render: function (row) {
+            return '<button class="btn alt" type="button" data-edit-author="' + escapeHtml(row.id) + '">Edit</button> <button class="btn warn" type="button" data-delete-author="' + escapeHtml(row.id) + '">Delete</button>';
+          },
+        },
+      ],
+      state.authors,
+      "No authors yet. Create one below.",
+    );
+    const list = qs("#authorList");
+    if (list) list.innerHTML = markup;
+  }
+
+  function resetAuthorForm() {
+    const form = qs("#authorForm");
+    if (!form) return;
+    form.reset();
+    const authorIdField = field(form, "authorId");
+    if (authorIdField) authorIdField.value = "";
+    const title = qs("#authorFormTitle");
+    if (title) title.textContent = "New Author";
+    const preview = qs("#authorPortraitPreview");
+    if (preview) preview.innerHTML = "<span>No portrait</span>";
+    setStatus("#authorStatus", "", null);
+  }
+
+  async function deleteAuthorRow(authorId) {
+    const author = state.authors.find(function (entry) {
+      return entry.id === authorId;
+    });
+    const label = author ? author.name || authorId : "this author";
+    if (!window.confirm("Delete " + label + "? This can't be undone.")) return;
+    try {
+      await api("authors/" + encodeURIComponent(authorId), { method: "DELETE" });
+      if (safeValue(field(qs("#authorForm"), "authorId")) === authorId) resetAuthorForm();
+      await loadAuthors();
+    } catch (error) {
+      setStatus("#authorStatus", error.message || "Author could not be deleted.", false);
+    }
+  }
+
+  function populateAuthorForm(author) {
+    const form = qs("#authorForm");
+    if (!form || !author) return;
+    [
+      "authorId",
+      "name",
+      "title",
+      "shortIntro",
+      "biography",
+      "websiteUrl",
+      "ctaLabel",
+      "ctaUrl",
+      "startAt",
+      "endAt",
+      "displayOrder",
+    ].forEach(function (name) {
+      const control = field(form, name === "authorId" ? "authorId" : name);
+      if (!control) return;
+      const sourceKey = name === "authorId" ? "id" : name;
+      control.value = author[sourceKey] == null ? "" : author[sourceKey];
+    });
+    const socialLinksField = field(form, "socialLinks");
+    if (socialLinksField) {
+      let links = [];
+      try {
+        links = JSON.parse(author.socialLinks || "[]");
+      } catch {
+        links = [];
+      }
+      socialLinksField.value = Array.isArray(links) ? links.join("\n") : "";
+    }
+    const relatedBooksField = field(form, "relatedBookIds");
+    if (relatedBooksField) {
+      let ids = [];
+      try {
+        ids = JSON.parse(author.relatedBookIds || "[]");
+      } catch {
+        ids = [];
+      }
+      relatedBooksField.value = Array.isArray(ids) ? ids.join("\n") : "";
+    }
+    const title = qs("#authorFormTitle");
+    if (title) title.textContent = "Edit Author";
+    const preview = qs("#authorPortraitPreview");
+    if (preview) {
+      preview.innerHTML = author.portraitUrl ? '<img src="' + escapeHtml(author.portraitUrl) + '" alt="">' : "<span>No portrait</span>";
+    }
+    const statusPill = qs("#authorStatusPill");
+    if (statusPill) statusPill.textContent = author.status || "Draft";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function authorPayload() {
+    const form = qs("#authorForm");
+    const payload = {};
+    if (!form) return payload;
+    new FormData(form).forEach(function (value, key) {
+      if (key !== "portrait" && key !== "socialLinks" && key !== "relatedBookIds") payload[key] = value;
+    });
+    const socialLinksField = field(form, "socialLinks");
+    payload.socialLinks = JSON.stringify(
+      String(socialLinksField ? socialLinksField.value : "")
+        .split("\n")
+        .map(function (line) { return line.trim(); })
+        .filter(Boolean),
+    );
+    const relatedBooksField = field(form, "relatedBookIds");
+    payload.relatedBookIds = JSON.stringify(
+      String(relatedBooksField ? relatedBooksField.value : "")
+        .split("\n")
+        .map(function (line) { return line.trim(); })
+        .filter(Boolean),
+    );
+    return payload;
+  }
+
+  async function saveAuthor(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    setStatus("#authorStatus", "Saving...", null);
+    try {
+      const data = await api("authors", { method: "POST", body: authorPayload() });
+      const fileInput = qs("#authorPortrait");
+      const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+      let author = data.author;
+      if (file && author && author.id) {
+        const upload = new FormData();
+        upload.set("file", file);
+        await api("authors/" + encodeURIComponent(author.id) + "/portrait", { method: "POST", body: upload });
+      }
+      await loadAuthors();
+      author = state.authors.find(function (entry) {
+        return entry.id === (author && author.id);
+      }) || author;
+      if (author) populateAuthorForm(author);
+      if (fileInput) fileInput.value = "";
+      setStatus("#authorStatus", "Saved.", true);
+    } catch (error) {
+      setStatus("#authorStatus", error.message || "Author could not be saved.", false);
+    }
+  }
+
+  async function publishCurrentAuthor() {
+    const form = qs("#authorForm");
+    const authorId = form ? safeValue(field(form, "authorId")) : "";
+    if (!authorId) {
+      window.alert("Save the author first.");
+      return;
+    }
+    setStatus("#authorStatus", "Publishing...", null);
+    try {
+      await api("authors/" + encodeURIComponent(authorId) + "/publish", { method: "POST" });
+      await loadAuthors();
+      const author = state.authors.find(function (entry) {
+        return entry.id === authorId;
+      });
+      if (author) populateAuthorForm(author);
+      setStatus("#authorStatus", "Published to the Media page spotlight.", true);
+    } catch (error) {
+      setStatus("#authorStatus", error.message || "Author could not be published.", false);
+    }
+  }
+
+  async function hideCurrentAuthor() {
+    const form = qs("#authorForm");
+    const authorId = form ? safeValue(field(form, "authorId")) : "";
+    if (!authorId) return;
+    setStatus("#authorStatus", "Hiding...", null);
+    try {
+      await api("authors/" + encodeURIComponent(authorId) + "/hide", { method: "POST" });
+      await loadAuthors();
+      const author = state.authors.find(function (entry) {
+        return entry.id === authorId;
+      });
+      if (author) populateAuthorForm(author);
+      setStatus("#authorStatus", "Hidden.", true);
+    } catch (error) {
+      setStatus("#authorStatus", error.message || "Author could not be hidden.", false);
+    }
+  }
+
+  async function loadAnalytics() {
+    const data = await api("analytics/summary?days=" + encodeURIComponent(state.analyticsRangeDays));
+    renderAnalytics(data);
+  }
+
+  function formatShortDay(value) {
+    const parts = String(value || "").split("-");
+    if (parts.length !== 3) return String(value || "");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthName = months[Number(parts[1]) - 1] || parts[1];
+    return monthName + " " + Number(parts[2]);
+  }
+
+  function buildTrendChart(rows) {
+    const width = 720;
+    const height = 260;
+    const padLeft = 44;
+    const padRight = 16;
+    const padTop = 16;
+    const padBottom = 34;
+    const plotWidth = width - padLeft - padRight;
+    const plotHeight = height - padTop - padBottom;
+    const max = rows.reduce(function (highest, row) { return Math.max(highest, row.count); }, 0) || 1;
+    const stepX = rows.length > 1 ? plotWidth / (rows.length - 1) : 0;
+    const points = rows.map(function (row, index) {
+      return {
+        x: padLeft + stepX * index,
+        y: padTop + plotHeight - (row.count / max) * plotHeight,
+        day: row.day,
+        count: row.count,
+      };
+    });
+    const linePath = points
+      .map(function (point, index) {
+        return (index === 0 ? "M" : "L") + point.x.toFixed(1) + "," + point.y.toFixed(1);
+      })
+      .join(" ");
+    const gridLines = [0, 0.5, 1]
+      .map(function (fraction) {
+        const y = padTop + plotHeight * (1 - fraction);
+        return (
+          '<line class="analytics-chart-grid" x1="' + padLeft + '" y1="' + y.toFixed(1) + '" x2="' + (width - padRight) + '" y2="' + y.toFixed(1) + '"></line>' +
+          '<text class="analytics-chart-axis" x="' + (padLeft - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end">' + escapeHtml(String(Math.round(max * fraction))) + "</text>"
+        );
+      })
+      .join("");
+    const labelStep = Math.max(1, Math.ceil(points.length / 7));
+    const xLabels = points
+      .map(function (point, index) {
+        if (index % labelStep !== 0 && index !== points.length - 1) return "";
+        return (
+          '<text class="analytics-chart-axis" x="' + point.x.toFixed(1) + '" y="' + (height - padBottom + 18) + '" text-anchor="middle">' +
+          escapeHtml(formatShortDay(point.day)) +
+          "</text>"
+        );
+      })
+      .join("");
+    const dots = points
+      .map(function (point) {
+        return (
+          '<circle class="analytics-chart-dot" cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="3.5">' +
+          "<title>" + escapeHtml(formatShortDay(point.day)) + ": " + escapeHtml(String(point.count)) + "</title>" +
+          "</circle>"
+        );
+      })
+      .join("");
+    return (
+      '<svg class="analytics-chart" viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Daily page views line chart">' +
+      gridLines +
+      xLabels +
+      '<path class="analytics-chart-line" d="' + linePath + '"></path>' +
+      dots +
+      "</svg>"
+    );
+  }
+
+  function renderAnalytics(data) {
+    const metrics = qs("#analyticsMetrics");
+    if (metrics) {
+      metrics.innerHTML =
+        '<div class="metric"><strong>' + escapeHtml(String(data.totalPageViews || 0)) + '</strong><span>Page Views</span></div>' +
+        '<div class="metric"><strong>' + escapeHtml(String(data.totalEvents || 0)) + '</strong><span>Total Events</span></div>' +
+        '<div class="metric"><strong>' + escapeHtml(String(data.totalSponsors || 0)) + '</strong><span>Paid Sponsorships</span></div>' +
+        '<div class="metric"><strong>' + escapeHtml(formatMoney(data.totalSponsorRevenue || 0)) + '</strong><span>Sponsorship Revenue</span></div>';
+    }
+
+    const topPages = qs("#analyticsTopPages");
+    if (topPages) {
+      topPages.innerHTML = tableMarkup(
+        "table",
+        [
+          { label: "Page", render: function (row) { return escapeHtml(row.pagePath || "/"); } },
+          { label: "Views", key: "count" },
+        ],
+        data.topPages || [],
+        "No page view data yet.",
+      );
+    }
+
+    const eventBreakdown = qs("#analyticsEventBreakdown");
+    if (eventBreakdown) {
+      eventBreakdown.innerHTML = tableMarkup(
+        "table",
+        [
+          { label: "Event", render: function (row) { return escapeHtml(row.eventType); } },
+          { label: "Count", key: "count" },
+        ],
+        data.eventBreakdown || [],
+        "No events recorded yet.",
+      );
+    }
+
+    const trend = qs("#analyticsTrend");
+    if (trend) {
+      const rows = data.dailyTrend || [];
+      trend.innerHTML = rows.length ? buildTrendChart(rows) : '<p class="asset-note">No page view data yet.</p>';
+    }
+
+    const sponsorBreakdown = qs("#analyticsSponsorBreakdown");
+    if (sponsorBreakdown) {
+      sponsorBreakdown.innerHTML = tableMarkup(
+        "table",
+        [
+          { label: "Package", render: function (row) { return escapeHtml(row.label || row.package || ""); } },
+          { label: "Paid Sponsorships", key: "sponsorCount" },
+          { label: "Revenue", render: function (row) { return escapeHtml(formatMoney(row.totalRevenue)); } },
+        ],
+        data.sponsorBreakdown || [],
+        "No paid sponsorships in this range yet.",
+      );
+    }
   }
 
   async function saveNewsletterDraft() {
@@ -1293,6 +1884,12 @@
         showStoreView(window.location.hash.replace(/^#/, "") || "overview");
       } else if (state.page === "newsletter") {
         await loadNewsletter();
+      } else if (state.page === "sponsors") {
+        await loadSponsors();
+      } else if (state.page === "author") {
+        await loadAuthors();
+      } else if (state.page === "analytics") {
+        await loadAnalytics();
       }
       renderViewer();
     } catch (error) {
@@ -1321,6 +1918,44 @@
           return book.bookId === editBookButton.getAttribute("data-edit-book");
         }),
       );
+      return;
+    }
+
+    const deleteBookButton = event.target.closest("[data-delete-book]");
+    if (deleteBookButton) {
+      deleteBookRow(deleteBookButton.getAttribute("data-delete-book"));
+      return;
+    }
+
+    const editSponsorButton = event.target.closest("[data-edit-sponsor]");
+    if (editSponsorButton) {
+      populateSponsorForm(
+        state.sponsors.find(function (sponsor) {
+          return sponsor.id === editSponsorButton.getAttribute("data-edit-sponsor");
+        }),
+      );
+      return;
+    }
+
+    const deleteSponsorButton = event.target.closest("[data-delete-sponsor]");
+    if (deleteSponsorButton) {
+      deleteSponsorRow(deleteSponsorButton.getAttribute("data-delete-sponsor"));
+      return;
+    }
+
+    const editAuthorButton = event.target.closest("[data-edit-author]");
+    if (editAuthorButton) {
+      populateAuthorForm(
+        state.authors.find(function (author) {
+          return author.id === editAuthorButton.getAttribute("data-edit-author");
+        }),
+      );
+      return;
+    }
+
+    const deleteAuthorButton = event.target.closest("[data-delete-author]");
+    if (deleteAuthorButton) {
+      deleteAuthorRow(deleteAuthorButton.getAttribute("data-delete-author"));
       return;
     }
 
@@ -1365,6 +2000,19 @@
       window.alert("Publisher Store Manager is ready.");
     });
   });
+  qs("#syncSquareStockBtn")?.addEventListener("click", async function () {
+    const button = qs("#syncSquareStockBtn");
+    if (button) { button.disabled = true; button.textContent = "Syncing..."; }
+    try {
+      const data = await api("inventory/sync-square", { method: "POST" });
+      await loadBooks();
+      window.alert("Square stock sync complete. " + (data.updated || 0) + " book(s) updated.");
+    } catch (error) {
+      window.alert(error.message || "Square stock sync failed.");
+    } finally {
+      if (button) { button.disabled = false; button.textContent = "Sync Square Stock"; }
+    }
+  });
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);
   qs("#publishBtn")?.addEventListener("click", publishCurrentBook);
   qs("#archiveBtn")?.addEventListener("click", archiveCurrentBook);
@@ -1372,6 +2020,57 @@
   qs("#orderForm")?.addEventListener("submit", updateOrder);
   qs("#inventoryForm")?.addEventListener("submit", adjustInventory);
   qs("#adminForm")?.addEventListener("submit", saveAdmin);
+  qs("#sponsorForm")?.addEventListener("submit", saveSponsor);
+  qs("#newSponsorBtn")?.addEventListener("click", resetSponsorForm);
+  qs("#publishSponsorBtn")?.addEventListener("click", publishCurrentSponsor);
+  qs("#hideSponsorBtn")?.addEventListener("click", hideCurrentSponsor);
+  qs("#sponsorsStatusFilter")?.addEventListener("change", function (event) {
+    state.sponsorFilters.status = event.target.value || "";
+    loadSponsors().catch(function (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsors could not be loaded.", false);
+    });
+  });
+  qs("#sponsorsPackageFilter")?.addEventListener("change", function (event) {
+    state.sponsorFilters.package = event.target.value || "";
+    loadSponsors().catch(function (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsors could not be loaded.", false);
+    });
+  });
+  qs("#sponsorLogo")?.addEventListener("change", function (event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      const preview = qs("#sponsorLogoPreview");
+      if (preview) preview.innerHTML = '<img src="' + escapeHtml(reader.result) + '" alt="">';
+    };
+    reader.readAsDataURL(file);
+  });
+  qs("#authorForm")?.addEventListener("submit", saveAuthor);
+  qs("#newAuthorBtn")?.addEventListener("click", resetAuthorForm);
+  qs("#publishAuthorBtn")?.addEventListener("click", publishCurrentAuthor);
+  qs("#hideAuthorBtn")?.addEventListener("click", hideCurrentAuthor);
+  qs("#authorStatusFilter")?.addEventListener("change", function (event) {
+    state.authorFilters.status = event.target.value || "";
+    loadAuthors().catch(function (error) {
+      setStatus("#authorStatus", error.message || "Authors could not be loaded.", false);
+    });
+  });
+  qs("#authorPortrait")?.addEventListener("change", function (event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      const preview = qs("#authorPortraitPreview");
+      if (preview) preview.innerHTML = '<img src="' + escapeHtml(reader.result) + '" alt="">';
+    };
+    reader.readAsDataURL(file);
+  });
+  qs("#analyticsRangeFilter")?.addEventListener("change", function (event) {
+    state.analyticsRangeDays = parseInt(event.target.value, 10) || 30;
+    loadAnalytics().catch(function () {});
+  });
+
   qs("#ordersSearch")?.addEventListener("input", function (event) {
     state.orderFilters.search = event.target.value || "";
     renderStoreOrders();
@@ -1453,6 +2152,9 @@
         const book = newsletterSelectedBook();
         const description = qs("#featuredBookDescription");
         if (book && description && !description.value) description.value = book.shortDescription || "";
+      }
+      if (element.id === "targetType") {
+        toggleNewsletterTargetField();
       }
       updateNewsletterPreview();
     });
