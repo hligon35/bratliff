@@ -20,7 +20,7 @@
     "jose": "^6.1.0"
   },
   "devDependencies": {
-    "dotenv": "^16.6.1",
+    "dotenv": "^17.4.2",
     "http-server": "^14.1.1",
     "open-cli": "^8.0.0",
     "typescript": "^5.9.2",
