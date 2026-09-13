@@ -11,7 +11,10 @@
     "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
     "worker:deploy": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc",
     "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit",
-    "proxy:deploy": "wrangler deploy --config cloudflare-proxy/wrangler.jsonc"
+    "proxy:deploy": "wrangler deploy --config cloudflare-proxy/wrangler.jsonc",
+    "maintenance:run": "node scripts/monthly-maintenance.mjs --trigger local",
+    "maintenance:dry-run": "node scripts/monthly-maintenance.mjs --trigger local --dry-run",
+    "test:maintenance": "node --test scripts/maintenance/tests/*.test.mjs"
   },
   "dependencies": {
     "jose": "^6.1.0"
