@@ -94,6 +94,10 @@ Maintenance-Bot: true"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          gh label create maintenance --color "0E8A16" --description "Automated monthly maintenance" 2>/dev/null || true
+          gh label create dependencies --color "0366D6" --description "Dependency updates" 2>/dev/null || true
+          gh label create security-review --color "D93F0B" --description "Requires security review before merge" 2>/dev/null || true
+
           BASE="${{ github.event.repository.default_branch }}"
           EXISTING_PR=$(gh pr list --head monthlyUpdate --base "$BASE" --state open --json number --jq '.[0].number // empty')
           TITLE="Monthly maintenance: $(date -u +'%Y-%m-%d')"
