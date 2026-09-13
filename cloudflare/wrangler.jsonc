@@ -20,12 +20,15 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*", "/stripe/*", "/healthz"]
+    "run_worker_first": ["/api/*", "/square/*", "/healthz"]
   },
   "d1_databases": [
     {
@@ -41,15 +44,19 @@
     }
   ],
   "vars": {
-    "SITE_URL": "https://jackrabbitpunkinpublishing.com",
-    "PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/",
-    "PUBLIC_API_URL": "https://jackrabbitpunkinpublishing.com",
+    "SITE_URL": "https://jackrabbitpunkinpublishing.com, https://jrpp.alphazonelabs.com",
+    "PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/, https://jrpp.alphazonelabs.com/admin/",
+    "PUBLIC_API_URL": "https://jackrabbitpunkinpublishing.com, https://jrpp.alphazonelabs.com",
     "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
     "GOOGLE_CLIENT_ID": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
-    "STRIPE_CURRENCY": "usd",
+    "CF_ACCESS_TEAM_DOMAIN": "",
+    "CF_ACCESS_AUD": "",
+    "SQUARE_ENVIRONMENT": "production",
+    "SQUARE_API_VERSION": "2024-10-17",
     "ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=success",
     "ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
-    "CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com",
+    "SPONSOR_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/read-it-forward.html",
+    "CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com, https://jrpp.alphazonelabs.com/, http://172.22.32.1:8080, http://localhost:8080, http://127.0.0.1:8080",
     "MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
     "ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com"
   },
@@ -57,8 +64,9 @@
     "required": [
       "UNSUBSCRIBE_SECRET",
       "ADMIN_SESSION_SECRET",
-      "STRIPE_SECRET_KEY",
-      "STRIPE_WEBHOOK_SECRET",
+      "SQUARE_ACCESS_TOKEN",
+      "SQUARE_WEBHOOK_SIGNATURE_KEY",
+      "SQUARE_LOCATION_ID",
       "RESEND_API_KEY",
       "TURNSTILE_SECRET_KEY"
     ]

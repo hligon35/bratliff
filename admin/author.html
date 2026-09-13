@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="../" />
+    <title>Featured Author Manager | Jackrabbit Punkin Publishing LLC</title>
+    <meta
+      name="description"
+      content="Protected publisher featured-author manager for Jackrabbit Punkin Publishing LLC."
+    />
+    <link rel="stylesheet" href="assets/admin.css" />
+    <script src="assets/site-config.js" defer></script>
+    <script src="assets/admin.js" defer></script>
+  </head>
+  <body data-page="admin" data-admin-page="author">
+    <div class="jrpp-admin-switcher">
+      <a class="jrpp-admin-home" href="index.html" aria-label="Jackrabbit Punkin Publishing home">
+        <img class="jrpp-admin-logo" src="assets/jrppLogo2.png" alt="Jackrabbit Punkin Publishing" />
+        <span class="jrpp-admin-brandcopy">
+          Jackrabbit Punkin Publishing
+          <small>Secure Admin System</small>
+        </span>
+      </a>
+      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages">
+        <a class="jrpp-admin-profile-link" href="admin/profile.html" aria-label="Admin users and access">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12.2a4.1 4.1 0 1 0-4.1-4.1 4.1 4.1 0 0 0 4.1 4.1Zm0 2c-4.05 0-7.35 2.1-7.35 4.7V21h14.7v-2.1c0-2.6-3.3-4.7-7.35-4.7Z" />
+          </svg>
+        </a>
+        <a href="admin/index.html">Admin Dashboard</a>
+        <a href="admin/store.html">Book Store Manager</a>
+        <a href="admin/newsletter.html">Newsletter Builder</a>
+        <a href="admin/sponsors.html">Sponsor Recognition</a>
+        <a class="active" href="admin/author.html" aria-current="page">Featured Author</a>
+        <a href="admin/analytics.html">Analytics</a>
+      </div>
+      <div class="jrpp-admin-actions">
+        <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
+        <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="shell">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand">
+            Jackrabbit Punkin
+            <small>Featured Author Manager</small>
+          </div>
+        </div>
+      </header>
+      <main class="main">
+        <div class="hero">
+          <div>
+            <h1>Featured Author Manager</h1>
+            <p>
+              Manage the JPP Author Spotlight shown on the Media page. Only one
+              author can be Published at a time&mdash;publishing a new one
+              automatically un-publishes the previous one.
+            </p>
+          </div>
+        </div>
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Authors</h2></div>
+            <div class="panel-body">
+              <div class="toolbar toolbar-sponsors">
+                <div class="toolbar-field">
+                  <label for="authorStatusFilter">Status</label>
+                  <select id="authorStatusFilter" title="Author status filter">
+                    <option value="">All statuses</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Published">Published</option>
+                  </select>
+                </div>
+              </div>
+              <div class="table-wrap" id="authorList"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2 id="authorFormTitle">Author Details</h2>
+              <span class="badge" id="authorStatusPill">Draft</span>
+            </div>
+            <div class="panel-body">
+              <form id="authorForm">
+                <input type="hidden" name="authorId" />
+                <div class="form-grid">
+                  <div class="field full">
+                    <label>Name *</label><input name="name" title="Name" required placeholder="e.g., Maria Alvarez" />
+                  </div>
+                  <div class="field full">
+                    <label>Title / Role</label><input name="title" title="Title / Role" placeholder="Author of The Salt Line" />
+                  </div>
+                  <div class="field full">
+                    <label>Short Intro</label><textarea name="shortIntro" title="Short Intro" placeholder="One or two sentences shown in the Media page spotlight."></textarea>
+                  </div>
+                  <div class="field full">
+                    <label>Full Biography</label><textarea name="biography" title="Full Biography" placeholder="Longer author bio shown beneath the short intro on the Media page."></textarea>
+                  </div>
+                  <div class="field full">
+                    <label>Website URL</label><input type="url" name="websiteUrl" title="Website URL" placeholder="https://authorwebsite.com" />
+                  </div>
+                  <div class="field">
+                    <label>CTA Label</label><input name="ctaLabel" title="CTA Label" placeholder="Meet the Author" />
+                  </div>
+                  <div class="field">
+                    <label>CTA URL</label><input type="url" name="ctaUrl" title="CTA URL" placeholder="https://authorwebsite.com" />
+                  </div>
+                  <div class="field">
+                    <label>Feature Start (optional)</label><input type="datetime-local" name="startAt" title="Feature Start" />
+                  </div>
+                  <div class="field">
+                    <label>Feature End (optional)</label><input type="datetime-local" name="endAt" title="Feature End" />
+                  </div>
+                  <div class="field">
+                    <label>Display Order</label><input type="number" min="0" name="displayOrder" title="Display Order" placeholder="1" />
+                  </div>
+                  <div class="field full">
+                    <label>Social Links (one URL per line)</label>
+                    <textarea name="socialLinks" title="Social Links" placeholder="https://instagram.com/authorhandle&#10;https://facebook.com/authorhandle"></textarea>
+                  </div>
+                  <div class="field full">
+                    <label>Related Book IDs (one per line)</label>
+                    <textarea name="relatedBookIds" title="Related Book IDs" placeholder="BK-1A2B3C4D"></textarea>
+                  </div>
+                  <div class="field">
+                    <label>Portrait</label>
+                    <input type="file" id="authorPortrait" name="portrait" title="Portrait" accept="image/png,image/jpeg,image/webp" />
+                  </div>
+                  <div class="field full">
+                    <div class="image-preview" id="authorPortraitPreview"><span>No portrait</span></div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button class="btn" type="submit">Save Author</button>
+                  <button class="btn alt" type="button" id="publishAuthorBtn">Publish to Media Page</button>
+                  <button class="btn warn" type="button" id="hideAuthorBtn">Unpublish</button>
+                  <button class="btn" type="button" id="newAuthorBtn">New Author</button>
+                </div>
+                <div class="status" id="authorStatus"></div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

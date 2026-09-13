@@ -5,12 +5,12 @@ window.siteConfig = (function freeze(value) {
   return Object.freeze(value);
 })({
   "siteUrl": "https://jackrabbitpunkinpublishing.com",
-  "publicApiUrl": "https://jackrabbitpunkinpublishing.com",
+  "publicApiUrl": "https://jackrabbitpunkinpublishing.com, https://jrpp.alphazonelabs.com",
   "formEndpoint": "https://jackrabbitpunkinpublishing.com/api/forms/submit",
   "storeBooksEndpoint": "https://jackrabbitpunkinpublishing.com/api/store/books",
   "storeCheckoutEndpoint": "https://jackrabbitpunkinpublishing.com/api/store/checkout",
   "loginUrl": "https://jackrabbitpunkinpublishing.com/login/",
-  "adminUrl": "https://jackrabbitpunkinpublishing.com/admin/",
+  "adminUrl": "https://jackrabbitpunkinpublishing.com/admin/, https://jrpp.alphazonelabs.com/admin/",
   "adminApiUrl": "https://jackrabbitpunkinpublishing.com/api/admin",
   "authGoogleEndpoint": "https://jackrabbitpunkinpublishing.com/api/auth/google",
   "authSessionEndpoint": "https://jackrabbitpunkinpublishing.com/api/auth/session",
@@ -21,13 +21,13 @@ window.siteConfig = (function freeze(value) {
   "squareLinks": {
     "books": {
       "battlesHardcover": "",
-      "battlesPaperback": ""
+      "battlesPaperback": "https://square.link/u/Ab8NdSfX"
     },
     "sponsorships": {
-      "pagePal": "",
-      "chapterChampion": "",
-      "bookshelfBuilder": "",
-      "literacyTrailblazer": ""
+      "pagePal": "https://square.link/u/kDcU50U8",
+      "chapterChampion": "https://square.link/u/NvctrNSJ",
+      "bookshelfBuilder": "https://square.link/u/MdIviBrX",
+      "literacyTrailblazer": "https://square.link/u/ZPMXKAvV"
     }
   }
 });

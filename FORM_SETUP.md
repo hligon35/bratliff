@@ -20,8 +20,9 @@ Before deployment, copy `.env.example` to `.env` (or `.env.local`) and fill in t
 - `ADMIN_SESSION_SECRET`
 - `MAIL_FROM_EMAIL` (the address Resend sends from, e.g. `no-reply@jackrabbitpunkinpublishing.com`)
 - `RESEND_API_KEY`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
+- `SQUARE_ACCESS_TOKEN`
+- `SQUARE_WEBHOOK_SIGNATURE_KEY`
+- `SQUARE_LOCATION_ID`
 - `TURNSTILE_SITE_KEY` (public; baked into `assets/site-config.js` at build time)
 - `TURNSTILE_SECRET_KEY` (server-side only; verified in `handleFormSubmission`)
 

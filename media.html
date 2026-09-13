@@ -8,6 +8,39 @@
       name="description"
       content="Download the Media Kit, press bio, book cover, author photo, and publisher logo for Jackrabbit Punkin Publishing LLC."
     />
+    <link rel="canonical" href="https://jackrabbitpunkinpublishing.com/media.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jackrabbit Punkin Publishing LLC" />
+    <meta property="og:title" content="Media & Press | Jackrabbit Punkin Publishing LLC" />
+    <meta property="og:description" content="Download the Media Kit, press bio, book cover, author photo, and publisher logo for Jackrabbit Punkin Publishing LLC." />
+    <meta property="og:url" content="https://jackrabbitpunkinpublishing.com/media.html" />
+    <meta property="og:image" content="https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Media & Press | Jackrabbit Punkin Publishing LLC" />
+    <meta name="twitter:description" content="Download the Media Kit, press bio, book cover, author photo, and publisher logo for Jackrabbit Punkin Publishing LLC." />
+    <meta name="twitter:image" content="https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://jackrabbitpunkinpublishing.com/#organization",
+        "name": "Jackrabbit Punkin Publishing LLC",
+        "url": "https://jackrabbitpunkinpublishing.com/",
+        "logo": "https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png",
+        "sameAs": [
+          "https://www.facebook.com/barbara.ratliff.771",
+          "https://www.linkedin.com/in/barbara-ratliff-765",
+          "https://www.tiktok.com/@barbararatliff765"
+        ],
+        "founder": [
+          { "@type": "Person", "name": "Barbara J. Ratliff" },
+          { "@type": "Person", "name": "Charles Ratliff" }
+        ],
+        "contactPoint": [
+          { "@type": "ContactPoint", "email": "Publisher@JackrabbitPunkinPublishing.com", "contactType": "customer service" }
+        ]
+      }
+    </script>
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
@@ -156,7 +189,7 @@
           </article>
         </div>
       </section>
-      <section class="section author-spotlight" aria-labelledby="author-spotlight-title">
+      <section class="section author-spotlight" aria-labelledby="author-spotlight-title" data-featured-author>
         <div class="container">
           <div class="section-head">
             <div>
@@ -168,18 +201,22 @@
             </p>
           </div>
           <div class="spotlight-grid">
-            <figure class="spotlight-visual spotlight-portrait" role="img" aria-label="Author photo placeholder">
-              <figcaption>Author Photo</figcaption>
+            <figure class="spotlight-visual spotlight-portrait" role="img" aria-label="Featured author photo">
+              <img data-featured-author-portrait alt="" hidden />
+              <figcaption data-featured-author-portrait-caption>Author Photo</figcaption>
             </figure>
             <div class="spotlight-copy">
-              <p class="eyebrow">Featured author</p>
-              <h3>Spotlight Coming Soon</h3>
-              <p>
+              <p class="eyebrow" data-featured-author-title>Featured author</p>
+              <h3 data-featured-author-name>Spotlight Coming Soon</h3>
+              <p data-featured-author-intro>
                 Approved author information and featured work will appear here.
               </p>
+              <p data-featured-author-bio></p>
+              <a class="button ink" data-featured-author-cta href="about.html" hidden>Meet the Author</a>
             </div>
-            <figure class="spotlight-visual spotlight-book" role="img" aria-label="Book cover placeholder">
-              <figcaption>Featured Book</figcaption>
+            <figure class="spotlight-visual spotlight-book" role="img" aria-label="Featured book cover">
+              <img data-featured-author-book-cover alt="" hidden />
+              <figcaption data-featured-author-book-title>Featured Book</figcaption>
             </figure>
             <p class="spotlight-disclaimer">
               <em

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="../" />
+    <title>Sponsor Recognition Manager | Jackrabbit Punkin Publishing LLC</title>
+    <meta
+      name="description"
+      content="Protected publisher sponsor recognition manager for Jackrabbit Punkin Publishing LLC."
+    />
+    <link rel="stylesheet" href="assets/admin.css" />
+    <script src="assets/site-config.js" defer></script>
+    <script src="assets/admin.js" defer></script>
+  </head>
+  <body data-page="admin" data-admin-page="sponsors">
+    <div class="jrpp-admin-switcher">
+      <a class="jrpp-admin-home" href="index.html" aria-label="Jackrabbit Punkin Publishing home">
+        <img class="jrpp-admin-logo" src="assets/jrppLogo2.png" alt="Jackrabbit Punkin Publishing" />
+        <span class="jrpp-admin-brandcopy">
+          Jackrabbit Punkin Publishing
+          <small>Secure Admin System</small>
+        </span>
+      </a>
+      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages">
+        <a class="jrpp-admin-profile-link" href="admin/profile.html" aria-label="Admin users and access">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 12.2a4.1 4.1 0 1 0-4.1-4.1 4.1 4.1 0 0 0 4.1 4.1Zm0 2c-4.05 0-7.35 2.1-7.35 4.7V21h14.7v-2.1c0-2.6-3.3-4.7-7.35-4.7Z" />
+          </svg>
+        </a>
+        <a href="admin/index.html">Admin Dashboard</a>
+        <a href="admin/store.html">Book Store Manager</a>
+        <a href="admin/newsletter.html">Newsletter Builder</a>
+        <a class="active" href="admin/sponsors.html" aria-current="page">Sponsor Recognition</a>
+        <a href="admin/author.html">Featured Author</a>
+        <a href="admin/analytics.html">Analytics</a>
+      </div>
+      <div class="jrpp-admin-actions">
+        <button type="button" class="jrpp-admin-action" id="globalRefreshBtn">Refresh</button>
+        <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="shell">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="brand">
+            Jackrabbit Punkin
+            <small>Sponsor Recognition Manager</small>
+          </div>
+        </div>
+      </header>
+      <main class="main">
+        <div class="hero">
+          <div>
+            <h1>Sponsor Recognition Manager</h1>
+            <p>
+              Review Read It Forward sponsorships, approve public recognition,
+              and manage Literacy Trailblazer sponsor logos.
+            </p>
+          </div>
+        </div>
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h2>Sponsors</h2></div>
+            <div class="panel-body">
+              <div class="toolbar toolbar-sponsors">
+                <div class="toolbar-field">
+                  <label for="sponsorsStatusFilter">Status</label>
+                  <select id="sponsorsStatusFilter" title="Sponsor status filter">
+                    <option value="">All statuses</option>
+                    <option value="Awaiting Payment">Awaiting Payment</option>
+                    <option value="Pending Profile">Pending Profile</option>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Published">Published</option>
+                    <option value="Hidden">Hidden</option>
+                    <option value="Refunded">Refunded</option>
+                  </select>
+                </div>
+                <div class="toolbar-field">
+                  <label for="sponsorsPackageFilter">Package</label>
+                  <select id="sponsorsPackageFilter" title="Sponsor package filter">
+                    <option value="">All packages</option>
+                    <option value="pagePal">Page Pal</option>
+                    <option value="chapterChampion">Chapter Champion</option>
+                    <option value="bookshelfBuilder">Bookshelf Builder</option>
+                    <option value="literacyTrailblazer">Literacy Trailblazer</option>
+                  </select>
+                </div>
+              </div>
+              <div class="table-wrap" id="sponsorList"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2 id="sponsorFormTitle">Sponsor Details</h2></div>
+            <div class="panel-body">
+              <form id="sponsorForm">
+                <input type="hidden" name="sponsorId" />
+                <div class="form-grid">
+                  <div class="field">
+                    <label>Package *</label>
+                    <select name="package" title="Package" required>
+                      <option value="pagePal">Page Pal</option>
+                      <option value="chapterChampion">Chapter Champion</option>
+                      <option value="bookshelfBuilder">Bookshelf Builder</option>
+                      <option value="literacyTrailblazer">Literacy Trailblazer</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Books Sponsored</label>
+                    <input type="number" min="1" name="booksSponsored" title="Books Sponsored" />
+                  </div>
+                  <div class="field full">
+                    <label>Payer Name *</label><input name="payerName" title="Payer Name" required />
+                  </div>
+                  <div class="field full">
+                    <label>Payer Email *</label><input type="email" name="payerEmail" title="Payer Email" required />
+                  </div>
+                  <div class="field full">
+                    <label>Public Display Name</label><input name="displayName" title="Public Display Name" />
+                  </div>
+                  <div class="field">
+                    <label>Entity Type</label>
+                    <select name="entityType" title="Entity Type">
+                      <option>Individual</option>
+                      <option>Business</option>
+                      <option>Organization</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Recognition Status</label>
+                    <select name="recognitionStatus" title="Recognition Status">
+                      <option>Awaiting Payment</option>
+                      <option>Pending Profile</option>
+                      <option>Pending Review</option>
+                      <option>Published</option>
+                      <option>Hidden</option>
+                      <option>Refunded</option>
+                    </select>
+                  </div>
+                  <div class="field full">
+                    <label>Website URL</label><input type="url" name="websiteUrl" title="Website URL" />
+                  </div>
+                  <div class="field full">
+                    <label>Admin Notes</label><textarea name="adminNotes" title="Admin Notes"></textarea>
+                  </div>
+                  <div class="field">
+                    <label>Sponsor Logo</label>
+                    <input type="file" id="sponsorLogo" name="logo" title="Sponsor Logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+                  </div>
+                  <div class="field full">
+                    <div class="checks">
+                      <label><input type="checkbox" name="anonymous" /> Anonymous (never show name/logo)</label>
+                      <label><input type="checkbox" name="publishPermission" /> Sponsor gave permission to publish</label>
+                    </div>
+                  </div>
+                  <div class="field full">
+                    <div class="image-preview" id="sponsorLogoPreview"><span>No logo</span></div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button class="btn" type="submit">Save Sponsor</button>
+                  <button class="btn alt" type="button" id="publishSponsorBtn">Publish</button>
+                  <button class="btn warn" type="button" id="hideSponsorBtn">Hide</button>
+                  <button class="btn" type="button" id="newSponsorBtn">New Sponsor</button>
+                </div>
+                <div class="status" id="sponsorStatus"></div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

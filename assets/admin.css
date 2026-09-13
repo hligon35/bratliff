@@ -434,6 +434,40 @@ textarea {
   color: var(--muted);
 }
 
+#analyticsMetrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.analytics-chart {
+  width: 100%;
+  height: 280px;
+  display: block;
+}
+
+.analytics-chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.analytics-chart-axis {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.analytics-chart-line {
+  fill: none;
+  stroke: var(--gold, #d4ad55);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.analytics-chart-dot {
+  fill: var(--gold, #d4ad55);
+  stroke: #fff;
+  stroke-width: 1;
+}
+
 .panel {
   background: #fff;
   border: 1px solid var(--line);
@@ -446,7 +480,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -457,7 +491,7 @@ textarea {
 }
 
 .panel-body {
-  padding: 20px;
+  padding: 16px;
 }
 
 .table-wrap {
@@ -467,13 +501,12 @@ textarea {
 .table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
 }
 
 .table th,
 .table td {
   text-align: left;
-  padding: 12px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
@@ -552,15 +585,30 @@ textarea {
 }
 
 .checks {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 10px 18px;
 }
 
 .checks label {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
+}
+
+.checks input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  margin: 0.15rem 0 0;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .checks {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-actions {
@@ -1256,7 +1304,8 @@ textarea {
 }
 
 @media (max-width: 900px) {
-  .metrics {
+  .metrics,
+  #analyticsMetrics {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -1336,12 +1385,13 @@ textarea {
   .dashboard-body,
   .dashboard-header,
   .panel-body {
-    padding: 20px;
+    padding: 16px;
   }
 }
 
 @media (max-width: 520px) {
-  .metrics {
+  .metrics,
+  #analyticsMetrics {
     grid-template-columns: 1fr;
   }
 

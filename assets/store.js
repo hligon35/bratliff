@@ -1,7 +1,25 @@
 (() => {
   const STORAGE_KEY = 'jrpp_store_cart_v1';
   const siteConfig = window.siteConfig || {};
-  const publicApiRoot = String(siteConfig.publicApiUrl || '').trim().replace(/\/$/, '');
+
+  // siteConfig URLs (publicApiUrl, etc.) may be a comma-separated list, one per served domain.
+  function pickUrlForCurrentOrigin(rawValue, fallback) {
+    const candidates = String(rawValue || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (!candidates.length) return fallback || '';
+    const match = candidates.find((candidate) => {
+      try {
+        return new URL(candidate, window.location.href).origin === window.location.origin;
+      } catch {
+        return false;
+      }
+    });
+    return match || candidates[0];
+  }
+
+  const publicApiRoot = pickUrlForCurrentOrigin(siteConfig.publicApiUrl, '').trim().replace(/\/$/, '');
   const booksEndpoint = resolveEndpoint(siteConfig.storeBooksEndpoint, '/api/store/books');
   const checkoutEndpoint = resolveEndpoint(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/checkout');
   const confirmCheckoutEndpoint = resolveEndpoint(siteConfig.storeConfirmEndpoint || siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/confirm-checkout');
@@ -137,6 +155,7 @@
       const response = await fetch(checkoutEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: body.toString() });
       const data = await response.json();
       if (!data.ok || !data.url) throw new Error(data.error || 'Checkout could not be started.');
+      if (typeof trackEvent === 'function') trackEvent('store_checkout_start', { meta: { itemCount: state.cart.length } });
       window.location.href = data.url;
     } catch (error) { toast(error.message); }
   }
@@ -154,9 +173,9 @@
     saveCart();
     renderCart();
 
-    const sessionId = String(params.get('session_id') || '').trim();
+    const orderNumber = String(params.get('orderNumber') || params.get('session_id') || '').trim();
     const confirmationEndpoint = usesLegacyCheckout ? checkoutEndpoint : confirmCheckoutEndpoint;
-    if (!sessionId || !confirmationEndpoint) {
+    if (!orderNumber || !confirmationEndpoint) {
       toast('Payment complete. Thank you for your order.');
       return;
     }
@@ -168,17 +187,17 @@
           ? {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-              body: new URLSearchParams({ action: 'store-confirm-checkout', sessionId }).toString()
+              body: new URLSearchParams({ action: 'store-confirm-checkout', orderNumber }).toString()
             }
           : {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId })
+              body: JSON.stringify({ orderNumber })
             }
       );
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Order confirmation failed.');
-      toast(data.duplicate ? 'Payment confirmed. Your order was already recorded.' : 'Payment confirmed. Thank you for your order.');
+      toast(data.paid ? 'Payment confirmed. Thank you for your order.' : 'Payment received. It will be confirmed shortly once processed.');
     } catch (error) {
       toast(error.message || 'Payment completed, but order confirmation failed.');
     }

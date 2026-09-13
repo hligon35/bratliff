@@ -598,6 +598,19 @@ body[data-page="home"] .logo-placeholder {
   gap: clamp(2rem, 6vw, 5rem);
   align-items: center;
 }
+.featured-author-portrait {
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 30px rgba(10, 22, 40, 0.05);
+}
+.featured-author-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  aspect-ratio: 4 / 5;
+}
 .card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -673,10 +686,12 @@ body[data-page="home"] .logo-placeholder {
   align-items: center;
 }
 .spotlight-visual {
+  position: relative;
   min-width: 0;
   margin: 0;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border: 1px solid rgba(212, 173, 85, 0.65);
   background: rgba(255, 255, 255, 0.06);
   color: var(--gold-soft);
@@ -685,6 +700,17 @@ body[data-page="home"] .logo-placeholder {
   letter-spacing: 0.16em;
   text-align: center;
   text-transform: uppercase;
+}
+.spotlight-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.spotlight-visual.has-image {
+  border: none;
+  background: none;
+  box-shadow: none;
 }
 .spotlight-portrait {
   aspect-ratio: 4 / 5;
@@ -1016,24 +1042,128 @@ body[data-page="books"] .future-title-grid .button {
   align-self: end;
   justify-self: start;
 }
-.sponsor-placeholders {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+.sponsor-recognition {
   margin-top: 2rem;
 }
-.sponsor-placeholder {
-  min-height: 150px;
+.sponsor-groups p {
+  margin: 0 0 0.75rem;
+}
+.sponsor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.sponsor-card {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  text-align: center;
+  padding: 1.25rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 8px;
+}
+.sponsor-card img {
+  max-width: 100%;
+  max-height: 72px;
+  object-fit: contain;
+}
+.sponsor-card small {
+  color: var(--muted);
+}
+.sponsor-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  border: 2px dashed var(--gold);
+  background: rgba(10, 22, 40, 0.52);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.sponsor-modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sponsor-modal {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: 90vh;
+  overflow: auto;
   background: var(--paper);
-  color: var(--purple);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-align: center;
-  text-transform: uppercase;
+  border-radius: 10px;
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  transform: translateY(12px);
+  transition: transform 0.2s;
+}
+.sponsor-modal-backdrop.open .sponsor-modal {
+  transform: none;
+}
+.sponsor-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border: 0;
+  background: transparent;
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.sponsor-modal form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.sponsor-modal label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.sponsor-modal label[hidden] {
+  display: none;
+}
+.sponsor-modal input[type="text"],
+.sponsor-modal input[type="email"],
+.sponsor-modal input[type="number"] {
+  font-weight: 400;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.sponsor-checkbox-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 0.5rem 1.5rem;
+}
+.sponsor-modal .sponsor-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+.sponsor-checkbox input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  margin: 0.15rem 0 0;
+  flex: 0 0 auto;
+}
+@media (max-width: 520px) {
+  .sponsor-checkbox-group {
+    grid-template-columns: 1fr;
+  }
+}
+.form-error {
+  color: #b3261e;
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 .check-list {

@@ -19,6 +19,7 @@ export interface D1Statement {
 
 export interface D1Database {
   prepare(query: string): D1Statement;
+  batch<T = Record<string, unknown>>(statements: D1Statement[]): Promise<D1Result<T>[]>;
 }
 
 export interface Fetcher {
@@ -60,14 +61,19 @@ export interface Env {
   PUBLIC_API_URL: string;
   ADMIN_BOOTSTRAP_EMAILS: string;
   GOOGLE_CLIENT_ID: string;
-  STRIPE_CURRENCY: string;
+  CF_ACCESS_TEAM_DOMAIN: string;
+  CF_ACCESS_AUD: string;
   ORDER_SUCCESS_URL: string;
   ORDER_CANCEL_URL: string;
+  SPONSOR_SUCCESS_URL?: string;
   CORS_ORIGIN: string;
   UNSUBSCRIBE_SECRET: string;
   ADMIN_SESSION_SECRET: string;
-  STRIPE_SECRET_KEY: string;
-  STRIPE_WEBHOOK_SECRET: string;
+  SQUARE_ACCESS_TOKEN: string;
+  SQUARE_WEBHOOK_SIGNATURE_KEY: string;
+  SQUARE_LOCATION_ID: string;
+  SQUARE_ENVIRONMENT: string;
+  SQUARE_API_VERSION: string;
   MAIL_FROM_EMAIL: string;
   ADMIN_NOTIFICATION_EMAIL: string;
   TURNSTILE_SECRET_KEY: string;
@@ -119,6 +125,8 @@ export interface BookRecord {
   preorder: boolean;
   status: string;
   publicationDate: string;
+  squareCatalogItemId: string;
+  squareCatalogVariationId: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -148,6 +156,8 @@ export interface NewsletterCampaignRecord {
   subject: string;
   previewText: string;
   audience: string;
+  targetType: string;
+  targetValue: string;
   fromName: string;
   heroMessage: string;
   heroCtaLabel: string;
@@ -183,4 +193,68 @@ export interface AppHandler {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void>;
+}
+
+export type SponsorPackageKey =
+  | "pagePal"
+  | "chapterChampion"
+  | "bookshelfBuilder"
+  | "literacyTrailblazer";
+
+export type SponsorRecognitionStatus =
+  | "Awaiting Payment"
+  | "Pending Profile"
+  | "Pending Review"
+  | "Published"
+  | "Hidden"
+  | "Refunded";
+
+export interface SponsorRecord {
+  id: string;
+  package: SponsorPackageKey | string;
+  booksSponsored: number;
+  amountPaidCents: number;
+  payerName: string;
+  payerEmail: string;
+  displayName: string;
+  entityType: string;
+  anonymous: boolean;
+  publishPermission: boolean;
+  logoKey: string;
+  logoUrl: string;
+  logoAlt: string;
+  websiteUrl: string;
+  recognitionStatus: SponsorRecognitionStatus | string;
+  adminNotes: string;
+  displayOrder: number;
+  approvedBy: string;
+  paidAt: string;
+  approvedAt: string;
+  publishedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthorRecord {
+  id: string;
+  name: string;
+  title: string;
+  shortIntro: string;
+  biography: string;
+  portraitKey: string;
+  portraitUrl: string;
+  portraitAlt: string;
+  portraitFocalX: number;
+  portraitFocalY: number;
+  websiteUrl: string;
+  socialLinks: string;
+  relatedBookIds: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  status: string;
+  startAt: string;
+  endAt: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }

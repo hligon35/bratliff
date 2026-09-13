@@ -8,6 +8,50 @@
       name="description"
       content="The Read It Forward Program places books in veteran organizations, schools, and underserved communities. Sponsor a book and make a difference."
     />
+    <link rel="canonical" href="https://jackrabbitpunkinpublishing.com/read-it-forward.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jackrabbit Punkin Publishing LLC" />
+    <meta property="og:title" content="Read It Forward Program | Community Literacy Initiative" />
+    <meta property="og:description" content="The Read It Forward Program places books in veteran organizations, schools, and underserved communities. Sponsor a book and make a difference." />
+    <meta property="og:url" content="https://jackrabbitpunkinpublishing.com/read-it-forward.html" />
+    <meta property="og:image" content="https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Read It Forward Program | Community Literacy Initiative" />
+    <meta name="twitter:description" content="The Read It Forward Program places books in veteran organizations, schools, and underserved communities. Sponsor a book and make a difference." />
+    <meta name="twitter:image" content="https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://jackrabbitpunkinpublishing.com/#organization",
+        "name": "Jackrabbit Punkin Publishing LLC",
+        "url": "https://jackrabbitpunkinpublishing.com/",
+        "logo": "https://jackrabbitpunkinpublishing.com/assets/jrppLogo2.png",
+        "sameAs": [
+          "https://www.facebook.com/barbara.ratliff.771",
+          "https://www.linkedin.com/in/barbara-ratliff-765",
+          "https://www.tiktok.com/@barbararatliff765"
+        ],
+        "founder": [
+          { "@type": "Person", "name": "Barbara J. Ratliff" },
+          { "@type": "Person", "name": "Charles Ratliff" }
+        ],
+        "contactPoint": [
+          { "@type": "ContactPoint", "email": "Publisher@JackrabbitPunkinPublishing.com", "contactType": "customer service" }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": "Read It Forward Program",
+        "serviceType": "Community literacy book sponsorship",
+        "provider": { "@id": "https://jackrabbitpunkinpublishing.com/#organization" },
+        "url": "https://jackrabbitpunkinpublishing.com/read-it-forward.html",
+        "description": "Through Read It Forward, individuals, businesses, and community partners can sponsor books that are placed into the hands of readers who may not otherwise have access to them."
+      }
+    </script>
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
@@ -91,12 +135,11 @@
                 Sponsors 5 books · Name listed on the JPP website, with the
                 option to remain anonymous.
               </p>
-              <a
+              <button
                 class="button ink"
-                data-config-url="squareLinks.sponsorships.pagePal"
-                hidden
-                >Sponsor 5 Books</a
-              >
+                type="button"
+                data-sponsor-package="pagePal"
+              >Sponsor 5 Books</button>
             </article>
             <article class="price-card">
               <h3>Chapter Champion</h3>
@@ -106,12 +149,11 @@
                 Certificate of Appreciation, with the option to remain
                 anonymous.
               </p>
-              <a
+              <button
                 class="button ink"
-                data-config-url="squareLinks.sponsorships.chapterChampion"
-                hidden
-                >Sponsor 12 Books</a
-              >
+                type="button"
+                data-sponsor-package="chapterChampion"
+              >Sponsor 12 Books</button>
             </article>
             <article class="price-card">
               <h3>Bookshelf Builder</h3>
@@ -121,12 +163,11 @@
                 Certificate of Appreciation, with the option to remain
                 anonymous.
               </p>
-              <a
+              <button
                 class="button ink"
-                data-config-url="squareLinks.sponsorships.bookshelfBuilder"
-                hidden
-                >Sponsor 25 Books</a
-              >
+                type="button"
+                data-sponsor-package="bookshelfBuilder"
+              >Sponsor 25 Books</button>
             </article>
             <article class="price-card featured">
               <span class="tag">Sponsor recognition</span>
@@ -137,12 +178,11 @@
                 recognition, and Certificate of Appreciation, with the option
                 to remain anonymous.
               </p>
-              <a
+              <button
                 class="button"
-                data-config-url="squareLinks.sponsorships.literacyTrailblazer"
-                hidden
-                >Sponsor 50+ Books</a
-              >
+                type="button"
+                data-sponsor-package="literacyTrailblazer"
+              >Sponsor 50+ Books</button>
             </article>
           </div>
           <p class="asset-note" style="margin-top: 1.5rem">
@@ -157,12 +197,12 @@
             Literacy Trailblazer sponsors.
           </p>
           <div
-            class="sponsor-placeholders"
-            aria-label="Approved Literacy Trailblazer sponsors"
+            class="sponsor-recognition"
+            data-sponsor-recognition
+            aria-live="polite"
+            aria-label="Approved sponsor recognition"
           >
-            <div class="sponsor-placeholder">
-              <span>Approved Literacy Trailblazer sponsor recognition will appear here.</span>
-            </div>
+            <p class="asset-note">Loading sponsor recognition…</p>
           </div>
         </div>
       </section>

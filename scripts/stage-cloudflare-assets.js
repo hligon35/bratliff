@@ -17,6 +17,9 @@ const staticEntries = [
   'read-it-forward.html',
   'recognition.html',
   'speaking.html',
+  'robots.txt',
+  'sitemap.xml',
+  'llms.txt',
   'assets',
   'login',
   'admin'

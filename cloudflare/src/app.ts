@@ -1,10 +1,11 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
-import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS } from "./config";
+import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_MAX_BOOKS, SPONSOR_PACKAGES } from "./config";
 import type {
   AdminRole,
   AdminUser,
   AppHandler,
   AuthenticatedAdmin,
+  AuthorRecord,
   BookRecord,
   CartLineItem,
   CheckoutSessionRecord,
@@ -12,6 +13,8 @@ import type {
   FormType,
   JsonValue,
   NewsletterCampaignRecord,
+  SponsorPackageKey,
+  SponsorRecord,
 } from "./types";
 import {
   base64UrlEncode,
@@ -25,22 +28,26 @@ import {
   createOrderNumber,
   decodeBase64Url,
   escapeHtml,
-  formatStripeAddress,
+  firstUrlValue,
   getErrorMessage,
   getFirstName,
   HttpError,
   isValidEmail,
   json,
   linkValue,
+  matchOriginUrl,
   money,
   parseBody,
   safeUrl,
   signValue,
   splitEmails,
+  splitUrlList,
   text,
   toBoolean,
+  verifySquareSignature,
   withCors,
 } from "./utils";
+
 
 const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
@@ -54,6 +61,12 @@ type VerifiedGoogleIdentity = {
   displayName: string;
   token: Record<string, unknown>;
   sub: string;
+};
+
+type VerifiedAccessIdentity = {
+  email: string;
+  sub: string;
+  token: Record<string, unknown>;
 };
 
 const app: AppHandler = {
@@ -76,11 +89,25 @@ const app: AppHandler = {
         return await serveBookImage(url, env);
       }
 
-      if (url.pathname === "/stripe/webhook") {
+      if (url.pathname.startsWith("/media/sponsors/")) {
+        if (!env.BOOK_ASSETS) {
+          return new Response("Not found", { status: 404 });
+        }
+        return await serveSponsorLogo(url, env);
+      }
+
+      if (url.pathname.startsWith("/media/authors/")) {
+        if (!env.BOOK_ASSETS) {
+          return new Response("Not found", { status: 404 });
+        }
+        return await serveAuthorPortrait(url, env);
+      }
+
+      if (url.pathname === "/square/webhook") {
         if (!env.DB) {
           return new Response("Not configured", { status: 404 });
         }
-        return await handleStripeWebhook(request, env);
+        return await handleSquareWebhook(request, env);
       }
 
       if (url.pathname === "/api/auth/google") {
@@ -127,6 +154,34 @@ const app: AppHandler = {
           return json(request, env, { ok: false, error: "Method not allowed." }, 405);
         }
         return await handleConfirmCheckout(request, env);
+      }
+
+      if (url.pathname === "/api/sponsors") {
+        if (request.method !== "GET") {
+          return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        }
+        return json(request, env, { ok: true, ...(await listPublicSponsors(env, url.searchParams)) });
+      }
+
+      if (url.pathname === "/api/sponsors/checkout") {
+        if (request.method !== "POST") {
+          return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        }
+        return await handleSponsorCheckout(request, env, await parseBody(request));
+      }
+
+      if (url.pathname === "/api/authors/featured") {
+        if (request.method !== "GET") {
+          return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        }
+        return json(request, env, { ok: true, author: await getPublicFeaturedAuthor(env) });
+      }
+
+      if (url.pathname === "/api/analytics/event") {
+        if (request.method !== "POST") {
+          return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        }
+        return await handleAnalyticsEvent(request, env);
       }
 
       if (url.pathname === "/" || url.pathname === "/index" || url.pathname === "") {
@@ -190,6 +245,29 @@ async function handleCompatibilityRoot(
 function hasGoogleClientId(env: Env) {
   const clientId = text(env.GOOGLE_CLIENT_ID, 320);
   return Boolean(clientId && !/^replace-with-/i.test(clientId) && /\.apps\.googleusercontent\.com$/i.test(clientId));
+}
+
+function hasCloudflareAccessConfig(env: Env) {
+  return Boolean(text(env.CF_ACCESS_TEAM_DOMAIN, 200) && text(env.CF_ACCESS_AUD, 200));
+}
+
+async function verifyCloudflareAccessJwt(token: string, env: Env): Promise<VerifiedAccessIdentity> {
+  const teamDomain = text(env.CF_ACCESS_TEAM_DOMAIN, 200).replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  const issuer = `https://${teamDomain}`;
+  const jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+  let payload: JWTPayload;
+  try {
+    payload = (
+      await jwtVerify(token, jwks, { audience: text(env.CF_ACCESS_AUD, 200), issuer })
+    ).payload;
+  } catch (error) {
+    throw new HttpError(403, "Invalid Cloudflare Access token: " + getErrorMessage(error));
+  }
+  const email = text(payload.email, 320).toLowerCase();
+  if (!isValidEmail(email)) {
+    throw new HttpError(403, "The Cloudflare Access identity did not include a verified email.");
+  }
+  return { email, sub: text(payload.sub, 200), token: payload as Record<string, unknown> };
 }
 
 function hasAdminSessionConfig(env: Env) {
@@ -279,7 +357,7 @@ async function resolveDatabaseAdminIdentity(env: Env, identity: AuthenticatedAdm
 function buildPostLoginRedirect(request: Request, env: Env, returnTo: unknown) {
   const fallback = (() => {
     try {
-      const url = new URL(env.PUBLIC_ADMIN_URL || "/admin/", request.url);
+      const url = new URL(matchOriginUrl(env.PUBLIC_ADMIN_URL, request, "/admin/"), request.url);
       return url.pathname + url.search + url.hash;
     } catch {
       return "/admin/";
@@ -482,7 +560,7 @@ async function handleFormSubmission(
         status = CASE WHEN excluded.consent = 1 THEN 'active' ELSE newsletter_subscribers.status END,
         source = excluded.source`,
     )
-      .bind(record.email.toLowerCase(), record.consent ? 1 : 0, record.consent ? "active" : "pending", record.pageUrl || env.SITE_URL)
+      .bind(record.email.toLowerCase(), record.consent ? 1 : 0, record.consent ? "active" : "pending", record.pageUrl || firstUrlValue(env.SITE_URL))
       .run();
   }
 
@@ -524,6 +602,104 @@ function normalizeFormRecord(payload: Record<string, string>) {
   };
 }
 
+function squareApiBase(env: Env) {
+  return env.SQUARE_ENVIRONMENT === "production"
+    ? "https://connect.squareup.com"
+    : "https://connect.squareupsandbox.com";
+}
+
+async function createSquarePaymentLink(
+  env: Env,
+  body: Record<string, unknown>,
+): Promise<{ url: string; orderId: string; checkoutId: string }> {
+  const response = await fetch(`${squareApiBase(env)}/v2/online-checkout/payment-links`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + env.SQUARE_ACCESS_TOKEN,
+      "Content-Type": "application/json",
+      "Square-Version": env.SQUARE_API_VERSION || "2024-10-17",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = (await response.json()) as Record<string, JsonValue>;
+  if (!response.ok) {
+    const errors = Array.isArray(data.errors) ? (data.errors as Record<string, JsonValue>[]) : [];
+    const message = errors.length ? text(errors[0].detail, 300) : "Checkout could not be started.";
+    throw new HttpError(502, message);
+  }
+  const link = (data.payment_link as Record<string, JsonValue>) || {};
+  return {
+    url: text(link.url, 1000),
+    orderId: text(link.order_id, 200),
+    checkoutId: text(link.id, 200),
+  };
+}
+
+async function fetchSquareInventoryCounts(env: Env, catalogObjectIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const ids = catalogObjectIds.filter(Boolean);
+  if (!ids.length) return counts;
+  const response = await fetch(`${squareApiBase(env)}/v2/inventory/batch-retrieve-counts`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + env.SQUARE_ACCESS_TOKEN,
+      "Content-Type": "application/json",
+      "Square-Version": env.SQUARE_API_VERSION || "2024-10-17",
+    },
+    body: JSON.stringify({
+      catalog_object_ids: ids,
+      location_ids: env.SQUARE_LOCATION_ID ? [env.SQUARE_LOCATION_ID] : undefined,
+      states: ["IN_STOCK"],
+    }),
+  });
+  if (!response.ok) return counts;
+  const data = (await response.json()) as Record<string, JsonValue>;
+  const rows = Array.isArray(data.counts) ? (data.counts as Record<string, JsonValue>[]) : [];
+  for (const row of rows) {
+    const id = text(row.catalog_object_id, 200);
+    if (!id) continue;
+    counts.set(id, (counts.get(id) || 0) + Number(row.quantity || 0));
+  }
+  return counts;
+}
+
+// Books with a Square catalog variation linked are treated as Square-managed inventory:
+// their `stock` column is a periodically-refreshed cache of Square's own count, kept in
+// sync here (on the scheduled cron) and via the manual "Sync Square Stock" admin action,
+// rather than requiring staff to re-enter counts by hand.
+async function syncBookInventoryFromSquare(env: Env): Promise<number> {
+  if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) return 0;
+  const rows = await env.DB.prepare(
+    "SELECT id AS bookId, sku, title, stock, preorder, status, square_catalog_variation_id AS variationId FROM books WHERE square_catalog_variation_id != '' AND status != 'Archived'",
+  ).all<Record<string, unknown>>();
+  const books = rows.results || [];
+  if (!books.length) return 0;
+
+  const counts = await fetchSquareInventoryCounts(env, books.map((book) => text(book.variationId, 200)));
+  let updated = 0;
+  for (const book of books) {
+    const variationId = text(book.variationId, 200);
+    if (!counts.has(variationId)) continue;
+    const bookId = text(book.bookId, 120);
+    const previous = Number(book.stock || 0);
+    const next = Math.max(0, Math.floor(counts.get(variationId) || 0));
+    if (next === previous) continue;
+    const preorder = Boolean(Number(book.preorder || 0));
+    const status = text(book.status, 40);
+    const nextStatus = !preorder && status !== "Draft" && status !== "Archived" ? (next > 0 ? "Published" : "Out of Stock") : status;
+    await env.DB.prepare("UPDATE books SET stock = ?2, status = ?3, updated_at = datetime('now') WHERE id = ?1")
+      .bind(bookId, next, nextStatus)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Square inventory sync', '', 'Square', '')",
+    )
+      .bind(crypto.randomUUID(), bookId, text(book.sku, 120), text(book.title, 300), next - previous, previous, next)
+      .run();
+    updated += 1;
+  }
+  return updated;
+}
+
 async function handleStoreCheckout(
   request: Request,
   env: Env,
@@ -537,50 +713,121 @@ async function handleStoreCheckout(
   }
   const items = await validateOrderItems(env, cart);
   if (!items.length) throw new HttpError(400, "Your cart is empty.");
-  if (!env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY.startsWith("replace-")) {
-    throw new HttpError(503, "Stripe is not configured yet.");
+  if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) {
+    throw new HttpError(503, "Square is not configured yet.");
   }
 
-  const params = new URLSearchParams();
-  params.set("mode", "payment");
-  params.set("success_url", env.ORDER_SUCCESS_URL);
-  params.set("cancel_url", env.ORDER_CANCEL_URL);
-  params.set("shipping_address_collection[allowed_countries][0]", "US");
-  params.set("metadata[source]", "jackrabbit-punkin-store");
+  const orderNumber = createOrderNumber();
+  const subtotal = money(items.reduce((sum, item) => sum + item.lineTotal, 0));
 
-  items.forEach((item, index) => {
-    params.set(`line_items[${index}][quantity]`, String(item.quantity));
-    params.set(`line_items[${index}][price_data][currency]`, env.STRIPE_CURRENCY.toLowerCase());
-    params.set(`line_items[${index}][price_data][unit_amount]`, String(Math.round(item.unitPrice * 100)));
-    params.set(`line_items[${index}][price_data][product_data][name]`, item.title);
-    params.set(`line_items[${index}][price_data][product_data][metadata][sku]`, item.sku);
-    params.set(`line_items[${index}][price_data][product_data][metadata][book_id]`, item.bookId);
-  });
-
-  const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + env.STRIPE_SECRET_KEY,
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-    },
-    body: params.toString(),
-  });
-  const stripeData = (await stripeResponse.json()) as Record<string, JsonValue>;
-  if (!stripeResponse.ok || typeof stripeData.url !== "string") {
-    const message =
-      typeof stripeData.error === "object" && stripeData.error && "message" in stripeData.error
-        ? String((stripeData.error as Record<string, JsonValue>).message || "")
-        : "Checkout could not be started.";
-    throw new HttpError(502, message);
-  }
+  await env.DB.prepare(
+    `INSERT INTO orders (
+      order_number, provider, created_at, subtotal, shipping, tax, total,
+      payment_status, fulfillment_status, tracking_number, shipping_address, notes
+    ) VALUES (?1, 'square', datetime('now'), ?2, 0, 0, ?2, 'Pending', 'Unfulfilled', '', '', '')`,
+  )
+    .bind(orderNumber, subtotal)
+    .run();
 
   await env.DB.prepare(
     "INSERT INTO checkout_sessions (session_id, cart_json, created_at) VALUES (?1, ?2, datetime('now'))",
   )
-    .bind(String(stripeData.id || ""), JSON.stringify(items))
+    .bind(orderNumber, JSON.stringify(items))
     .run();
 
-  return json(request, env, { ok: true, id: stripeData.id, url: stripeData.url });
+  const redirectSeparator = env.ORDER_SUCCESS_URL.includes("?") ? "&" : "?";
+  const result = await createSquarePaymentLink(env, {
+    idempotency_key: crypto.randomUUID(),
+    order: {
+      location_id: env.SQUARE_LOCATION_ID,
+      reference_id: orderNumber,
+      line_items: items.map((item) => ({
+        name: item.title.slice(0, 500),
+        quantity: String(item.quantity),
+        base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
+        metadata: { sku: item.sku, bookId: item.bookId },
+      })),
+    },
+    checkout_options: {
+      redirect_url: `${env.ORDER_SUCCESS_URL}${redirectSeparator}orderNumber=${encodeURIComponent(orderNumber)}`,
+    },
+  });
+
+  await env.DB.prepare("UPDATE orders SET square_order_id = ?2, square_checkout_id = ?3 WHERE order_number = ?1")
+    .bind(orderNumber, result.orderId, result.checkoutId)
+    .run();
+
+  return json(request, env, { ok: true, id: orderNumber, url: result.url });
+}
+
+async function handleSponsorCheckout(
+  request: Request,
+  env: Env,
+  payload: Record<string, string>,
+): Promise<Response> {
+  if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) {
+    throw new HttpError(503, "Square is not configured yet.");
+  }
+  const packageKey = text(payload.package, 60) as SponsorPackageKey;
+  const definition = SPONSOR_PACKAGES[packageKey];
+  if (!definition) throw new HttpError(400, "Select a valid sponsorship package.");
+
+  const payerName = text(payload.payerName, 200);
+  const payerEmail = text(payload.payerEmail, 320).toLowerCase();
+  if (!isValidEmail(payerEmail)) throw new HttpError(400, "Enter a valid email address.");
+  const displayName = text(payload.displayName, 200) || payerName;
+  const anonymous = toBoolean(payload.anonymous);
+  const publishPermission = toBoolean(payload.publishPermission);
+  const websiteUrl = safeUrl(payload.websiteUrl);
+  const entityType = text(payload.entityType, 40) || "individual";
+
+  let books = definition.books;
+  let amountCents = definition.priceCents;
+  if (definition.perBookCents && definition.minBooks) {
+    const requestedBooks = Math.floor(Number(payload.books));
+    books = Number.isFinite(requestedBooks) && requestedBooks > definition.minBooks ? requestedBooks : definition.minBooks;
+    books = Math.min(books, SPONSOR_MAX_BOOKS);
+    amountCents = books * definition.perBookCents;
+  }
+  if (amountCents <= 0) throw new HttpError(400, "Could not determine a sponsorship amount.");
+
+  const sponsorId = "SP-" + crypto.randomUUID().slice(0, 10).toUpperCase();
+  await env.DB.prepare(
+    `INSERT INTO sponsors (
+      id, package, books_sponsored, amount_paid_cents, payer_name, payer_email, display_name,
+      entity_type, anonymous, publish_permission, website_url, recognition_status, created_at, updated_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'Awaiting Payment', datetime('now'), datetime('now'))`,
+  )
+    .bind(sponsorId, packageKey, books, amountCents, payerName, payerEmail, displayName, entityType, anonymous ? 1 : 0, publishPermission ? 1 : 0, websiteUrl)
+    .run();
+
+  const sponsorSuccessUrl = firstUrlValue(env.SPONSOR_SUCCESS_URL) || firstUrlValue(env.ORDER_SUCCESS_URL);
+  const redirectSeparator = sponsorSuccessUrl.includes("?") ? "&" : "?";
+  const result = await createSquarePaymentLink(env, {
+    idempotency_key: crypto.randomUUID(),
+    order: {
+      location_id: env.SQUARE_LOCATION_ID,
+      reference_id: sponsorId,
+      line_items: [
+        {
+          name: `Read It Forward sponsorship - ${definition.label} (${books} books)`,
+          quantity: "1",
+          base_price_money: { amount: amountCents, currency: "USD" },
+        },
+      ],
+    },
+    checkout_options: {
+      redirect_url: `${sponsorSuccessUrl}${redirectSeparator}sponsor=success&sponsorId=${encodeURIComponent(sponsorId)}`,
+    },
+  });
+
+  await env.DB.prepare(
+    "INSERT INTO sponsor_payments (id, sponsor_id, square_order_id, square_checkout_id, amount_cents, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', datetime('now'), datetime('now'))",
+  )
+    .bind(crypto.randomUUID(), sponsorId, result.orderId, result.checkoutId, amountCents)
+    .run();
+
+  return json(request, env, { ok: true, sponsorId, url: result.url });
 }
 
 async function validateOrderItems(env: Env, cart: unknown[]): Promise<CartLineItem[]> {
@@ -652,99 +899,98 @@ async function handleUnsubscribe(
   return renderUnsubscribePage(true, "You have been removed from the Jackrabbit Punkin Publishing subscriber list.");
 }
 
-async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
-  const signature = request.headers.get("stripe-signature") || "";
-  const payload = await request.text();
-  if (!(await verifyStripeSignature(payload, signature, env.STRIPE_WEBHOOK_SECRET))) {
+async function handleSquareWebhook(request: Request, env: Env): Promise<Response> {
+  const signatureHeader = request.headers.get("x-square-hmacsha256-signature") || "";
+  const rawBody = await request.text();
+  const notificationUrl = new URL("/square/webhook", firstUrlValue(env.SITE_URL)).toString();
+  if (!(await verifySquareSignature(rawBody, signatureHeader, env.SQUARE_WEBHOOK_SIGNATURE_KEY, notificationUrl))) {
     return new Response("Invalid signature", { status: 400 });
   }
-  const event = JSON.parse(payload) as { id: string; type: string; data?: { object?: Record<string, JsonValue> } };
-  const alreadyProcessed = await env.DB.prepare("SELECT event_id FROM webhook_events WHERE event_id = ?1")
-    .bind(event.id)
+
+  let event: { event_id: string; type: string; data?: { object?: Record<string, JsonValue> } };
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return new Response("Invalid payload", { status: 400 });
+  }
+  const eventId = text(event.event_id, 200);
+  if (!eventId) return new Response("Missing event id", { status: 400 });
+
+  const alreadyProcessed = await env.DB.prepare(
+    "SELECT event_id FROM webhook_events WHERE event_id = ?1 AND provider = 'square'",
+  )
+    .bind(eventId)
     .first();
   if (alreadyProcessed) return new Response("Already processed", { status: 200 });
 
   await env.DB.prepare(
-    "INSERT INTO webhook_events (event_id, event_type, processed_at, status) VALUES (?1, ?2, datetime('now'), 'processing')",
+    "INSERT INTO webhook_events (event_id, event_type, processed_at, status, provider, attempt_count, last_error) VALUES (?1, ?2, datetime('now'), 'processing', 'square', 1, '')",
   )
-    .bind(event.id, event.type)
+    .bind(eventId, event.type)
     .run();
 
   try {
-    if (event.type === "checkout.session.completed") {
-      await recordPaidOrderFromSession(env, event.id, event.data?.object || {});
+    const dataObject = event.data?.object || {};
+    if (event.type === "payment.created" || event.type === "payment.updated") {
+      const payment = (dataObject.payment as Record<string, JsonValue>) || {};
+      if (text(payment.status, 40) === "COMPLETED") {
+        await recordPaidOrderFromSquarePayment(env, eventId, payment);
+        await recordPaidSponsorFromSquarePayment(env, eventId, payment);
+      }
+    } else if (event.type === "refund.created" || event.type === "refund.updated") {
+      const refund = (dataObject.refund as Record<string, JsonValue>) || {};
+      await recordRefundFromSquareEvent(env, refund);
     }
     await env.DB.prepare("UPDATE webhook_events SET status = 'processed' WHERE event_id = ?1")
-      .bind(event.id)
+      .bind(eventId)
       .run();
     return new Response("OK", { status: 200 });
   } catch (error) {
-    await env.DB.prepare("UPDATE webhook_events SET status = ?2 WHERE event_id = ?1")
-      .bind(event.id, getErrorMessage(error).slice(0, 500))
+    await env.DB.prepare("UPDATE webhook_events SET status = 'error', last_error = ?2 WHERE event_id = ?1")
+      .bind(eventId, getErrorMessage(error).slice(0, 500))
       .run();
     return new Response(getErrorMessage(error), { status: 500 });
   }
 }
 
-async function verifyStripeSignature(payload: string, header: string, secret: string) {
-  if (!header || !secret) return false;
-  const parts = Object.fromEntries(header.split(",").map((part) => {
-    const [key, value] = part.split("=");
-    return [key, value];
-  }));
-  if (!parts.t || !parts.v1) return false;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${parts.t}.${payload}`));
-  return constantTimeEqual(bytesToHex(new Uint8Array(signature)), parts.v1);
-}
-
-async function recordPaidOrderFromSession(
+async function recordPaidOrderFromSquarePayment(
   env: Env,
-  stripeEventId: string,
-  session: Record<string, JsonValue>,
+  squareEventId: string,
+  payment: Record<string, JsonValue>,
 ): Promise<void> {
-  const sessionId = text(session.id, 200);
-  const existing = await env.DB.prepare(
-    "SELECT order_number FROM orders WHERE stripe_session_id = ?1 OR stripe_event_id = ?2",
+  const squareOrderId = text(payment.order_id, 200);
+  const squarePaymentId = text(payment.id, 200);
+  if (!squareOrderId) return;
+
+  const order = await env.DB.prepare(
+    "SELECT order_number AS orderNumber, payment_status AS paymentStatus FROM orders WHERE square_order_id = ?1",
   )
-    .bind(sessionId, stripeEventId)
-    .first();
-  if (existing) return;
+    .bind(squareOrderId)
+    .first<{ orderNumber: string; paymentStatus: string }>();
+  if (!order) return; // Not a store order (may belong to a sponsor payment instead).
+  if (order.paymentStatus === "Paid") {
+    await env.DB.prepare("UPDATE orders SET square_payment_id = ?2, square_event_id = ?3 WHERE order_number = ?1")
+      .bind(order.orderNumber, squarePaymentId, squareEventId)
+      .run();
+    return;
+  }
 
   const stored = await env.DB.prepare(
-    "SELECT session_id AS sessionId, cart_json AS cartJson, created_at AS createdAt FROM checkout_sessions WHERE session_id = ?1",
+    "SELECT session_id AS sessionId, cart_json AS cartJson FROM checkout_sessions WHERE session_id = ?1",
   )
-    .bind(sessionId)
+    .bind(order.orderNumber)
     .first<CheckoutSessionRecord>();
-  if (!stored) throw new Error("No local checkout session was found for the Stripe event.");
-
+  if (!stored) throw new Error("No local checkout cart found for order " + order.orderNumber + ".");
   const items = JSON.parse(stored.cartJson) as CartLineItem[];
-  const orderNumber = createOrderNumber();
-  const subtotal = Number(session.amount_subtotal || 0) / 100 || items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const total = Number(session.amount_total || 0) / 100 || subtotal;
-  const totalDetails = ((session.total_details as Record<string, JsonValue>) || {}) as Record<string, JsonValue>;
-  const tax = Number(totalDetails.amount_tax || 0) / 100;
-  const shipping = Math.max(0, money(total - subtotal - tax));
-  const customerDetails = ((session.customer_details as Record<string, JsonValue>) || {}) as Record<string, JsonValue>;
-  const shippingDetails = ((session.shipping_details as Record<string, JsonValue>) || {}) as Record<string, JsonValue>;
-  const customerName = text(customerDetails.name, 250);
-  const customerEmail = text(customerDetails.email, 320).toLowerCase();
-  const shippingAddress = formatStripeAddress(((shippingDetails.address as Record<string, unknown>) || (customerDetails.address as Record<string, unknown>) || {}) as Record<string, unknown>);
+
+  const amountMoney = (payment.amount_money as Record<string, JsonValue> | undefined) || {};
+  const amountCents = Number(amountMoney.amount || 0);
+  const total = amountCents ? money(amountCents / 100) : money(items.reduce((sum, item) => sum + item.lineTotal, 0));
 
   await env.DB.prepare(
-    `INSERT INTO orders (
-      order_number, stripe_session_id, stripe_payment_id, stripe_event_id,
-      created_at, customer_name, customer_email, subtotal, shipping, tax, total,
-      payment_status, fulfillment_status, tracking_number, shipping_address, notes
-    ) VALUES (?1, ?2, ?3, ?4, datetime('now'), ?5, ?6, ?7, ?8, ?9, ?10, 'Paid', 'Unfulfilled', '', ?11, '')`,
+    "UPDATE orders SET square_payment_id = ?2, square_event_id = ?3, payment_status = 'Paid', total = ?4 WHERE order_number = ?1",
   )
-    .bind(orderNumber, sessionId, text(session.payment_intent, 300), stripeEventId, customerName, customerEmail, money(subtotal), money(shipping), money(tax), money(total), shippingAddress)
+    .bind(order.orderNumber, squarePaymentId, squareEventId, total)
     .run();
 
   for (const item of items) {
@@ -773,41 +1019,115 @@ async function recordPaidOrderFromSession(
     await env.DB.prepare(
       "INSERT INTO order_items (order_number, book_id, sku, title, quantity, unit_price, line_total) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
     )
-      .bind(orderNumber, item.bookId, item.sku, item.title, item.quantity, money(item.unitPrice), money(item.lineTotal))
+      .bind(order.orderNumber, item.bookId, item.sku, item.title, item.quantity, money(item.unitPrice), money(item.lineTotal))
       .run();
     await env.DB.prepare(
-      "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Online sale', ?8, 'Stripe', '')",
+      "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Online sale', ?8, 'Square', '')",
     )
-      .bind(crypto.randomUUID(), item.bookId, item.sku, item.title, -Math.abs(item.quantity), previous, item.preorder ? previous : previous - item.quantity, orderNumber)
+      .bind(crypto.randomUUID(), item.bookId, item.sku, item.title, -Math.abs(item.quantity), previous, item.preorder ? previous : previous - item.quantity, order.orderNumber)
       .run();
   }
 }
 
+async function recordPaidSponsorFromSquarePayment(
+  env: Env,
+  squareEventId: string,
+  payment: Record<string, JsonValue>,
+): Promise<void> {
+  const squareOrderId = text(payment.order_id, 200);
+  const squarePaymentId = text(payment.id, 200);
+  if (!squareOrderId) return;
+
+  const pending = await env.DB.prepare(
+    "SELECT id AS id, sponsor_id AS sponsorId, status FROM sponsor_payments WHERE square_order_id = ?1",
+  )
+    .bind(squareOrderId)
+    .first<{ id: string; sponsorId: string; status: string }>();
+  if (!pending) return; // Not a sponsor payment.
+  if (pending.status === "paid") return;
+
+  const amountMoney = (payment.amount_money as Record<string, JsonValue> | undefined) || {};
+  const amountCents = Number(amountMoney.amount || 0);
+
+  await env.DB.prepare(
+    "UPDATE sponsor_payments SET square_payment_id = ?2, square_event_id = ?3, amount_cents = COALESCE(NULLIF(?4, 0), amount_cents), status = 'paid', updated_at = datetime('now') WHERE id = ?1",
+  )
+    .bind(pending.id, squarePaymentId, squareEventId, amountCents)
+    .run();
+
+  await env.DB.prepare(
+    "UPDATE sponsors SET recognition_status = 'Pending Review', paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND recognition_status = 'Awaiting Payment'",
+  )
+    .bind(pending.sponsorId)
+    .run();
+}
+
+async function recordRefundFromSquareEvent(env: Env, refund: Record<string, JsonValue>): Promise<void> {
+  if (text(refund.status, 40) !== "COMPLETED") return;
+  const squarePaymentId = text(refund.payment_id, 200);
+  if (!squarePaymentId) return;
+
+  const order = await env.DB.prepare(
+    "SELECT order_number AS orderNumber FROM orders WHERE square_payment_id = ?1 AND payment_status != 'Refunded'",
+  )
+    .bind(squarePaymentId)
+    .first<{ orderNumber: string }>();
+  if (order) {
+    await env.DB.prepare("UPDATE orders SET payment_status = 'Refunded' WHERE order_number = ?1")
+      .bind(order.orderNumber)
+      .run();
+    const items = await env.DB.prepare(
+      "SELECT book_id AS bookId, sku, title, quantity FROM order_items WHERE order_number = ?1",
+    )
+      .bind(order.orderNumber)
+      .all<Record<string, unknown>>();
+    for (const item of items.results || []) {
+      const book = await getStoreBookById(env, text(item.bookId, 120));
+      if (!book) continue;
+      const previous = book.stock;
+      const quantity = Number(item.quantity || 0);
+      await env.DB.prepare("UPDATE books SET stock = stock + ?2, updated_at = datetime('now') WHERE id = ?1")
+        .bind(book.bookId, quantity)
+        .run();
+      await env.DB.prepare(
+        "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Refund', ?8, 'Square', '')",
+      )
+        .bind(crypto.randomUUID(), book.bookId, text(item.sku, 120), text(item.title, 300), Math.abs(quantity), previous, previous + quantity, order.orderNumber)
+        .run();
+    }
+    return;
+  }
+
+  const sponsorPayment = await env.DB.prepare(
+    "SELECT sponsor_id AS sponsorId FROM sponsor_payments WHERE square_payment_id = ?1 AND status != 'refunded'",
+  )
+    .bind(squarePaymentId)
+    .first<{ sponsorId: string }>();
+  if (sponsorPayment) {
+    await env.DB.prepare("UPDATE sponsor_payments SET status = 'refunded', updated_at = datetime('now') WHERE square_payment_id = ?1")
+      .bind(squarePaymentId)
+      .run();
+    // A refunded sponsorship must never remain publicly visible without an explicit admin decision.
+    await env.DB.prepare("UPDATE sponsors SET recognition_status = 'Refunded', updated_at = datetime('now') WHERE id = ?1")
+      .bind(sponsorPayment.sponsorId)
+      .run();
+  }
+}
+
+/**
+ * Read-only status check used by the storefront's success page. The Square
+ * webhook (handleSquareWebhook) is the sole source of truth for marking an
+ * order paid and decrementing inventory; this endpoint never writes.
+ */
 async function handleConfirmCheckout(request: Request, env: Env): Promise<Response> {
   const payload = await parseBody(request);
-  const sessionId = text(payload.sessionId, 200);
-  if (!sessionId) throw new HttpError(400, "A checkout session id is required.");
-
-  const existing = await env.DB.prepare("SELECT order_number FROM orders WHERE stripe_session_id = ?1")
-    .bind(sessionId)
-    .first();
-  if (existing) {
-    return json(request, env, { ok: true, duplicate: true });
-  }
-
-  const stripeResponse = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
-    headers: { Authorization: "Bearer " + env.STRIPE_SECRET_KEY },
-  });
-  if (!stripeResponse.ok) {
-    throw new HttpError(502, "Unable to retrieve the checkout session from Stripe.");
-  }
-  const session = (await stripeResponse.json()) as Record<string, JsonValue>;
-  if (text(session.payment_status, 40) !== "paid") {
-    return json(request, env, { ok: false, error: "This checkout session has not completed payment yet." }, 409);
-  }
-
-  await recordPaidOrderFromSession(env, `manual-confirm-${sessionId}`, session);
-  return json(request, env, { ok: true, duplicate: false });
+  const orderNumber = text(payload.orderNumber || payload.sessionId, 200);
+  if (!orderNumber) throw new HttpError(400, "An order number is required.");
+  const order = await env.DB.prepare("SELECT payment_status AS paymentStatus FROM orders WHERE order_number = ?1")
+    .bind(orderNumber)
+    .first<{ paymentStatus: string }>();
+  if (!order) return json(request, env, { ok: true, paid: false, pending: true });
+  return json(request, env, { ok: true, paid: order.paymentStatus === "Paid", duplicate: order.paymentStatus === "Paid" });
 }
 
 async function handleAdminApi(
@@ -838,6 +1158,11 @@ async function handleAdminApi(
   if (request.method === "POST" && path === "inventory/adjust") {
     requireRole(admin, "fulfillment");
     return json(request, env, { ok: true, book: await adjustInventory(env, admin, await parseBody(request)) });
+  }
+  if (request.method === "POST" && path === "inventory/sync-square") {
+    requireRole(admin, "fulfillment");
+    const updated = await syncBookInventoryFromSquare(env);
+    return json(request, env, { ok: true, updated, books: await listAllStoreBooks(env) });
   }
   if (request.method === "GET" && path === "inventory") {
     return json(request, env, { ok: true, rows: await getInventorySummary(env) });
@@ -880,6 +1205,100 @@ async function handleAdminApi(
     ).all();
     return json(request, env, { ok: true, subscribers: rows.results || [] });
   }
+  if (request.method === "GET" && path === "sponsors") {
+    return json(request, env, {
+      ok: true,
+      ...(await listAdminSponsors(env, {
+        status: text(url.searchParams.get("status"), 60),
+        package: text(url.searchParams.get("package"), 60),
+        page: clampInt(url.searchParams.get("page"), 1, 10000, 1),
+        pageSize: clampInt(url.searchParams.get("pageSize"), 1, 100, 25),
+      })),
+    });
+  }
+  if (request.method === "GET" && path.startsWith("sponsors/")) {
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length));
+    const sponsor = await getSponsorById(env, sponsorId);
+    if (!sponsor) throw new HttpError(404, "Sponsor not found.");
+    return json(request, env, { ok: true, sponsor });
+  }
+  if (request.method === "POST" && path === "sponsors") {
+    requireRole(admin, "fulfillment");
+    return json(request, env, { ok: true, sponsor: await saveAdminSponsor(env, admin, await parseBody(request)) });
+  }
+  if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/publish")) {
+    requireRole(admin, "fulfillment");
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/publish".length));
+    return json(request, env, { ok: true, sponsor: await setSponsorRecognitionStatus(env, admin, sponsorId, "Published") });
+  }
+  if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/hide")) {
+    requireRole(admin, "fulfillment");
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/hide".length));
+    return json(request, env, { ok: true, sponsor: await setSponsorRecognitionStatus(env, admin, sponsorId, "Hidden") });
+  }
+  if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/image")) {
+    requireRole(admin, "fulfillment");
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/image".length));
+    return json(request, env, { ok: true, ...(await uploadSponsorLogo(request, env, sponsorId)) });
+  }
+  if (request.method === "DELETE" && path.startsWith("sponsors/") && path.endsWith("/image")) {
+    requireRole(admin, "fulfillment");
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/image".length));
+    await removeSponsorLogo(env, sponsorId);
+    return json(request, env, { ok: true });
+  }
+  if (request.method === "DELETE" && path.startsWith("sponsors/")) {
+    requireRole(admin, "fulfillment");
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length));
+    await deleteSponsor(env, sponsorId);
+    return json(request, env, { ok: true });
+  }
+  if (request.method === "GET" && path === "authors") {
+    return json(request, env, { ok: true, authors: await listAdminAuthors(env, text(url.searchParams.get("status"), 60)) });
+  }
+  if (request.method === "GET" && path.startsWith("authors/")) {
+    const authorId = decodeURIComponent(path.slice("authors/".length));
+    const author = await getAuthorById(env, authorId);
+    if (!author) throw new HttpError(404, "Author not found.");
+    return json(request, env, { ok: true, author });
+  }
+  if (request.method === "POST" && path === "authors") {
+    requireRole(admin, "editor");
+    return json(request, env, { ok: true, author: await saveAdminAuthor(env, admin, await parseBody(request)) });
+  }
+  if (request.method === "POST" && path.startsWith("authors/") && path.endsWith("/publish")) {
+    requireRole(admin, "editor");
+    const authorId = decodeURIComponent(path.slice("authors/".length, -"/publish".length));
+    return json(request, env, { ok: true, author: await setAuthorStatus(env, admin, authorId, "Published") });
+  }
+  if (request.method === "POST" && path.startsWith("authors/") && path.endsWith("/hide")) {
+    requireRole(admin, "editor");
+    const authorId = decodeURIComponent(path.slice("authors/".length, -"/hide".length));
+    return json(request, env, { ok: true, author: await setAuthorStatus(env, admin, authorId, "Draft") });
+  }
+  if (request.method === "POST" && path.startsWith("authors/") && path.endsWith("/portrait")) {
+    requireRole(admin, "editor");
+    const authorId = decodeURIComponent(path.slice("authors/".length, -"/portrait".length));
+    return json(request, env, { ok: true, ...(await uploadAuthorPortrait(request, env, authorId)) });
+  }
+  if (request.method === "DELETE" && path.startsWith("authors/") && path.endsWith("/portrait")) {
+    requireRole(admin, "editor");
+    const authorId = decodeURIComponent(path.slice("authors/".length, -"/portrait".length));
+    await removeAuthorPortrait(env, authorId);
+    return json(request, env, { ok: true });
+  }
+  if (request.method === "DELETE" && path.startsWith("authors/")) {
+    requireRole(admin, "editor");
+    const authorId = decodeURIComponent(path.slice("authors/".length));
+    await deleteAuthor(env, authorId);
+    return json(request, env, { ok: true });
+  }
+  if (request.method === "GET" && path === "analytics/summary") {
+    return json(request, env, {
+      ok: true,
+      ...(await getAnalyticsSummary(env, clampInt(url.searchParams.get("days"), 1, 90, 30))),
+    });
+  }
   if (request.method === "GET" && path === "admins") {
     requireRole(admin, "owner");
     return json(request, env, { ok: true, admins: await listAdmins(env) });
@@ -904,10 +1323,29 @@ async function handleAdminApi(
     await removeBookImage(env, bookId);
     return json(request, env, { ok: true });
   }
+  if (request.method === "DELETE" && path.startsWith("books/")) {
+    requireRole(admin, "editor");
+    const bookId = decodeURIComponent(path.slice("books/".length));
+    await deleteBook(env, bookId);
+    return json(request, env, { ok: true });
+  }
   return json(request, env, { ok: false, error: "Admin route not found." }, 404);
 }
 
 async function authorizeAdmin(request: Request, env: Env): Promise<AuthenticatedAdmin> {
+  if (hasCloudflareAccessConfig(env)) {
+    const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion");
+    if (!accessJwt) {
+      throw new HttpError(401, "Cloudflare Access did not present a verified identity for this request.");
+    }
+    const identity = await verifyCloudflareAccessJwt(accessJwt, env);
+    return resolveDatabaseAdminIdentity(env, {
+      email: identity.email,
+      role: "marketing",
+      displayName: identity.email,
+      token: { provider: "cloudflare-access", sub: identity.sub },
+    });
+  }
   return resolveDatabaseAdminIdentity(env, await requireAdminSession(request, env));
 }
 
@@ -951,7 +1389,7 @@ async function buildAdminBootstrap(env: Env, admin: AuthenticatedAdmin) {
     viewer: { email: admin.email, role: admin.role, displayName: admin.displayName },
     metrics: { submissions, subscribers, orders, books, campaigns, lowStock, revenue: money(Number(revenue?.total || 0)) },
     formCounts,
-    endpoints: { publicApiUrl: env.PUBLIC_API_URL, adminUrl: env.PUBLIC_ADMIN_URL },
+    endpoints: { publicApiUrl: firstUrlValue(env.PUBLIC_API_URL), adminUrl: firstUrlValue(env.PUBLIC_ADMIN_URL) },
   };
 }
 
@@ -999,6 +1437,8 @@ async function listPublishedStoreBooks(env: Env): Promise<BookRecord[]> {
       preorder,
       status,
       publication_date AS publicationDate,
+      square_catalog_item_id AS squareCatalogItemId,
+      square_catalog_variation_id AS squareCatalogVariationId,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM books
@@ -1032,6 +1472,8 @@ async function listAllStoreBooks(env: Env): Promise<BookRecord[]> {
       preorder,
       status,
       publication_date AS publicationDate,
+      square_catalog_item_id AS squareCatalogItemId,
+      square_catalog_variation_id AS squareCatalogVariationId,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM books
@@ -1064,6 +1506,8 @@ async function getStoreBookById(env: Env, bookId: string): Promise<BookRecord | 
       preorder,
       status,
       publication_date AS publicationDate,
+      square_catalog_item_id AS squareCatalogItemId,
+      square_catalog_variation_id AS squareCatalogVariationId,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM books WHERE id = ?1`,
@@ -1096,6 +1540,8 @@ function mapBookRecord(row: Record<string, unknown>): BookRecord {
     preorder: Boolean(Number(row.preorder || 0)),
     status: text(row.status, 40) || "Draft",
     publicationDate: text(row.publicationDate, 50),
+    squareCatalogItemId: text(row.squareCatalogItemId, 200),
+    squareCatalogVariationId: text(row.squareCatalogVariationId, 200),
     createdAt: text(row.createdAt, 50),
     updatedAt: text(row.updatedAt, 50),
   };
@@ -1124,8 +1570,8 @@ async function saveBook(env: Env, admin: AuthenticatedAdmin, body: Record<string
       id, sku, isbn, title, subtitle, author, synopsis, short_description,
       format, category, price, compare_price, stock, low_stock_threshold,
       image_key, image_url, featured, coming_soon, preorder, status,
-      publication_date, created_at, updated_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, COALESCE((SELECT created_at FROM books WHERE id = ?1), datetime('now')), datetime('now'))
+      publication_date, square_catalog_item_id, square_catalog_variation_id, created_at, updated_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, COALESCE((SELECT created_at FROM books WHERE id = ?1), datetime('now')), datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       sku = excluded.sku,
       isbn = excluded.isbn,
@@ -1145,9 +1591,11 @@ async function saveBook(env: Env, admin: AuthenticatedAdmin, body: Record<string
       preorder = excluded.preorder,
       status = excluded.status,
       publication_date = excluded.publication_date,
+      square_catalog_item_id = excluded.square_catalog_item_id,
+      square_catalog_variation_id = excluded.square_catalog_variation_id,
       updated_at = datetime('now')`,
   )
-    .bind(bookId, sku, text(body.isbn, 80), title, text(body.subtitle, 300), text(body.author, 200), text(body.synopsis, 12000), text(body.shortDescription, 1000), text(body.format, 100), text(body.category, 150), money(Number(body.price || 0)), money(Number(body.comparePrice || 0)), stock, Math.max(0, Math.floor(Number(body.lowStockThreshold || 5))), existing?.imageKey || "", existing?.imageUrl || "", toBoolean(body.featured) ? 1 : 0, toBoolean(body.comingSoon) ? 1 : 0, preorder ? 1 : 0, status, text(body.publicationDate, 50))
+    .bind(bookId, sku, text(body.isbn, 80), title, text(body.subtitle, 300), text(body.author, 200), text(body.synopsis, 12000), text(body.shortDescription, 1000), text(body.format, 100), text(body.category, 150), money(Number(body.price || 0)), money(Number(body.comparePrice || 0)), stock, Math.max(0, Math.floor(Number(body.lowStockThreshold || 5))), existing?.imageKey || "", existing?.imageUrl || "", toBoolean(body.featured) ? 1 : 0, toBoolean(body.comingSoon) ? 1 : 0, preorder ? 1 : 0, status, text(body.publicationDate, 50), text(body.squareCatalogItemId, 200), text(body.squareCatalogVariationId, 200))
     .run();
 
   if (existing && existing.stock !== stock) {
@@ -1192,6 +1640,13 @@ async function removeBookImage(env: Env, bookId: string) {
     .run();
 }
 
+async function deleteBook(env: Env, bookId: string) {
+  const book = await getStoreBookById(env, bookId);
+  if (!book) throw new HttpError(404, "Book not found.");
+  if (book.imageKey) await env.BOOK_ASSETS.delete(book.imageKey);
+  await env.DB.prepare("DELETE FROM books WHERE id = ?1").bind(bookId).run();
+}
+
 async function serveBookImage(url: URL, env: Env): Promise<Response> {
   const object = await env.BOOK_ASSETS.get(decodeURIComponent(url.pathname.slice("/media/books/".length)));
   if (!object || !object.body) return new Response("Not found", { status: 404 });
@@ -1200,6 +1655,557 @@ async function serveBookImage(url: URL, env: Env): Promise<Response> {
   headers.set("Cache-Control", "public, max-age=86400");
   if (object.httpEtag) headers.set("ETag", object.httpEtag);
   return new Response(object.body, { headers });
+}
+
+async function serveSponsorLogo(url: URL, env: Env): Promise<Response> {
+  const object = await env.BOOK_ASSETS.get(decodeURIComponent(url.pathname.slice("/media/sponsors/".length)));
+  if (!object || !object.body) return new Response("Not found", { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "public, max-age=86400");
+  if (object.httpEtag) headers.set("ETag", object.httpEtag);
+  return new Response(object.body, { headers });
+}
+
+function buildPublicSponsorLogoUrl(env: Env, logoKey: string) {
+  const base = firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "");
+  return `${base}/media/sponsors/${encodeURIComponent(logoKey)}`;
+}
+
+async function writeAuditLog(
+  env: Env,
+  admin: AuthenticatedAdmin,
+  action: string,
+  entityType: string,
+  entityId: string,
+  detail: string,
+): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO audit_log (id, created_at, admin_email, action, entity_type, entity_id, detail) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6)",
+  )
+    .bind(crypto.randomUUID(), admin.email, action, entityType, entityId, text(detail, 2000))
+    .run();
+}
+
+function mapSponsorRecord(row: Record<string, unknown>): SponsorRecord {
+  return {
+    id: text(row.id, 60),
+    package: text(row.package, 60),
+    booksSponsored: Number(row.booksSponsored || 0),
+    amountPaidCents: Number(row.amountPaidCents || 0),
+    payerName: text(row.payerName, 200),
+    payerEmail: text(row.payerEmail, 320),
+    displayName: text(row.displayName, 200),
+    entityType: text(row.entityType, 40) || "individual",
+    anonymous: Boolean(Number(row.anonymous || 0)),
+    publishPermission: Boolean(Number(row.publishPermission || 0)),
+    logoKey: text(row.logoKey, 300),
+    logoUrl: text(row.logoUrl, 1000),
+    logoAlt: text(row.logoAlt, 300),
+    websiteUrl: text(row.websiteUrl, 1000),
+    recognitionStatus: text(row.recognitionStatus, 40) || "Awaiting Payment",
+    adminNotes: text(row.adminNotes, 4000),
+    displayOrder: Number(row.displayOrder || 0),
+    approvedBy: text(row.approvedBy, 320),
+    paidAt: text(row.paidAt, 50),
+    approvedAt: text(row.approvedAt, 50),
+    publishedAt: text(row.publishedAt, 50),
+    createdAt: text(row.createdAt, 50),
+    updatedAt: text(row.updatedAt, 50),
+  };
+}
+
+const SPONSOR_SELECT = `SELECT
+  id, package, books_sponsored AS booksSponsored, amount_paid_cents AS amountPaidCents,
+  payer_name AS payerName, payer_email AS payerEmail, display_name AS displayName,
+  entity_type AS entityType, anonymous, publish_permission AS publishPermission,
+  logo_key AS logoKey, logo_url AS logoUrl, logo_alt AS logoAlt, website_url AS websiteUrl,
+  recognition_status AS recognitionStatus, admin_notes AS adminNotes, display_order AS displayOrder,
+  approved_by AS approvedBy, paid_at AS paidAt, approved_at AS approvedAt, published_at AS publishedAt,
+  created_at AS createdAt, updated_at AS updatedAt
+FROM sponsors`;
+
+async function getSponsorById(env: Env, sponsorId: string): Promise<SponsorRecord | null> {
+  const row = await env.DB.prepare(`${SPONSOR_SELECT} WHERE id = ?1`)
+    .bind(text(sponsorId, 60))
+    .first<Record<string, unknown>>();
+  return row ? mapSponsorRecord(row) : null;
+}
+
+async function listAdminSponsors(
+  env: Env,
+  filters: { status: string; package: string; page: number; pageSize: number },
+): Promise<{ sponsors: SponsorRecord[]; total: number; page: number; pageSize: number }> {
+  const conditions: string[] = [];
+  const bindings: unknown[] = [];
+  if (filters.status) {
+    conditions.push(`recognition_status = ?${bindings.length + 1}`);
+    bindings.push(filters.status);
+  }
+  if (filters.package) {
+    conditions.push(`package = ?${bindings.length + 1}`);
+    bindings.push(filters.package);
+  }
+  const whereClause = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const totalRow = await env.DB.prepare(`SELECT COUNT(*) AS count FROM sponsors${whereClause}`)
+    .bind(...bindings)
+    .first<{ count: number }>();
+  const offset = (filters.page - 1) * filters.pageSize;
+  const rows = await env.DB.prepare(
+    `${SPONSOR_SELECT}${whereClause} ORDER BY datetime(created_at) DESC LIMIT ?${bindings.length + 1} OFFSET ?${bindings.length + 2}`,
+  )
+    .bind(...bindings, filters.pageSize, offset)
+    .all<Record<string, unknown>>();
+  return {
+    sponsors: (rows.results || []).map(mapSponsorRecord),
+    total: Number(totalRow?.count || 0),
+    page: filters.page,
+    pageSize: filters.pageSize,
+  };
+}
+
+async function saveAdminSponsor(
+  env: Env,
+  admin: AuthenticatedAdmin,
+  body: Record<string, string>,
+): Promise<SponsorRecord> {
+  const existing = body.sponsorId ? await getSponsorById(env, body.sponsorId) : null;
+  const sponsorId = existing?.id || "SP-" + crypto.randomUUID().slice(0, 10).toUpperCase();
+  const payerEmail = text(body.payerEmail, 320).toLowerCase();
+  if (payerEmail && !isValidEmail(payerEmail)) throw new HttpError(400, "Enter a valid sponsor email address.");
+
+  await env.DB.prepare(
+    `INSERT INTO sponsors (
+      id, package, books_sponsored, amount_paid_cents, payer_name, payer_email, display_name,
+      entity_type, anonymous, publish_permission, website_url, recognition_status, admin_notes,
+      display_order, approved_by, paid_at, approved_at, created_at, updated_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+      COALESCE((SELECT created_at FROM sponsors WHERE id = ?1), datetime('now')), datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      package = excluded.package,
+      books_sponsored = excluded.books_sponsored,
+      amount_paid_cents = excluded.amount_paid_cents,
+      payer_name = excluded.payer_name,
+      payer_email = excluded.payer_email,
+      display_name = excluded.display_name,
+      entity_type = excluded.entity_type,
+      anonymous = excluded.anonymous,
+      publish_permission = excluded.publish_permission,
+      website_url = excluded.website_url,
+      recognition_status = excluded.recognition_status,
+      admin_notes = excluded.admin_notes,
+      display_order = excluded.display_order,
+      updated_at = datetime('now')`,
+  )
+    .bind(
+      sponsorId,
+      text(body.package, 60) || existing?.package || "pagePal",
+      Math.max(0, Math.floor(Number(body.booksSponsored || existing?.booksSponsored || 0))),
+      Math.max(0, Math.floor(Number(body.amountPaidCents || existing?.amountPaidCents || 0))),
+      text(body.payerName, 200) || existing?.payerName || "",
+      payerEmail || existing?.payerEmail || "",
+      text(body.displayName, 200) || existing?.displayName || "",
+      text(body.entityType, 40) || existing?.entityType || "individual",
+      toBoolean(body.anonymous ?? String(existing?.anonymous ?? "")) ? 1 : 0,
+      toBoolean(body.publishPermission ?? String(existing?.publishPermission ?? "")) ? 1 : 0,
+      safeUrl(body.websiteUrl) || existing?.websiteUrl || "",
+      text(body.recognitionStatus, 40) || existing?.recognitionStatus || "Awaiting Payment",
+      text(body.adminNotes, 4000),
+      Math.max(0, Math.floor(Number(body.displayOrder || existing?.displayOrder || 0))),
+      existing?.approvedBy || "",
+      existing?.paidAt || "",
+      existing?.approvedAt || "",
+    )
+    .run();
+
+  await writeAuditLog(env, admin, existing ? "sponsor.update" : "sponsor.create", "sponsor", sponsorId, JSON.stringify(body));
+  const saved = await getSponsorById(env, sponsorId);
+  if (!saved) throw new Error("Sponsor could not be reloaded after saving.");
+  return saved;
+}
+
+async function setSponsorRecognitionStatus(
+  env: Env,
+  admin: AuthenticatedAdmin,
+  sponsorId: string,
+  status: "Published" | "Hidden",
+): Promise<SponsorRecord> {
+  const sponsor = await getSponsorById(env, sponsorId);
+  if (!sponsor) throw new HttpError(404, "Sponsor not found.");
+  if (status === "Published") {
+    if (!sponsor.publishPermission) throw new HttpError(400, "This sponsor has not granted permission to publish their recognition.");
+    if (!sponsor.anonymous && !sponsor.displayName) throw new HttpError(400, "Add a display name before publishing.");
+  }
+  await env.DB.prepare(
+    `UPDATE sponsors SET recognition_status = ?2, approved_by = ?3, approved_at = datetime('now'), published_at = CASE WHEN ?2 = 'Published' THEN datetime('now') ELSE published_at END, updated_at = datetime('now') WHERE id = ?1`,
+  )
+    .bind(sponsorId, status, admin.email)
+    .run();
+  await writeAuditLog(env, admin, status === "Published" ? "sponsor.publish" : "sponsor.hide", "sponsor", sponsorId, "");
+  const updated = await getSponsorById(env, sponsorId);
+  if (!updated) throw new Error("Sponsor could not be reloaded after updating.");
+  return updated;
+}
+
+async function uploadSponsorLogo(request: Request, env: Env, sponsorId: string) {
+  const sponsor = await getSponsorById(env, sponsorId);
+  if (!sponsor) throw new HttpError(404, "Sponsor not found.");
+  const formData = await request.formData();
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new HttpError(400, "Choose an image file.");
+  const mimeType = file.type.toLowerCase();
+  if (!["image/png", "image/jpeg", "image/webp", "image/svg+xml"].includes(mimeType)) {
+    throw new HttpError(400, "Use a PNG, JPG, JPEG, SVG, or WebP image.");
+  }
+  if (file.size > 3 * 1024 * 1024) throw new HttpError(400, "Logo must be 3 MB or smaller.");
+  const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : mimeType === "image/svg+xml" ? "svg" : "jpg";
+  const logoKey = `sponsors/${sponsorId}/${crypto.randomUUID()}.${extension}`;
+  await env.BOOK_ASSETS.put(logoKey, await file.arrayBuffer(), { httpMetadata: { contentType: mimeType } });
+  const logoUrl = buildPublicSponsorLogoUrl(env, logoKey);
+  if (sponsor.logoKey) await env.BOOK_ASSETS.delete(sponsor.logoKey);
+  await env.DB.prepare("UPDATE sponsors SET logo_key = ?2, logo_url = ?3, logo_alt = ?4, updated_at = datetime('now') WHERE id = ?1")
+    .bind(sponsorId, logoKey, logoUrl, text(formData.get("alt"), 300) || sponsor.displayName)
+    .run();
+  return { logoKey, logoUrl };
+}
+
+async function removeSponsorLogo(env: Env, sponsorId: string) {
+  const sponsor = await getSponsorById(env, sponsorId);
+  if (!sponsor) throw new HttpError(404, "Sponsor not found.");
+  if (sponsor.logoKey) await env.BOOK_ASSETS.delete(sponsor.logoKey);
+  await env.DB.prepare("UPDATE sponsors SET logo_key = '', logo_url = '', logo_alt = '', updated_at = datetime('now') WHERE id = ?1")
+    .bind(sponsorId)
+    .run();
+}
+
+async function deleteSponsor(env: Env, sponsorId: string) {
+  const sponsor = await getSponsorById(env, sponsorId);
+  if (!sponsor) throw new HttpError(404, "Sponsor not found.");
+  const payments = await env.DB.prepare("SELECT COUNT(*) AS count FROM sponsor_payments WHERE sponsor_id = ?1")
+    .bind(sponsorId)
+    .first<{ count: number }>();
+  if (Number(payments?.count || 0) > 0) {
+    throw new HttpError(400, "This sponsor has payment history and can't be deleted. Hide it instead.");
+  }
+  if (sponsor.logoKey) await env.BOOK_ASSETS.delete(sponsor.logoKey);
+  await env.DB.prepare("DELETE FROM sponsors WHERE id = ?1").bind(sponsorId).run();
+}
+
+async function serveAuthorPortrait(url: URL, env: Env) {
+  const object = await env.BOOK_ASSETS.get(decodeURIComponent(url.pathname.slice("/media/authors/".length)));
+  if (!object || !object.body) return new Response("Not found", { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "public, max-age=86400");
+  if (object.httpEtag) headers.set("ETag", object.httpEtag);
+  return new Response(object.body, { headers });
+}
+
+function buildPublicAuthorPortraitUrl(env: Env, portraitKey: string) {
+  const base = firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "");
+  return `${base}/media/authors/${encodeURIComponent(portraitKey)}`;
+}
+
+function mapAuthorRecord(row: Record<string, unknown>): AuthorRecord {
+  return {
+    id: text(row.id, 60),
+    name: text(row.name, 200),
+    title: text(row.title, 200),
+    shortIntro: text(row.shortIntro, 500),
+    biography: text(row.biography, 12000),
+    portraitKey: text(row.portraitKey, 300),
+    portraitUrl: text(row.portraitUrl, 1000),
+    portraitAlt: text(row.portraitAlt, 300),
+    portraitFocalX: Number(row.portraitFocalX ?? 50),
+    portraitFocalY: Number(row.portraitFocalY ?? 50),
+    websiteUrl: text(row.websiteUrl, 1000),
+    socialLinks: text(row.socialLinks, 2000) || "[]",
+    relatedBookIds: text(row.relatedBookIds, 2000) || "[]",
+    ctaLabel: text(row.ctaLabel, 100),
+    ctaUrl: text(row.ctaUrl, 1000),
+    status: text(row.status, 40) || "Draft",
+    startAt: text(row.startAt, 50),
+    endAt: text(row.endAt, 50),
+    displayOrder: Number(row.displayOrder || 0),
+    createdAt: text(row.createdAt, 50),
+    updatedAt: text(row.updatedAt, 50),
+  };
+}
+
+const AUTHOR_SELECT = `SELECT
+  id, name, title, short_intro AS shortIntro, biography, portrait_key AS portraitKey,
+  portrait_url AS portraitUrl, portrait_alt AS portraitAlt, portrait_focal_x AS portraitFocalX,
+  portrait_focal_y AS portraitFocalY, website_url AS websiteUrl, social_links AS socialLinks,
+  related_book_ids AS relatedBookIds, cta_label AS ctaLabel, cta_url AS ctaUrl, status,
+  start_at AS startAt, end_at AS endAt, display_order AS displayOrder,
+  created_at AS createdAt, updated_at AS updatedAt
+FROM authors`;
+
+async function getAuthorById(env: Env, authorId: string): Promise<AuthorRecord | null> {
+  const row = await env.DB.prepare(`${AUTHOR_SELECT} WHERE id = ?1`)
+    .bind(text(authorId, 60))
+    .first<Record<string, unknown>>();
+  return row ? mapAuthorRecord(row) : null;
+}
+
+async function listAdminAuthors(env: Env, status: string): Promise<AuthorRecord[]> {
+  const rows = status
+    ? await env.DB.prepare(`${AUTHOR_SELECT} WHERE status = ?1 ORDER BY display_order ASC, datetime(created_at) DESC`).bind(status).all<Record<string, unknown>>()
+    : await env.DB.prepare(`${AUTHOR_SELECT} ORDER BY display_order ASC, datetime(created_at) DESC`).all<Record<string, unknown>>();
+  return (rows.results || []).map(mapAuthorRecord);
+}
+
+async function saveAdminAuthor(
+  env: Env,
+  admin: AuthenticatedAdmin,
+  body: Record<string, string>,
+): Promise<AuthorRecord> {
+  const existing = body.authorId ? await getAuthorById(env, body.authorId) : null;
+  const authorId = existing?.id || "AU-" + crypto.randomUUID().slice(0, 10).toUpperCase();
+  const name = text(body.name, 200) || existing?.name || "";
+  if (!name) throw new HttpError(400, "Author name is required.");
+
+  let socialLinks = existing?.socialLinks || "[]";
+  if (typeof body.socialLinks === "string") {
+    try {
+      const parsed = JSON.parse(body.socialLinks || "[]");
+      if (Array.isArray(parsed)) socialLinks = JSON.stringify(parsed.slice(0, 20).map((entry) => String(entry || "").slice(0, 500)));
+    } catch {
+      throw new HttpError(400, "Social links must be valid JSON (an array of URLs).");
+    }
+  }
+  let relatedBookIds = existing?.relatedBookIds || "[]";
+  if (typeof body.relatedBookIds === "string") {
+    try {
+      const parsed = JSON.parse(body.relatedBookIds || "[]");
+      if (Array.isArray(parsed)) relatedBookIds = JSON.stringify(parsed.slice(0, 50).map((entry) => String(entry || "").slice(0, 120)));
+    } catch {
+      throw new HttpError(400, "Related books must be valid JSON (an array of book IDs).");
+    }
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO authors (
+      id, name, title, short_intro, biography, website_url, social_links, related_book_ids,
+      cta_label, cta_url, status, start_at, end_at, display_order,
+      portrait_focal_x, portrait_focal_y, created_at, updated_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+      COALESCE((SELECT created_at FROM authors WHERE id = ?1), datetime('now')), datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      title = excluded.title,
+      short_intro = excluded.short_intro,
+      biography = excluded.biography,
+      website_url = excluded.website_url,
+      social_links = excluded.social_links,
+      related_book_ids = excluded.related_book_ids,
+      cta_label = excluded.cta_label,
+      cta_url = excluded.cta_url,
+      start_at = excluded.start_at,
+      end_at = excluded.end_at,
+      display_order = excluded.display_order,
+      portrait_focal_x = excluded.portrait_focal_x,
+      portrait_focal_y = excluded.portrait_focal_y,
+      updated_at = datetime('now')`,
+  )
+    .bind(
+      authorId,
+      name,
+      text(body.title, 200) || existing?.title || "",
+      text(body.shortIntro, 500) || existing?.shortIntro || "",
+      text(body.biography, 12000) || existing?.biography || "",
+      safeUrl(body.websiteUrl) || existing?.websiteUrl || "",
+      socialLinks,
+      relatedBookIds,
+      text(body.ctaLabel, 100) || existing?.ctaLabel || "",
+      safeUrl(body.ctaUrl) || existing?.ctaUrl || "",
+      existing?.status || "Draft",
+      text(body.startAt, 50) || existing?.startAt || "",
+      text(body.endAt, 50) || existing?.endAt || "",
+      Math.max(0, Math.floor(Number(body.displayOrder ?? existing?.displayOrder ?? 0))),
+      Math.min(100, Math.max(0, Number(body.portraitFocalX ?? existing?.portraitFocalX ?? 50))),
+      Math.min(100, Math.max(0, Number(body.portraitFocalY ?? existing?.portraitFocalY ?? 50))),
+    )
+    .run();
+
+  await writeAuditLog(env, admin, existing ? "author.update" : "author.create", "author", authorId, JSON.stringify(body));
+  const saved = await getAuthorById(env, authorId);
+  if (!saved) throw new Error("Author could not be reloaded after saving.");
+  return saved;
+}
+
+async function setAuthorStatus(
+  env: Env,
+  admin: AuthenticatedAdmin,
+  authorId: string,
+  status: "Published" | "Draft",
+): Promise<AuthorRecord> {
+  const author = await getAuthorById(env, authorId);
+  if (!author) throw new HttpError(404, "Author not found.");
+  if (status === "Published") {
+    if (!author.name) throw new HttpError(400, "Add an author name before publishing.");
+    // Only one author may be Published at a time (enforced by a partial unique
+    // index too); demote any currently-published author first so publishing a
+    // new one is a smooth swap instead of a constraint-violation error.
+    await env.DB.prepare("UPDATE authors SET status = 'Draft', updated_at = datetime('now') WHERE status = 'Published' AND id != ?1")
+      .bind(authorId)
+      .run();
+  }
+  await env.DB.prepare("UPDATE authors SET status = ?2, updated_at = datetime('now') WHERE id = ?1")
+    .bind(authorId, status)
+    .run();
+  await writeAuditLog(env, admin, status === "Published" ? "author.publish" : "author.hide", "author", authorId, "");
+  const updated = await getAuthorById(env, authorId);
+  if (!updated) throw new Error("Author could not be reloaded after updating.");
+  return updated;
+}
+
+async function uploadAuthorPortrait(request: Request, env: Env, authorId: string) {
+  const author = await getAuthorById(env, authorId);
+  if (!author) throw new HttpError(404, "Author not found.");
+  const formData = await request.formData();
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new HttpError(400, "Choose an image file.");
+  const mimeType = file.type.toLowerCase();
+  if (!["image/png", "image/jpeg", "image/webp"].includes(mimeType)) {
+    throw new HttpError(400, "Use a PNG, JPG, JPEG, or WebP image.");
+  }
+  if (file.size > 5 * 1024 * 1024) throw new HttpError(400, "Portrait must be 5 MB or smaller.");
+  const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+  const portraitKey = `authors/${authorId}/${crypto.randomUUID()}.${extension}`;
+  await env.BOOK_ASSETS.put(portraitKey, await file.arrayBuffer(), { httpMetadata: { contentType: mimeType } });
+  const portraitUrl = buildPublicAuthorPortraitUrl(env, portraitKey);
+  if (author.portraitKey) await env.BOOK_ASSETS.delete(author.portraitKey);
+  await env.DB.prepare("UPDATE authors SET portrait_key = ?2, portrait_url = ?3, portrait_alt = ?4, updated_at = datetime('now') WHERE id = ?1")
+    .bind(authorId, portraitKey, portraitUrl, text(formData.get("alt"), 300) || author.name)
+    .run();
+  return { portraitKey, portraitUrl };
+}
+
+async function removeAuthorPortrait(env: Env, authorId: string) {
+  const author = await getAuthorById(env, authorId);
+  if (!author) throw new HttpError(404, "Author not found.");
+  if (author.portraitKey) await env.BOOK_ASSETS.delete(author.portraitKey);
+  await env.DB.prepare("UPDATE authors SET portrait_key = '', portrait_url = '', portrait_alt = '', updated_at = datetime('now') WHERE id = ?1")
+    .bind(authorId)
+    .run();
+}
+
+async function deleteAuthor(env: Env, authorId: string) {
+  const author = await getAuthorById(env, authorId);
+  if (!author) throw new HttpError(404, "Author not found.");
+  if (author.portraitKey) await env.BOOK_ASSETS.delete(author.portraitKey);
+  await env.DB.prepare("DELETE FROM authors WHERE id = ?1").bind(authorId).run();
+}
+
+async function getPublicFeaturedAuthor(env: Env): Promise<Record<string, unknown> | null> {
+  const now = new Date().toISOString();
+  const row = await env.DB.prepare(
+    `${AUTHOR_SELECT} WHERE status = 'Published'
+       AND (start_at = '' OR start_at <= ?1)
+       AND (end_at = '' OR end_at >= ?1)
+     LIMIT 1`,
+  )
+    .bind(now)
+    .first<Record<string, unknown>>();
+  if (!row) return null;
+  const author = mapAuthorRecord(row);
+  let relatedBooks: Array<{ bookId: string; title: string; imageUrl: string }> = [];
+  try {
+    const ids = (JSON.parse(author.relatedBookIds || "[]") as unknown[]).map((id) => String(id || "")).filter(Boolean);
+    if (ids.length) {
+      const books = await listAllStoreBooks(env);
+      relatedBooks = ids
+        .map((id) => books.find((book) => book.bookId === id && isPublicBookStatus(book.status)))
+        .filter((book): book is BookRecord => Boolean(book))
+        .map((book) => ({ bookId: book.bookId, title: book.title, imageUrl: book.imageUrl }));
+    }
+  } catch {
+    relatedBooks = [];
+  }
+  return {
+    id: author.id,
+    name: author.name,
+    title: author.title,
+    shortIntro: author.shortIntro,
+    biography: author.biography,
+    portraitUrl: author.portraitUrl,
+    portraitAlt: author.portraitAlt || author.name,
+    portraitFocalX: author.portraitFocalX,
+    portraitFocalY: author.portraitFocalY,
+    websiteUrl: author.websiteUrl,
+    socialLinks: (() => {
+      try {
+        return JSON.parse(author.socialLinks || "[]");
+      } catch {
+        return [];
+      }
+    })(),
+    ctaLabel: author.ctaLabel,
+    ctaUrl: author.ctaUrl,
+    relatedBooks,
+  };
+}
+
+/**
+ * Public, redacted sponsor recognition feed for read-it-forward.html. Only
+ * Published sponsors are ever returned. Page Pal / Chapter Champion /
+ * Bookshelf Builder sponsors are grouped into simple named lists (with
+ * anonymous sponsors consolidated into a single count); Literacy Trailblazer
+ * sponsors are returned individually since they may show a logo.
+ */
+async function listPublicSponsors(env: Env, params: URLSearchParams) {
+  const page = clampInt(params.get("page"), 1, 1000, 1);
+  const pageSize = clampInt(params.get("pageSize"), 1, 48, 12);
+
+  const namedGroups: Record<string, { names: string[]; anonymousCount: number }> = {
+    pagePal: { names: [], anonymousCount: 0 },
+    chapterChampion: { names: [], anonymousCount: 0 },
+    bookshelfBuilder: { names: [], anonymousCount: 0 },
+  };
+  const groupRows = await env.DB.prepare(
+    `${SPONSOR_SELECT} WHERE recognition_status = 'Published' AND package IN ('pagePal','chapterChampion','bookshelfBuilder') ORDER BY display_order ASC, datetime(created_at) ASC`,
+  ).all<Record<string, unknown>>();
+  for (const row of groupRows.results || []) {
+    const sponsor = mapSponsorRecord(row);
+    const group = namedGroups[sponsor.package];
+    if (!group) continue;
+    if (sponsor.anonymous || !sponsor.displayName) group.anonymousCount += 1;
+    else group.names.push(sponsor.displayName);
+  }
+
+  const totalRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM sponsors WHERE recognition_status = 'Published' AND package = 'literacyTrailblazer'",
+  ).first<{ count: number }>();
+  const trailblazerRows = await env.DB.prepare(
+    `${SPONSOR_SELECT} WHERE recognition_status = 'Published' AND package = 'literacyTrailblazer' ORDER BY display_order ASC, datetime(created_at) DESC LIMIT ?1 OFFSET ?2`,
+  )
+    .bind(pageSize, (page - 1) * pageSize)
+    .all<Record<string, unknown>>();
+
+  return {
+    groups: Object.entries(namedGroups).map(([packageKey, group]) => ({
+      package: packageKey,
+      label: SPONSOR_PACKAGES[packageKey as SponsorPackageKey]?.label || packageKey,
+      names: group.names,
+      anonymousCount: group.anonymousCount,
+    })),
+    trailblazers: (trailblazerRows.results || []).map((row) => {
+      const sponsor = mapSponsorRecord(row);
+      return {
+        id: sponsor.id,
+        displayName: sponsor.anonymous ? "" : sponsor.displayName,
+        anonymous: sponsor.anonymous,
+        booksSponsored: sponsor.booksSponsored,
+        logoUrl: sponsor.anonymous ? "" : sponsor.logoUrl,
+        logoAlt: sponsor.anonymous ? "" : sponsor.logoAlt,
+        websiteUrl: sponsor.anonymous ? "" : sponsor.websiteUrl,
+      };
+    }),
+    total: Number(totalRow?.count || 0),
+    page,
+    pageSize,
+  };
 }
 
 async function getInventorySummary(env: Env) {
@@ -1239,9 +2245,26 @@ async function adjustInventory(env: Env, admin: AuthenticatedAdmin, body: Record
 
 async function listOrders(env: Env, limit: number) {
   const rows = await env.DB.prepare(
-    "SELECT order_number AS orderNumber, stripe_session_id AS stripeSessionId, stripe_payment_id AS stripePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders ORDER BY datetime(created_at) DESC LIMIT ?1",
-  ).bind(limit).all();
-  return rows.results || [];
+    "SELECT order_number AS orderNumber, square_order_id AS squareOrderId, square_payment_id AS squarePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders ORDER BY datetime(created_at) DESC LIMIT ?1",
+  ).bind(limit).all<Record<string, unknown>>();
+  const orders = rows.results || [];
+  if (!orders.length) return orders;
+
+  const orderNumbers = orders.map((order) => text(order.orderNumber, 120));
+  const placeholders = orderNumbers.map((_, index) => `?${index + 1}`).join(",");
+  const itemRows = await env.DB.prepare(
+    `SELECT order_number AS orderNumber, book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number IN (${placeholders})`,
+  )
+    .bind(...orderNumbers)
+    .all<Record<string, unknown>>();
+
+  const itemsByOrder = new Map<string, Record<string, unknown>[]>();
+  for (const item of itemRows.results || []) {
+    const key = text(item.orderNumber, 120);
+    if (!itemsByOrder.has(key)) itemsByOrder.set(key, []);
+    itemsByOrder.get(key)!.push(item);
+  }
+  return orders.map((order) => ({ ...order, items: itemsByOrder.get(text(order.orderNumber, 120)) || [] }));
 }
 
 async function updateFulfillment(env: Env, orderNumber: string, body: Record<string, string>) {
@@ -1249,23 +2272,27 @@ async function updateFulfillment(env: Env, orderNumber: string, body: Record<str
     .bind(text(orderNumber, 120), text(body.fulfillmentStatus, 80) || "Unfulfilled", text(body.trackingNumber, 200), text(body.notes, 4000))
     .run();
   const rows = await env.DB.prepare(
-    "SELECT order_number AS orderNumber, stripe_session_id AS stripeSessionId, stripe_payment_id AS stripePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders WHERE order_number = ?1",
+    "SELECT order_number AS orderNumber, square_order_id AS squareOrderId, square_payment_id AS squarePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders WHERE order_number = ?1",
   ).bind(text(orderNumber, 120)).first();
   return rows;
 }
 
 async function getNewsletterBuilderState(env: Env, admin: AuthenticatedAdmin) {
   const books = (await listAllStoreBooks(env)).filter((book) => book.status !== "Archived").map((book) => ({ bookId: book.bookId, title: book.title, author: book.author, shortDescription: book.shortDescription || book.synopsis, imageUrl: book.imageUrl, status: book.status }));
+  const bookBuzzTargets = await env.DB.prepare(
+    "SELECT title, COUNT(*) AS signups FROM form_submissions WHERE form_type = 'bookNotification' AND title != '' AND status != 'Unsubscribed' GROUP BY title ORDER BY signups DESC, title ASC",
+  ).all<{ title: string; signups: number }>();
   const campaigns = await env.DB.prepare(
-    "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns ORDER BY updated_at DESC LIMIT 30",
+    "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, target_type AS targetType, target_value AS targetValue, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns ORDER BY updated_at DESC LIMIT 30",
   ).all();
   return {
     subscriberCount: await countQuery(env, "SELECT COUNT(*) AS count FROM newsletter_subscribers WHERE status = 'active' AND consent = 1"),
     adminEmail: admin.email,
-    siteUrl: env.SITE_URL,
+    siteUrl: firstUrlValue(env.SITE_URL),
     books,
+    bookBuzzTargets: bookBuzzTargets.results || [],
     campaigns: campaigns.results || [],
-    defaults: { ...NEWSLETTER_DEFAULTS, fromName: "Jackrabbit Punkin Publishing LLC", heroCtaUrl: env.SITE_URL, quick1Url: env.SITE_URL, quick2Url: env.SITE_URL },
+    defaults: { ...NEWSLETTER_DEFAULTS, fromName: "Jackrabbit Punkin Publishing LLC", heroCtaUrl: firstUrlValue(env.SITE_URL), quick1Url: firstUrlValue(env.SITE_URL), quick2Url: firstUrlValue(env.SITE_URL) },
   };
 }
 
@@ -1275,12 +2302,12 @@ async function saveNewsletterCampaign(env: Env, body: Record<string, string>): P
   await env.DB.prepare(
     `INSERT INTO newsletter_campaigns (
       campaign_id, created_at, updated_at, status, title, subject, preview_text,
-      audience, from_name, hero_message, hero_cta_label, hero_cta_url,
+      audience, target_type, target_value, from_name, hero_message, hero_cta_label, hero_cta_url,
       featured_book_id, featured_book_title, featured_book_description, featured_book_image_url,
       featured_cta_label, featured_cta_url, quick1_title, quick1_text, quick1_url,
       quick2_title, quick2_text, quick2_url, closing_note, send_date, send_time,
       time_zone, scheduled_at, sent_at, recipients, sent, failed, last_error
-    ) VALUES (?1, COALESCE((SELECT created_at FROM newsletter_campaigns WHERE campaign_id = ?1), datetime('now')), datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, COALESCE((SELECT sent_at FROM newsletter_campaigns WHERE campaign_id = ?1), ''), COALESCE((SELECT recipients FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT sent FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT failed FROM newsletter_campaigns WHERE campaign_id = ?1), 0), '')
+    ) VALUES (?1, COALESCE((SELECT created_at FROM newsletter_campaigns WHERE campaign_id = ?1), datetime('now')), datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, COALESCE((SELECT sent_at FROM newsletter_campaigns WHERE campaign_id = ?1), ''), COALESCE((SELECT recipients FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT sent FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT failed FROM newsletter_campaigns WHERE campaign_id = ?1), 0), '')
     ON CONFLICT(campaign_id) DO UPDATE SET
       updated_at = datetime('now'),
       status = excluded.status,
@@ -1288,6 +2315,8 @@ async function saveNewsletterCampaign(env: Env, body: Record<string, string>): P
       subject = excluded.subject,
       preview_text = excluded.preview_text,
       audience = excluded.audience,
+      target_type = excluded.target_type,
+      target_value = excluded.target_value,
       from_name = excluded.from_name,
       hero_message = excluded.hero_message,
       hero_cta_label = excluded.hero_cta_label,
@@ -1311,10 +2340,10 @@ async function saveNewsletterCampaign(env: Env, body: Record<string, string>): P
       scheduled_at = excluded.scheduled_at,
       last_error = ''`,
   )
-    .bind(campaignId, normalized.status, normalized.title, normalized.subject, normalized.previewText, normalized.audience, normalized.fromName, normalized.heroMessage, normalized.heroCtaLabel, normalized.heroCtaUrl, normalized.featuredBookId, normalized.featuredBookTitle, normalized.featuredBookDescription, normalized.featuredBookImageUrl, normalized.featuredCtaLabel, normalized.featuredCtaUrl, normalized.quick1Title, normalized.quick1Text, normalized.quick1Url, normalized.quick2Title, normalized.quick2Text, normalized.quick2Url, normalized.closingNote, normalized.sendDate, normalized.sendTime, normalized.timeZone, normalized.scheduledAt)
+    .bind(campaignId, normalized.status, normalized.title, normalized.subject, normalized.previewText, normalized.audience, normalized.targetType, normalized.targetValue, normalized.fromName, normalized.heroMessage, normalized.heroCtaLabel, normalized.heroCtaUrl, normalized.featuredBookId, normalized.featuredBookTitle, normalized.featuredBookDescription, normalized.featuredBookImageUrl, normalized.featuredCtaLabel, normalized.featuredCtaUrl, normalized.quick1Title, normalized.quick1Text, normalized.quick1Url, normalized.quick2Title, normalized.quick2Text, normalized.quick2Url, normalized.closingNote, normalized.sendDate, normalized.sendTime, normalized.timeZone, normalized.scheduledAt)
     .run();
   const campaign = await env.DB.prepare(
-    "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE campaign_id = ?1",
+    "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, target_type AS targetType, target_value AS targetValue, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE campaign_id = ?1",
   ).bind(campaignId).first<NewsletterCampaignRecord>();
   if (!campaign) throw new Error("Campaign could not be reloaded after saving.");
   return campaign;
@@ -1331,6 +2360,8 @@ function normalizeNewsletterPayload(body: Record<string, string>) {
     subject,
     previewText: text(body.previewText, 240),
     audience: text(body.audience, 120) || NEWSLETTER_DEFAULTS.audience,
+    targetType: text(body.targetType, 40) === "book_interest" ? "book_interest" : "all",
+    targetValue: text(body.targetValue, 240),
     fromName: text(body.fromName, 120) || "Jackrabbit Punkin Publishing LLC",
     heroMessage: text(body.heroMessage, 3000),
     heroCtaLabel: text(body.heroCtaLabel, 100),
@@ -1384,11 +2415,11 @@ async function saveAdmin(env: Env, body: Record<string, string>): Promise<AdminU
 async function sendSubmissionEmails(env: Env, formType: FormType, record: ReturnType<typeof normalizeFormRecord>) {
   const submitterEmail = record.email.toLowerCase();
   if (formType !== "bookNotification") {
-    const adminMessage = buildAdminMessage(formType, record, env.SITE_URL);
+    const adminMessage = buildAdminMessage(formType, record, firstUrlValue(env.SITE_URL));
     await sendEmail(env, { to: env.ADMIN_NOTIFICATION_EMAIL, subject: adminMessage.subject, html: adminMessage.html, text: adminMessage.text, replyTo: isValidEmail(submitterEmail) ? submitterEmail : env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing Website" });
   }
   if (isValidEmail(submitterEmail)) {
-    const userMessage = buildUserMessage(formType, record, env.SITE_URL, await getUnsubscribeUrl(env, submitterEmail));
+    const userMessage = buildUserMessage(formType, record, firstUrlValue(env.SITE_URL), await getUnsubscribeUrl(env, submitterEmail));
     await sendEmail(env, { to: submitterEmail, subject: userMessage.subject, html: userMessage.html, text: userMessage.text, replyTo: env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing LLC" });
   }
 }
@@ -1487,7 +2518,7 @@ async function getUnsubscribeUrl(env: Env, email: string) {
   if (!isValidEmail(normalized)) return "";
   const encodedEmail = base64UrlEncode(normalized);
   const signature = await signValue(encodedEmail, env.UNSUBSCRIBE_SECRET);
-  return `${env.PUBLIC_API_URL.replace(/\/$/, "")}/?action=unsubscribe&e=${encodeURIComponent(encodedEmail)}&sig=${encodeURIComponent(signature)}`;
+  return `${firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "")}/?action=unsubscribe&e=${encodeURIComponent(encodedEmail)}&sig=${encodeURIComponent(signature)}`;
 }
 
 function buildNewsletterPlainText(campaign: NewsletterCampaignRecord, unsubscribeUrl: string) {
@@ -1506,9 +2537,9 @@ function buildNewsletterPlainText(campaign: NewsletterCampaignRecord, unsubscrib
 
 function buildNewsletterEmailHtml(env: Env, campaign: NewsletterCampaignRecord, unsubscribeUrl: string) {
   const preview = campaign.previewText ? '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">' + escapeHtml(campaign.previewText) + "</div>" : "";
-  const logoUrl = env.SITE_URL.replace(/\/$/, "") + "/assets/jrppLogo2.png";
+  const logoUrl = firstUrlValue(env.SITE_URL).replace(/\/$/, "") + "/assets/jrppLogo2.png";
   const heroButton = campaign.heroCtaLabel && campaign.heroCtaUrl ? '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:20px auto 0;"><tr><td style="border-radius:999px;background:#542476;"><a href="' + escapeHtml(campaign.heroCtaUrl) + '" style="display:inline-block;padding:12px 20px;color:#fff;text-decoration:none;font-size:14px;font-weight:700;">' + escapeHtml(campaign.heroCtaLabel) + "</a></td></tr></table>" : "";
-  return '<!doctype html><html><body style="margin:0;padding:0;background:#f3f0e9;font-family:Arial,Helvetica,sans-serif;">' + preview + '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f0e9;"><tr><td align="center" style="padding:28px 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:650px;background:#fff;border:1px solid #e2dccf;border-radius:12px;overflow:hidden;"><tr><td style="background:#0a1628;padding:20px 28px;border-bottom:5px solid #d4ad55;"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:44px;"><img src="' + escapeHtml(logoUrl) + '" width="44" height="44" alt="Jackrabbit Punkin Publishing" style="display:block;border-radius:50%;border:2px solid #d4ad55;" /></td><td style="padding-left:14px;"><div style="color:#fff;font-family:Georgia,serif;font-size:20px;font-weight:700;">Jackrabbit Punkin Publishing</div><div style="margin-top:4px;color:#d4ad55;font-size:11px;letter-spacing:.5px;">Stories That Inspire. Books That Endure.</div></td></tr></table></td></tr><tr><td align="center" style="padding:34px 34px 29px;background:#fbf8f1;"><div style="color:#542476;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">' + escapeHtml(campaign.title) + '</div><h1 style="margin:10px 0 13px;color:#0a1628;font-family:Georgia,serif;font-size:31px;line-height:1.18;">' + escapeHtml(campaign.subject) + '</h1><p style="margin:0;color:#485365;font-size:16px;line-height:1.65;">' + escapeHtml(campaign.heroMessage) + '</p>' + heroButton + '</td></tr><tr><td style="padding:24px 34px;background:#f4efe5;border-top:1px solid #e7dfcf;"><p style="margin:0 0 9px;color:#4e596c;font-size:15px;line-height:1.65;">' + escapeHtml(campaign.closingNote) + '</p><div style="color:#0a1628;font-family:Georgia,serif;font-weight:700;">- Jackrabbit Punkin Publishing LLC</div></td></tr><tr><td align="center" style="padding:18px 26px;background:#0a1628;color:#bfc5cf;font-size:11px;line-height:1.65;"><span style="color:#d4ad55;font-weight:700;">Jackrabbit Punkin Publishing LLC</span><br>Stories That Inspire. Books That Endure.<br><a href="' + escapeHtml(env.SITE_URL) + '" style="color:#fff;">Visit website</a> &nbsp;|&nbsp; <a href="' + escapeHtml(unsubscribeUrl) + '" style="color:#fff;">Unsubscribe</a></td></tr></table></td></tr></table></body></html>';
+  return '<!doctype html><html><body style="margin:0;padding:0;background:#f3f0e9;font-family:Arial,Helvetica,sans-serif;">' + preview + '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f0e9;"><tr><td align="center" style="padding:28px 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:650px;background:#fff;border:1px solid #e2dccf;border-radius:12px;overflow:hidden;"><tr><td style="background:#0a1628;padding:20px 28px;border-bottom:5px solid #d4ad55;"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:44px;"><img src="' + escapeHtml(logoUrl) + '" width="44" height="44" alt="Jackrabbit Punkin Publishing" style="display:block;border-radius:50%;border:2px solid #d4ad55;" /></td><td style="padding-left:14px;"><div style="color:#fff;font-family:Georgia,serif;font-size:20px;font-weight:700;">Jackrabbit Punkin Publishing</div><div style="margin-top:4px;color:#d4ad55;font-size:11px;letter-spacing:.5px;">Stories That Inspire. Books That Endure.</div></td></tr></table></td></tr><tr><td align="center" style="padding:34px 34px 29px;background:#fbf8f1;"><div style="color:#542476;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">' + escapeHtml(campaign.title) + '</div><h1 style="margin:10px 0 13px;color:#0a1628;font-family:Georgia,serif;font-size:31px;line-height:1.18;">' + escapeHtml(campaign.subject) + '</h1><p style="margin:0;color:#485365;font-size:16px;line-height:1.65;">' + escapeHtml(campaign.heroMessage) + '</p>' + heroButton + '</td></tr><tr><td style="padding:24px 34px;background:#f4efe5;border-top:1px solid #e7dfcf;"><p style="margin:0 0 9px;color:#4e596c;font-size:15px;line-height:1.65;">' + escapeHtml(campaign.closingNote) + '</p><div style="color:#0a1628;font-family:Georgia,serif;font-weight:700;">- Jackrabbit Punkin Publishing LLC</div></td></tr><tr><td align="center" style="padding:18px 26px;background:#0a1628;color:#bfc5cf;font-size:11px;line-height:1.65;"><span style="color:#d4ad55;font-weight:700;">Jackrabbit Punkin Publishing LLC</span><br>Stories That Inspire. Books That Endure.<br><a href="' + escapeHtml(firstUrlValue(env.SITE_URL)) + '" style="color:#fff;">Visit website</a> &nbsp;|&nbsp; <a href="' + escapeHtml(unsubscribeUrl) + '" style="color:#fff;">Unsubscribe</a></td></tr></table></td></tr></table></body></html>';
 }
 
 function renderUnsubscribePage(success: boolean, message: string) {
@@ -1520,11 +2551,199 @@ function renderUnsubscribePage(success: boolean, message: string) {
 
 async function runScheduledTasks(env: Env) {
   await sendDueCampaigns(env);
+  await rollupAnalyticsEvents(env);
+  await syncBookInventoryFromSquare(env);
+}
+
+const ANALYTICS_EVENT_TYPES = new Set([
+  "page_view",
+  "form_submit",
+  "sponsor_checkout_start",
+  "store_checkout_start",
+  "book_interest",
+  "newsletter_signup",
+]);
+
+function categorizeDevice(userAgent: string) {
+  const ua = userAgent.toLowerCase();
+  if (/bot|crawler|spider|slurp|bingpreview/.test(ua)) return "bot";
+  if (/ipad|tablet/.test(ua)) return "tablet";
+  if (/mobi|iphone|android/.test(ua)) return "mobile";
+  return "desktop";
+}
+
+function categorizeReferrer(referrer: string, siteUrls: string) {
+  if (!referrer) return "direct";
+  try {
+    const referrerHost = new URL(referrer).hostname.replace(/^www\./, "");
+    const siteHosts = splitUrlList(siteUrls).map((value) => {
+      try {
+        return new URL(value).hostname.replace(/^www\./, "");
+      } catch {
+        return "";
+      }
+    });
+    if (siteHosts.includes(referrerHost)) return "internal";
+    if (/google|bing|duckduckgo|yahoo/.test(referrerHost)) return "search";
+    if (/facebook|instagram|twitter|x\.com|tiktok|pinterest|linkedin/.test(referrerHost)) return "social";
+    return "other";
+  } catch {
+    return "other";
+  }
+}
+
+async function hashVisitorId(request: Request) {
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  const userAgent = request.headers.get("user-agent") || "";
+  const day = new Date().toISOString().slice(0, 10);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${ip}|${userAgent}|${day}`));
+  return bytesToHex(new Uint8Array(digest)).slice(0, 24);
+}
+
+async function handleAnalyticsEvent(request: Request, env: Env): Promise<Response> {
+  if (!env.DB) return json(request, env, { ok: false, error: "Not configured." }, 404);
+  const body = await parseBody(request);
+  const eventType = text(body.eventType, 40);
+  if (!ANALYTICS_EVENT_TYPES.has(eventType)) {
+    return json(request, env, { ok: false, error: "Unknown event type." }, 400);
+  }
+  const pagePath = text(body.pagePath, 300);
+  const bookId = text(body.bookId, 40);
+  let meta = "{}";
+  if (body.meta) {
+    try {
+      meta = JSON.stringify(JSON.parse(body.meta)).slice(0, 2000);
+    } catch {
+      meta = "{}";
+    }
+  }
+  const referrerCategory = categorizeReferrer(request.headers.get("referer") || "", env.SITE_URL);
+  const deviceCategory = categorizeDevice(request.headers.get("user-agent") || "");
+  const visitorHash = await hashVisitorId(request);
+
+  await env.DB.prepare(
+    "INSERT INTO analytics_events (id, event_type, page_path, referrer_category, device_category, book_id, meta_json, visitor_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+  )
+    .bind(crypto.randomUUID(), eventType, pagePath, referrerCategory, deviceCategory, bookId, meta, visitorHash)
+    .run();
+
+  return json(request, env, { ok: true });
+}
+
+async function rollupAnalyticsEvents(env: Env) {
+  const today = new Date().toISOString().slice(0, 10);
+  const pendingDays = await env.DB.prepare(
+    "SELECT DISTINCT substr(created_at, 1, 10) AS day FROM analytics_events WHERE substr(created_at, 1, 10) < ?1 ORDER BY day ASC LIMIT 14",
+  )
+    .bind(today)
+    .all<{ day: string }>();
+
+  for (const row of pendingDays.results || []) {
+    const day = row.day;
+    const eventCounts = await env.DB.prepare(
+      "SELECT event_type AS eventType, page_path AS pagePath, COUNT(*) AS count FROM analytics_events WHERE substr(created_at, 1, 10) = ?1 GROUP BY event_type, page_path",
+    )
+      .bind(day)
+      .all<{ eventType: string; pagePath: string; count: number }>();
+
+    const statements = (eventCounts.results || []).map((entry) =>
+      env.DB.prepare(
+        "INSERT INTO analytics_daily (day, metric, dimension, count) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(day, metric, dimension) DO UPDATE SET count = excluded.count",
+      ).bind(day, entry.eventType, entry.pagePath || "", entry.count),
+    );
+    statements.push(env.DB.prepare("DELETE FROM analytics_events WHERE substr(created_at, 1, 10) = ?1").bind(day));
+    if (statements.length) await env.DB.batch(statements);
+  }
+}
+
+async function getAnalyticsSummary(env: Env, days: number) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const dailyRows = (
+    await env.DB.prepare("SELECT day, metric, dimension, count FROM analytics_daily WHERE day >= ?1").bind(since).all<{
+      day: string;
+      metric: string;
+      dimension: string;
+      count: number;
+    }>()
+  ).results || [];
+
+  const rawRows = (
+    await env.DB.prepare(
+      "SELECT substr(created_at, 1, 10) AS day, event_type AS metric, page_path AS dimension, COUNT(*) AS count FROM analytics_events WHERE substr(created_at, 1, 10) >= ?1 GROUP BY day, event_type, page_path",
+    )
+      .bind(since)
+      .all<{ day: string; metric: string; dimension: string; count: number }>()
+  ).results || [];
+
+  const combined = [...dailyRows, ...rawRows];
+
+  const dailyPageViews = new Map<string, number>();
+  const topPages = new Map<string, number>();
+  const eventBreakdown = new Map<string, number>();
+
+  for (const entry of combined) {
+    eventBreakdown.set(entry.metric, (eventBreakdown.get(entry.metric) || 0) + entry.count);
+    if (entry.metric === "page_view") {
+      dailyPageViews.set(entry.day, (dailyPageViews.get(entry.day) || 0) + entry.count);
+      if (entry.dimension) topPages.set(entry.dimension, (topPages.get(entry.dimension) || 0) + entry.count);
+    }
+  }
+
+  const dailyTrend = Array.from(dailyPageViews.entries())
+    .map(([day, count]) => ({ day, count }))
+    .sort((a, b) => a.day.localeCompare(b.day));
+  const topPagesList = Array.from(topPages.entries())
+    .map(([pagePath, count]) => ({ pagePath, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  const eventBreakdownList = Array.from(eventBreakdown.entries())
+    .map(([eventType, count]) => ({ eventType, count }))
+    .sort((a, b) => b.count - a.count);
+  const totalPageViews = dailyTrend.reduce((sum, entry) => sum + entry.count, 0);
+  const totalEvents = eventBreakdownList.reduce((sum, entry) => sum + entry.count, 0);
+
+  const sponsorAnalytics = await getSponsorAnalytics(env, since);
+
+  return {
+    totalPageViews,
+    totalEvents,
+    dailyTrend,
+    topPages: topPagesList,
+    eventBreakdown: eventBreakdownList,
+    ...sponsorAnalytics,
+  };
+}
+
+// Sponsor package performance, sourced entirely from webhook-reconciled payment data
+// (sponsor_payments.status is only ever set to 'paid' by recordPaidSponsorFromSquarePayment()
+// in the Square webhook handler) rather than client-side tracking events.
+async function getSponsorAnalytics(env: Env, since: string) {
+  const rows = await env.DB.prepare(
+    `SELECT s.package AS package, COUNT(*) AS sponsorCount, SUM(sp.amount_cents) AS totalCents
+     FROM sponsor_payments sp
+     JOIN sponsors s ON s.id = sp.sponsor_id
+     WHERE sp.status = 'paid' AND substr(sp.updated_at, 1, 10) >= ?1
+     GROUP BY s.package
+     ORDER BY totalCents DESC`,
+  )
+    .bind(since)
+    .all<{ package: string; sponsorCount: number; totalCents: number }>();
+
+  const sponsorBreakdown = (rows.results || []).map((row) => ({
+    package: row.package,
+    label: SPONSOR_PACKAGES[row.package as SponsorPackageKey]?.label || row.package,
+    sponsorCount: Number(row.sponsorCount || 0),
+    totalRevenue: money(Number(row.totalCents || 0) / 100),
+  }));
+  const totalSponsors = sponsorBreakdown.reduce((sum, entry) => sum + entry.sponsorCount, 0);
+  const totalSponsorRevenue = money(sponsorBreakdown.reduce((sum, entry) => sum + entry.totalRevenue, 0));
+  return { sponsorBreakdown, totalSponsors, totalSponsorRevenue };
 }
 
 async function sendDueCampaigns(env: Env) {
   const rows = await env.DB.prepare(
-    "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE status = 'Scheduled' AND scheduled_at != '' AND sent_at = '' AND datetime(scheduled_at) <= datetime('now') ORDER BY datetime(scheduled_at) ASC LIMIT 5",
+    "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, target_type AS targetType, target_value AS targetValue, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE status = 'Scheduled' AND scheduled_at != '' AND sent_at = '' AND datetime(scheduled_at) <= datetime('now') ORDER BY datetime(scheduled_at) ASC LIMIT 5",
   ).all<NewsletterCampaignRecord>();
   for (const campaign of rows.results || []) {
     try {
@@ -1541,10 +2760,7 @@ async function sendDueCampaigns(env: Env) {
 }
 
 async function sendNewsletterCampaign(env: Env, campaign: NewsletterCampaignRecord) {
-  const rows = await env.DB.prepare(
-    "SELECT email FROM newsletter_subscribers WHERE status = 'active' AND consent = 1 ORDER BY last_seen_at DESC",
-  ).all<{ email: string }>();
-  const subscribers = (rows.results || []).map((row) => text(row.email, 320).toLowerCase()).filter(isValidEmail);
+  const subscribers = await getNewsletterCampaignRecipients(env, campaign);
   if (!subscribers.length) {
     await env.DB.prepare(
       "UPDATE newsletter_campaigns SET status = 'Sent', sent_at = datetime('now'), recipients = 0, sent = 0, failed = 0, last_error = '', updated_at = datetime('now') WHERE campaign_id = ?1",
@@ -1582,6 +2798,28 @@ async function sendNewsletterCampaign(env: Env, campaign: NewsletterCampaignReco
   )
     .bind(campaign.campaignId, failed ? "Sent with Errors" : "Sent", subscribers.length, sent, failed)
     .run();
+}
+
+async function getNewsletterCampaignRecipients(env: Env, campaign: NewsletterCampaignRecord): Promise<string[]> {
+  if (campaign.targetType === "book_interest" && campaign.targetValue) {
+    const rows = await env.DB.prepare(
+      `SELECT DISTINCT lower(fs.email) AS email
+       FROM form_submissions fs
+       LEFT JOIN newsletter_subscribers ns ON ns.email = lower(fs.email)
+       WHERE fs.form_type = 'bookNotification'
+         AND fs.title = ?1
+         AND fs.status != 'Unsubscribed'
+         AND (ns.email IS NULL OR ns.status != 'unsubscribed')
+       ORDER BY email ASC`,
+    )
+      .bind(campaign.targetValue)
+      .all<{ email: string }>();
+    return (rows.results || []).map((row) => text(row.email, 320).toLowerCase()).filter(isValidEmail);
+  }
+  const rows = await env.DB.prepare(
+    "SELECT email FROM newsletter_subscribers WHERE status = 'active' AND consent = 1 ORDER BY last_seen_at DESC",
+  ).all<{ email: string }>();
+  return (rows.results || []).map((row) => text(row.email, 320).toLowerCase()).filter(isValidEmail);
 }
 
 async function countQuery(env: Env, query: string) {
