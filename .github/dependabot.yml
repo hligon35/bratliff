@@ -1,0 +1,44 @@
+# Dependabot configuration.
+#
+# This intentionally does NOT replace the monthlyUpdate maintenance system —
+# ordinary monthly dependency maintenance is consolidated through
+# scripts/monthly-maintenance.mjs and the monthlyUpdate branch/PR.
+#
+# Dependabot is enabled here for two narrow purposes that should not wait for
+# the monthly cycle:
+#   1. Security updates: GitHub's vulnerability-alert-driven security PRs are
+#      controlled separately (Settings > Code security > Dependabot security
+#      updates) and are NOT limited by this file.
+#   2. A low-volume, monthly version-update pass as a second opinion /
+#      early-warning signal, grouped to avoid PR noise and never auto-merged.
+#
+# See docs/maintenance.md for how emergency security updates are handled.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "security-review"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security-review"
+    commit-message:
+      prefix: "chore(actions)"
