@@ -22,7 +22,7 @@
   "devDependencies": {
     "dotenv": "^16.6.1",
     "http-server": "^14.1.1",
-    "open-cli": "^8.0.0",
+    "open-cli": "^9.0.0",
     "typescript": "^5.9.2",
     "wrangler": "^4.37.1"
   }
