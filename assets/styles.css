@@ -1554,7 +1554,8 @@ textarea {
 }
 .footer-links {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, max-content);
+  justify-content: start;
   gap: 0.45rem 1rem;
 }
 .footer-links a,
