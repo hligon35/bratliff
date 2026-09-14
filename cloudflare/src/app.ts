@@ -1250,7 +1250,7 @@ async function handleAdminApi(
   if (request.method === "DELETE" && path.startsWith("sponsors/")) {
     requireRole(admin, "fulfillment");
     const sponsorId = decodeURIComponent(path.slice("sponsors/".length));
-    await deleteSponsor(env, sponsorId);
+    await deleteSponsor(env, admin, sponsorId);
     return json(request, env, { ok: true });
   }
   if (request.method === "GET" && path === "authors") {
@@ -1746,6 +1746,7 @@ async function listAdminSponsors(
     conditions.push(`package = ?${bindings.length + 1}`);
     bindings.push(filters.package);
   }
+  if (!filters.status) conditions.push("recognition_status != 'Deleted'");
   const whereClause = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
   const totalRow = await env.DB.prepare(`SELECT COUNT(*) AS count FROM sponsors${whereClause}`)
     .bind(...bindings)
@@ -1878,17 +1879,26 @@ async function removeSponsorLogo(env: Env, sponsorId: string) {
     .run();
 }
 
-async function deleteSponsor(env: Env, sponsorId: string) {
+async function deleteSponsor(env: Env, admin: AuthenticatedAdmin, sponsorId: string) {
   const sponsor = await getSponsorById(env, sponsorId);
   if (!sponsor) throw new HttpError(404, "Sponsor not found.");
   const payments = await env.DB.prepare("SELECT COUNT(*) AS count FROM sponsor_payments WHERE sponsor_id = ?1")
     .bind(sponsorId)
     .first<{ count: number }>();
-  if (Number(payments?.count || 0) > 0) {
-    throw new HttpError(400, "This sponsor has payment history and can't be deleted. Hide it instead.");
-  }
+  const hasPaymentHistory = Number(payments?.count || 0) > 0;
+
   if (sponsor.logoKey) await env.BOOK_ASSETS.delete(sponsor.logoKey);
-  await env.DB.prepare("DELETE FROM sponsors WHERE id = ?1").bind(sponsorId).run();
+  if (hasPaymentHistory) {
+    // Preserve payment and audit history while removing the sponsor from all recognition listings.
+    await env.DB.prepare(
+      "UPDATE sponsors SET recognition_status = 'Deleted', logo_key = '', logo_url = '', logo_alt = '', updated_at = datetime('now') WHERE id = ?1",
+    )
+      .bind(sponsorId)
+      .run();
+  } else {
+    await env.DB.prepare("DELETE FROM sponsors WHERE id = ?1").bind(sponsorId).run();
+  }
+  await writeAuditLog(env, admin, "sponsor.delete", "sponsor", sponsorId, hasPaymentHistory ? "soft-delete: payment history preserved" : "hard-delete");
 }
 
 async function serveAuthorPortrait(url: URL, env: Env) {
