@@ -1406,11 +1406,25 @@ textarea {
   font-weight: 700;
 }
 .legal-content {
-  display: grid;
-  gap: 2.5rem;
+  display: block;
+}
+.legal-content > section[hidden] {
+  display: none;
 }
 .legal-content section {
   scroll-margin-top: 110px;
+}
+.legal-nav a {
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.legal-nav a:hover,
+.legal-nav a:focus-visible {
+  border-color: var(--purple);
+}
+.legal-nav a.is-active {
+  color: white;
+  background: var(--purple);
+  border-color: var(--purple);
 }
 .legal-content h2 {
   font-size: 2rem;
