@@ -15,7 +15,7 @@ window.siteConfig = (function freeze(value) {
   "authGoogleEndpoint": "https://jackrabbitpunkinpublishing.com/api/auth/google",
   "authSessionEndpoint": "https://jackrabbitpunkinpublishing.com/api/auth/session",
   "authLogoutEndpoint": "https://jackrabbitpunkinpublishing.com/api/auth/logout",
-  "googleClientId": "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com",
+  "googleClientId": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
   "adminEmail": "hligon@getsparqd.com",
   "turnstileSiteKey": "0x4AAAAAAExBb3u_5n7T_HN9",
   "squareLinks": {
