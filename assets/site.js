@@ -233,6 +233,66 @@ ensureFavicon();
 wireArtwork();
 hydrateConfiguredLinks();
 
+function initPolicySections() {
+  const nav = document.querySelector(".legal-nav");
+  const content = document.querySelector(".legal-content");
+  if (!nav || !content) return;
+
+  const links = [...nav.querySelectorAll('a[href^="#"]')];
+  const sections = [...content.querySelectorAll(":scope > section[id]")];
+  const sectionIds = new Set(sections.map((section) => section.id));
+  const firstSection = sections[0];
+  if (!firstSection) return;
+
+  sections.forEach((section) => {
+    section.tabIndex = -1;
+  });
+
+  function showSection(requestedId, shouldScroll = false) {
+    const activeId = sectionIds.has(requestedId) ? requestedId : firstSection.id;
+    const activeSection = document.getElementById(activeId);
+
+    sections.forEach((section) => {
+      const isActive = section.id === activeId;
+      section.hidden = !isActive;
+      section.setAttribute("aria-hidden", String(!isActive));
+    });
+
+    links.forEach((link) => {
+      const isActive = link.getAttribute("href") === `#${activeId}`;
+      link.classList.toggle("is-active", isActive);
+      if (isActive) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
+    });
+
+    if (shouldScroll && activeSection) {
+      activeSection.scrollIntoView({ block: "start" });
+      activeSection.focus({ preventScroll: true });
+    }
+  }
+
+  links.forEach((link) => {
+    link.addEventListener("click", (event) => {
+      const requestedId = link.getAttribute("href").slice(1);
+      if (!sectionIds.has(requestedId)) return;
+      event.preventDefault();
+      history.pushState(null, "", `#${requestedId}`);
+      showSection(requestedId, true);
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    showSection(window.location.hash.slice(1), true);
+  });
+  window.addEventListener("popstate", () => {
+    showSection(window.location.hash.slice(1), true);
+  });
+
+  showSection(window.location.hash.slice(1));
+}
+
+initPolicySections();
+
 const menu = document.querySelector(".menu-toggle");
 const nav = document.querySelector(".site-nav");
 menu?.addEventListener("click", () => {
