@@ -21,12 +21,14 @@
   const publicApiRoot = pickUrlForCurrentOrigin(siteConfig.publicApiUrl, "").replace(/\/$/, "");
   const loginUrl = String(siteConfig.loginUrl || "login/").trim();
   const authSessionEndpoint = String(
-    siteConfig.authSessionEndpoint ||
-      (publicApiRoot ? publicApiRoot + "/api/auth/session" : ""),
+    publicApiRoot
+      ? publicApiRoot + "/api/auth/session"
+      : siteConfig.authSessionEndpoint || "",
   ).replace(/\/$/, "");
   const authLogoutEndpoint = String(
-    siteConfig.authLogoutEndpoint ||
-      (publicApiRoot ? publicApiRoot + "/api/auth/logout" : ""),
+    publicApiRoot
+      ? publicApiRoot + "/api/auth/logout"
+      : siteConfig.authLogoutEndpoint || "",
   ).replace(/\/$/, "");
   const adminApiRoot = resolveApiRoot(siteConfig.adminApiUrl, "/api/admin");
   const dashboardForms = [
@@ -281,6 +283,8 @@
   }
 
   async function logout() {
+    clearCache(cacheKeys.viewer);
+    clearCache(cacheKeys.dashboard);
     if (authLogoutEndpoint) {
       await fetch(authLogoutEndpoint, {
         method: "POST",
