@@ -8,7 +8,7 @@ interface __BaseEnv_Env {
 	SITE_URL: "https://jackrabbitpunkinpublishing.com";
 	PUBLIC_ADMIN_URL: "https://jackrabbitpunkinpublishing.com/admin/";
 	PUBLIC_API_URL: "https://jackrabbitpunkinpublishing.com";
-	ADMIN_BOOTSTRAP_EMAILS: "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com";
+	ADMIN_BOOTSTRAP_EMAILS: "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com, cratliff44@gmail.com";
 	GOOGLE_CLIENT_ID: "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com";
 	CF_ACCESS_TEAM_DOMAIN: "";
 	CF_ACCESS_AUD: "";
