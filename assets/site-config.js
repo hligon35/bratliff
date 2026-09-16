@@ -21,7 +21,7 @@ window.siteConfig = (function freeze(value) {
   "squareLinks": {
     "books": {
       "battlesHardcover": "",
-      "battlesPaperback": "https://square.link/u/Ab8NdSfX"
+      "battlesPaperback": "https://square.link/u/llSOK4s4"
     },
     "sponsorships": {
       "pagePal": "https://square.link/u/kDcU50U8",
