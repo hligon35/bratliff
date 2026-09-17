@@ -1226,7 +1226,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, book: await adjustInventory(env, admin, await parseBody(request)) });
   }
   if (request.method === "POST" && path === "inventory/sync-square") {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const updated = await syncBookInventoryFromSquare(env);
     return json(request, env, { ok: true, updated, books: await listAllStoreBooks(env) });
   }
@@ -1237,7 +1237,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, orders: await listOrders(env, 100) });
   }
   if (request.method === "POST" && path.startsWith("orders/") && path.endsWith("/fulfillment")) {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const orderNumber = decodeURIComponent(path.slice("orders/".length, -"/fulfillment".length));
     return json(request, env, { ok: true, order: await updateFulfillment(env, orderNumber, await parseBody(request)) });
   }
@@ -1260,7 +1260,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, campaign });
   }
   if (request.method === "POST" && path === "newsletter/test") {
-    requireRole(admin, "marketing");
+    requireRole(admin, "manager");
     const body = await parseBody(request);
     const campaign = await saveNewsletterCampaign(env, body);
     const email = text(body.testEmail, 320).toLowerCase();
@@ -1278,7 +1278,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, campaignId: campaign.campaignId, message: "Test email sent." });
   }
   if (request.method === "POST" && path === "newsletter/send") {
-    requireRole(admin, "marketing");
+    requireRole(admin, "manager");
     const body = await parseBody(request);
     const campaign = await saveNewsletterCampaign(env, { ...body, status: "Sending" });
     await sendNewsletterCampaign(env, campaign);
@@ -1286,7 +1286,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, campaignId: campaign.campaignId, message: "Newsletter sent." });
   }
   if (request.method === "POST" && path.startsWith("newsletter/campaigns/") && path.endsWith("/cancel")) {
-    requireRole(admin, "marketing");
+    requireRole(admin, "manager");
     const campaignId = decodeURIComponent(path.slice("newsletter/campaigns/".length, -"/cancel".length));
     const campaign = await env.DB.prepare("SELECT campaign_id AS campaignId, title, subject, status FROM newsletter_campaigns WHERE campaign_id = ?1")
       .bind(campaignId)
@@ -1322,32 +1322,32 @@ async function handleAdminApi(
     return json(request, env, { ok: true, sponsor });
   }
   if (request.method === "POST" && path === "sponsors") {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     return json(request, env, { ok: true, sponsor: await saveAdminSponsor(env, admin, await parseBody(request)) });
   }
   if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/publish")) {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/publish".length));
     return json(request, env, { ok: true, sponsor: await setSponsorRecognitionStatus(env, admin, sponsorId, "Published") });
   }
   if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/hide")) {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/hide".length));
     return json(request, env, { ok: true, sponsor: await setSponsorRecognitionStatus(env, admin, sponsorId, "Hidden") });
   }
   if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/image")) {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/image".length));
     return json(request, env, { ok: true, ...(await uploadSponsorLogo(request, env, sponsorId)) });
   }
   if (request.method === "DELETE" && path.startsWith("sponsors/") && path.endsWith("/image")) {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/image".length));
     await removeSponsorLogo(env, sponsorId);
     return json(request, env, { ok: true });
   }
   if (request.method === "DELETE" && path.startsWith("sponsors/")) {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     const sponsorId = decodeURIComponent(path.slice("sponsors/".length));
     await deleteSponsor(env, admin, sponsorId);
     return json(request, env, { ok: true });
@@ -1362,32 +1362,32 @@ async function handleAdminApi(
     return json(request, env, { ok: true, author });
   }
   if (request.method === "POST" && path === "authors") {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     return json(request, env, { ok: true, author: await saveAdminAuthor(env, admin, await parseBody(request)) });
   }
   if (request.method === "POST" && path.startsWith("authors/") && path.endsWith("/publish")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const authorId = decodeURIComponent(path.slice("authors/".length, -"/publish".length));
     return json(request, env, { ok: true, author: await setAuthorStatus(env, admin, authorId, "Published") });
   }
   if (request.method === "POST" && path.startsWith("authors/") && path.endsWith("/hide")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const authorId = decodeURIComponent(path.slice("authors/".length, -"/hide".length));
     return json(request, env, { ok: true, author: await setAuthorStatus(env, admin, authorId, "Draft") });
   }
   if (request.method === "POST" && path.startsWith("authors/") && path.endsWith("/portrait")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const authorId = decodeURIComponent(path.slice("authors/".length, -"/portrait".length));
     return json(request, env, { ok: true, ...(await uploadAuthorPortrait(request, env, authorId)) });
   }
   if (request.method === "DELETE" && path.startsWith("authors/") && path.endsWith("/portrait")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const authorId = decodeURIComponent(path.slice("authors/".length, -"/portrait".length));
     await removeAuthorPortrait(env, authorId);
     return json(request, env, { ok: true });
   }
   if (request.method === "DELETE" && path.startsWith("authors/")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const authorId = decodeURIComponent(path.slice("authors/".length));
     await deleteAuthor(env, authorId);
     return json(request, env, { ok: true });
@@ -1413,18 +1413,18 @@ async function handleAdminApi(
     return json(request, env, { ok: true });
   }
   if (request.method === "POST" && path.startsWith("books/") && path.endsWith("/image")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const bookId = decodeURIComponent(path.slice("books/".length, -"/image".length));
     return json(request, env, { ok: true, ...(await uploadBookImage(request, env, bookId)) });
   }
   if (request.method === "DELETE" && path.startsWith("books/") && path.endsWith("/image")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const bookId = decodeURIComponent(path.slice("books/".length, -"/image".length));
     await removeBookImage(env, bookId);
     return json(request, env, { ok: true });
   }
   if (request.method === "DELETE" && path.startsWith("books/")) {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     const bookId = decodeURIComponent(path.slice("books/".length));
     await deleteBook(env, bookId);
     return json(request, env, { ok: true });
