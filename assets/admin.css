@@ -1933,3 +1933,16 @@ body.admin-drawer-collapsed {
     padding: 0;
   }
 }
+
+
+/* Collapsed drawer is icon-only, with a logo sized to the available rail. */
+.admin-drawer-collapsed .jrpp-admin-brandcopy,
+.admin-drawer-collapsed .jrpp-admin-brandcopy small,
+.admin-drawer-collapsed .drawer-toggle-label {
+  display: none;
+}
+.admin-drawer-collapsed .jrpp-admin-logo {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+}
