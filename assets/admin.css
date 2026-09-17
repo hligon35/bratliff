@@ -1946,3 +1946,11 @@ body.admin-drawer-collapsed {
   height: 52px;
   flex: 0 0 52px;
 }
+
+
+/* Apply the persisted collapsed state before deferred admin JavaScript runs. */
+@media (min-width: 721px) {
+  html.admin-drawer-collapsed body {
+    padding-left: 78px;
+  }
+}
