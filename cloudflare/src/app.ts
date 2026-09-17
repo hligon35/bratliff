@@ -103,6 +103,10 @@ const app: AppHandler = {
         return await serveAuthorPortrait(url, env);
       }
 
+      if (url.pathname.startsWith("/media/admin-avatars/")) {
+        return await serveAdminAvatar(request, url, env);
+      }
+
       if (url.pathname === "/square/webhook") {
         if (!env.DB) {
           return new Response("Not configured", { status: 404 });
@@ -1174,10 +1178,23 @@ async function handleAdminApi(
   const admin = await authorizeAdmin(request, env);
   const path = url.pathname.replace(/^\/api\/admin\/?/, "");
 
+  if (request.method === "GET" && path === "me") {
+    return json(request, env, { ok: true, viewer: await getAdminProfile(env, admin) });
+  }
+  if (request.method === "PUT" && path === "me") {
+    const updated = await updateAdminProfile(env, admin, await parseBody(request));
+    const response = json(request, env, { ok: true, viewer: updated });
+    return issueAdminSessionCookie(response, env, updated, text(admin.token.sub, 200));
+  }
+  if (request.method === "POST" && path === "me/avatar") {
+    return json(request, env, { ok: true, viewer: await uploadAdminAvatar(request, env, admin) });
+  }
+
   if (request.method === "GET" && path === "bootstrap") {
     return json(request, env, { ok: true, ...(await buildAdminBootstrap(env, admin)) });
   }
   if (request.method === "GET" && path === "activity") {
+    requireRole(admin, "developer");
     return json(request, env, {
       ok: true,
       activities: await listActivity(
@@ -1197,11 +1214,11 @@ async function handleAdminApi(
     return json(request, env, { ok: true, books: await listAllStoreBooks(env) });
   }
   if (request.method === "POST" && path === "books") {
-    requireRole(admin, "editor");
+    requireRole(admin, "manager");
     return json(request, env, { ok: true, book: await saveBook(env, admin, await parseBody(request)) });
   }
   if (request.method === "POST" && path === "inventory/adjust") {
-    requireRole(admin, "fulfillment");
+    requireRole(admin, "manager");
     return json(request, env, { ok: true, book: await adjustInventory(env, admin, await parseBody(request)) });
   }
   if (request.method === "POST" && path === "inventory/sync-square") {
@@ -1224,7 +1241,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, ...(await getNewsletterBuilderState(env, admin)) });
   }
   if (request.method === "POST" && path === "newsletter/campaigns") {
-    requireRole(admin, "marketing");
+    requireRole(admin, "manager");
     const body = await parseBody(request);
     const campaign = await saveNewsletterCampaign(env, body);
     const status = text(body.status, 40).toLowerCase();
@@ -1372,13 +1389,14 @@ async function handleAdminApi(
     return json(request, env, { ok: true });
   }
   if (request.method === "GET" && path === "analytics/summary") {
+    requireRole(admin, "developer");
     return json(request, env, {
       ok: true,
       ...(await getAnalyticsSummary(env, clampInt(url.searchParams.get("days"), 1, 90, 30))),
     });
   }
   if (request.method === "GET" && path === "admins") {
-    requireRole(admin, "owner");
+    requireRole(admin, "developer");
     return json(request, env, { ok: true, admins: await listAdmins(env) });
   }
   if (request.method === "POST" && path === "admins") {
