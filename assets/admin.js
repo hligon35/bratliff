@@ -85,6 +85,60 @@
     selectedSponsorId: "",
   };
 
+  const adminNavItems = [
+    { key: "dashboard", href: "admin/index.html", label: "Dashboard", icon: "⌂" },
+    { key: "store", href: "admin/store.html", label: "Book Store", icon: "▣" },
+    { key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "✉" },
+    { key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "★" },
+    { key: "author", href: "admin/author.html", label: "Featured Author", icon: "✎" },
+    { key: "analytics", href: "admin/analytics.html", label: "Analytics", icon: "▥", roles: ["developer", "owner"] },
+    { key: "activity", href: "admin/activity.html", label: "Activity Log", icon: "◷", roles: ["developer", "owner"] },
+    { key: "profile", href: "admin/profile.html", label: "Access Management", icon: "⚿", roles: ["developer", "owner"] },
+    { key: "settings", href: "admin/settings.html", label: "Settings", icon: "⚙" },
+  ];
+
+  function renderAdminNavigation() {
+    const nav = qs(".jrpp-admin-nav");
+    if (!nav) return;
+    const role = state.viewer && state.viewer.role ? state.viewer.role : "";
+    nav.innerHTML = adminNavItems
+      .filter(function (item) { return !item.roles || item.roles.indexOf(role) >= 0; })
+      .map(function (item) {
+        const active = item.key === state.page;
+        return '<a class="' + (active ? "active" : "") + '" href="' + item.href + '" data-admin-nav="' + item.key + '" data-icon="' + item.icon + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(item.label) + "</a>";
+      })
+      .join("");
+  }
+
+  function initAdminDrawer() {
+    const drawer = qs(".jrpp-admin-switcher");
+    if (!drawer) return;
+    let toggle = drawer.querySelector("[data-admin-drawer-toggle]");
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "jrpp-admin-drawer-toggle";
+      toggle.setAttribute("data-admin-drawer-toggle", "");
+      toggle.setAttribute("aria-label", "Collapse admin navigation");
+      toggle.innerHTML = "<span aria-hidden=\"true\">☰</span><span class=\"drawer-toggle-label\">Collapse menu</span>";
+      drawer.insertBefore(toggle, drawer.firstChild);
+    }
+    let collapsed = false;
+    try { collapsed = window.localStorage.getItem("jrpp-admin-drawer-collapsed") === "1"; } catch {}
+    if (collapsed) document.body.classList.add("admin-drawer-collapsed");
+    const update = function () {
+      const isCollapsed = document.body.classList.toggle("admin-drawer-collapsed");
+      toggle.setAttribute("aria-expanded", String(!isCollapsed));
+      toggle.setAttribute("aria-label", isCollapsed ? "Expand admin navigation" : "Collapse admin navigation");
+      const label = toggle.querySelector(".drawer-toggle-label");
+      if (label) label.textContent = isCollapsed ? "Expand menu" : "Collapse menu";
+      try { window.localStorage.setItem("jrpp-admin-drawer-collapsed", isCollapsed ? "1" : "0"); } catch {}
+    };
+    toggle.setAttribute("aria-expanded", String(!document.body.classList.contains("admin-drawer-collapsed")));
+    toggle.addEventListener("click", update);
+    renderAdminNavigation();
+  }
+
   function resolveApiRoot(configuredValue, defaultPath) {
     if (publicApiRoot) return publicApiRoot + defaultPath;
     return String(configuredValue || "").replace(/\/$/, "");
@@ -254,9 +308,6 @@
       throw createError(data.error || "Authentication is required.", response.status);
     }
     if (!response.ok || data.ok === false) {
-      if (response.status === 403) {
-        redirectToLogin(data.error || "Your Google account is not authorized for the admin.");
-      }
       throw createError(data.error || "The admin API request failed.", response.status);
     }
     return data;
@@ -330,6 +381,7 @@
     qsa("[data-viewer-email]").forEach(function (node) {
       node.textContent = text;
     });
+    renderAdminNavigation();
   }
 
   function hydrateCachedViewer() {
@@ -1361,6 +1413,15 @@
     }
   }
 
+  function sponsorAvatarMarkup(row) {
+    const label = row.anonymous ? "Anonymous" : (row.displayName || row.payerName || row.id || "Sponsor");
+    const initials = label.split(/\s+/).map(function (part) { return part.charAt(0); }).join("").slice(0, 2).toUpperCase();
+    if (!row.anonymous && row.logoUrl) {
+      return '<span class="sponsor-avatar"><img src="' + escapeHtml(row.logoUrl) + '" alt=""></span>';
+    }
+    return '<span class="sponsor-avatar sponsor-avatar-fallback" aria-hidden="true">' + escapeHtml(row.anonymous ? "A" : initials) + "</span>";
+  }
+
   function renderSponsorList() {
     const packageLabels = {
       pagePal: "Page Pal",
@@ -1371,7 +1432,7 @@
     const markup = tableMarkup(
       "table",
       [
-        { label: "Sponsor", render: function (row) { return escapeHtml(row.displayName || row.payerName || row.id); } },
+        { label: "Sponsor", render: function (row) { return sponsorAvatarMarkup(row) + '<span class="sponsor-list-name">' + escapeHtml(row.anonymous ? "Anonymous" : (row.displayName || row.payerName || row.id)) + "</span>"; } },
         { label: "Package", render: function (row) { return escapeHtml(packageLabels[row.package] || row.package); } },
         { label: "Books", key: "booksSponsored" },
         { label: "Status", render: function (row) { return '<span class="badge">' + escapeHtml(row.recognitionStatus) + "</span>"; } },
@@ -1924,6 +1985,10 @@
         await loadAuthors();
       } else if (state.page === "analytics") {
         await loadAnalytics();
+      } else if (state.page === "activity") {
+        await loadActivity({ force: force });
+      } else if (state.page === "settings") {
+        await loadSettings();
       }
       renderViewer();
     } catch (error) {
@@ -2197,6 +2262,8 @@
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape") closeCampaignLibrary();
   });
+
+  initAdminDrawer();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", refreshCurrentPage);
