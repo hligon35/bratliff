@@ -290,6 +290,7 @@ async function handleGoogleAuthRequest(request: Request, env: Env) {
   if (!credential) throw new HttpError(400, "A Google credential is required.");
   const identity = await verifyGoogleIdentityToken(credential, env);
   const viewer = await authorizeAdminIdentity(env, identity);
+  await writeAuditLog(env, viewer, "admin_login", "admin", viewer.email, "Admin signed in with Google.");
   const response = json(request, env, {
     ok: true,
     viewer,
@@ -306,9 +307,15 @@ async function handleAdminSessionRequest(request: Request, env: Env) {
   return json(request, env, { ok: true, viewer });
 }
 
-function handleAdminLogoutRequest(request: Request, env: Env) {
+async function handleAdminLogoutRequest(request: Request, env: Env) {
   if (request.method !== "POST") {
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+  }
+  try {
+    const viewer = await authorizeAdmin(request, env);
+    await writeAuditLog(env, viewer, "admin_logout", "admin", viewer.email, "Admin signed out.");
+  } catch (error) {
+    console.warn(JSON.stringify({ type: "admin_logout_activity_failed", error: getErrorMessage(error) }));
   }
   return clearAdminSessionCookie(json(request, env, { ok: true }));
 }
@@ -1142,6 +1149,16 @@ async function handleAdminApi(
   if (request.method === "GET" && path === "bootstrap") {
     return json(request, env, { ok: true, ...(await buildAdminBootstrap(env, admin)) });
   }
+  if (request.method === "GET" && path === "activity") {
+    return json(request, env, {
+      ok: true,
+      activities: await listActivity(
+        env,
+        text(url.searchParams.get("filter"), 40).toLowerCase(),
+        clampInt(url.searchParams.get("limit"), 1, 200, 50),
+      ),
+    });
+  }
   if (request.method === "GET" && path === "submissions") {
     return json(request, env, {
       ok: true,
@@ -1180,7 +1197,18 @@ async function handleAdminApi(
   }
   if (request.method === "POST" && path === "newsletter/campaigns") {
     requireRole(admin, "marketing");
-    return json(request, env, { ok: true, campaign: await saveNewsletterCampaign(env, await parseBody(request)) });
+    const body = await parseBody(request);
+    const campaign = await saveNewsletterCampaign(env, body);
+    const status = text(body.status, 40).toLowerCase();
+    await writeAuditLog(
+      env,
+      admin,
+      status === "scheduled" ? "newsletter_scheduled" : "newsletter_saved",
+      "newsletter_campaign",
+      campaign.campaignId,
+      status === "scheduled" ? "Newsletter scheduled: " + text(campaign.title || campaign.subject, 200) : "Newsletter saved: " + text(campaign.title || campaign.subject, 200),
+    );
+    return json(request, env, { ok: true, campaign });
   }
   if (request.method === "POST" && path === "newsletter/test") {
     requireRole(admin, "marketing");
@@ -1197,7 +1225,29 @@ async function handleAdminApi(
       replyTo: env.ADMIN_NOTIFICATION_EMAIL,
       fromName: campaign.fromName || "Jackrabbit Punkin Publishing LLC",
     });
+    await writeAuditLog(env, admin, "newsletter_test_sent", "newsletter_campaign", campaign.campaignId, "Newsletter test sent to " + email + ".");
     return json(request, env, { ok: true, campaignId: campaign.campaignId, message: "Test email sent." });
+  }
+  if (request.method === "POST" && path === "newsletter/send") {
+    requireRole(admin, "marketing");
+    const body = await parseBody(request);
+    const campaign = await saveNewsletterCampaign(env, { ...body, status: "Sending" });
+    await sendNewsletterCampaign(env, campaign);
+    await writeAuditLog(env, admin, "newsletter_sent", "newsletter_campaign", campaign.campaignId, "Newsletter sent: " + text(campaign.title || campaign.subject, 200) + ".");
+    return json(request, env, { ok: true, campaignId: campaign.campaignId, message: "Newsletter sent." });
+  }
+  if (request.method === "POST" && path.startsWith("newsletter/campaigns/") && path.endsWith("/cancel")) {
+    requireRole(admin, "marketing");
+    const campaignId = decodeURIComponent(path.slice("newsletter/campaigns/".length, -"/cancel".length));
+    const campaign = await env.DB.prepare("SELECT campaign_id AS campaignId, title, subject, status FROM newsletter_campaigns WHERE campaign_id = ?1")
+      .bind(campaignId)
+      .first<{ campaignId: string; title: string; subject: string; status: string }>();
+    if (!campaign) throw new HttpError(404, "Newsletter campaign not found.");
+    await env.DB.prepare("UPDATE newsletter_campaigns SET status = 'Cancelled', scheduled_at = '', updated_at = datetime('now') WHERE campaign_id = ?1")
+      .bind(campaignId)
+      .run();
+    await writeAuditLog(env, admin, "newsletter_cancelled", "newsletter_campaign", campaignId, "Newsletter schedule cancelled: " + text(campaign.title || campaign.subject, 200) + ".");
+    return json(request, env, { ok: true, campaignId, message: "Schedule cancelled." });
   }
   if (request.method === "GET" && path === "newsletter/subscribers") {
     const rows = await env.DB.prepare(
@@ -1391,6 +1441,25 @@ async function buildAdminBootstrap(env: Env, admin: AuthenticatedAdmin) {
     formCounts,
     endpoints: { publicApiUrl: firstUrlValue(env.PUBLIC_API_URL), adminUrl: firstUrlValue(env.PUBLIC_ADMIN_URL) },
   };
+}
+
+async function listActivity(env: Env, filter: string, limit: number) {
+  const filters: Record<string, string> = {
+    auth: "action IN ('admin_login', 'admin_logout')",
+    newsletter: "action LIKE 'newsletter_%'",
+    newsletter_saved: "action = 'newsletter_saved'",
+    newsletter_sent: "action IN ('newsletter_sent', 'newsletter_test_sent')",
+    newsletter_scheduled: "action = 'newsletter_scheduled'",
+  };
+  const where = filters[filter] ? " WHERE " + filters[filter] : "";
+  const rows = await env.DB.prepare(
+    "SELECT id, created_at AS createdAt, admin_email AS adminEmail, action, entity_type AS entityType, entity_id AS entityId, detail FROM audit_log" +
+      where +
+      " ORDER BY datetime(created_at) DESC LIMIT ?1",
+  )
+    .bind(limit)
+    .all();
+  return rows.results || [];
 }
 
 async function listSubmissions(env: Env, formType: string, limit: number) {
@@ -1680,11 +1749,15 @@ async function writeAuditLog(
   entityId: string,
   detail: string,
 ): Promise<void> {
-  await env.DB.prepare(
-    "INSERT INTO audit_log (id, created_at, admin_email, action, entity_type, entity_id, detail) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6)",
-  )
-    .bind(crypto.randomUUID(), admin.email, action, entityType, entityId, text(detail, 2000))
-    .run();
+  try {
+    await env.DB.prepare(
+      "INSERT INTO audit_log (id, created_at, admin_email, action, entity_type, entity_id, detail) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6)",
+    )
+      .bind(crypto.randomUUID(), admin.email, action, entityType, entityId, text(detail, 2000))
+      .run();
+  } catch (error) {
+    console.error(JSON.stringify({ type: "activity_log_write_failed", action, error: getErrorMessage(error) }));
+  }
 }
 
 function mapSponsorRecord(row: Record<string, unknown>): SponsorRecord {
@@ -2755,9 +2828,16 @@ async function sendDueCampaigns(env: Env) {
   const rows = await env.DB.prepare(
     "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, target_type AS targetType, target_value AS targetValue, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE status = 'Scheduled' AND scheduled_at != '' AND sent_at = '' AND datetime(scheduled_at) <= datetime('now') ORDER BY datetime(scheduled_at) ASC LIMIT 5",
   ).all<NewsletterCampaignRecord>();
+  const scheduler: AuthenticatedAdmin = {
+    email: "system@scheduler",
+    role: "marketing",
+    displayName: "Scheduled worker",
+    token: { provider: "worker-cron" },
+  };
   for (const campaign of rows.results || []) {
     try {
       await sendNewsletterCampaign(env, campaign);
+      await writeAuditLog(env, scheduler, "newsletter_sent", "newsletter_campaign", campaign.campaignId, "Scheduled newsletter sent by worker.");
     } catch (error) {
       await env.DB.prepare(
         "UPDATE newsletter_campaigns SET failed = failed + 1, last_error = ?2, updated_at = datetime('now') WHERE campaign_id = ?1",
