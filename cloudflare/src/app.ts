@@ -2121,8 +2121,11 @@ function mapAuthorRecord(row: Record<string, unknown>): AuthorRecord {
     portraitAlt: text(row.portraitAlt, 300),
     portraitFocalX: Number(row.portraitFocalX ?? 50),
     portraitFocalY: Number(row.portraitFocalY ?? 50),
+    bookImageKey: text(row.bookImageKey, 300),
+    bookImageUrl: text(row.bookImageUrl, 1000),
+    bookImageAlt: text(row.bookImageAlt, 300),
     websiteUrl: text(row.websiteUrl, 1000),
-    socialLinks: text(row.socialLinks, 2000) || "[]",
+    socialLinks: text(row.socialLinks, 2000) || "{}",
     relatedBookIds: text(row.relatedBookIds, 2000) || "[]",
     ctaLabel: text(row.ctaLabel, 100),
     ctaUrl: text(row.ctaUrl, 1000),
@@ -2138,7 +2141,8 @@ function mapAuthorRecord(row: Record<string, unknown>): AuthorRecord {
 const AUTHOR_SELECT = `SELECT
   id, name, title, short_intro AS shortIntro, biography, portrait_key AS portraitKey,
   portrait_url AS portraitUrl, portrait_alt AS portraitAlt, portrait_focal_x AS portraitFocalX,
-  portrait_focal_y AS portraitFocalY, website_url AS websiteUrl, social_links AS socialLinks,
+  portrait_focal_y AS portraitFocalY, book_image_key AS bookImageKey, book_image_url AS bookImageUrl,
+  book_image_alt AS bookImageAlt, website_url AS websiteUrl, social_links AS socialLinks,
   related_book_ids AS relatedBookIds, cta_label AS ctaLabel, cta_url AS ctaUrl, status,
   start_at AS startAt, end_at AS endAt, display_order AS displayOrder,
   created_at AS createdAt, updated_at AS updatedAt
