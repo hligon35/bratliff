@@ -1434,6 +1434,7 @@ textarea {
   letter-spacing: 1.3px;
 }
 
+.activity-log-head h1,
 .activity-log-head h2 {
   margin: 6px 0 0;
   color: #0a1628;
