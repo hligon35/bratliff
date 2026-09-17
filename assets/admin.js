@@ -105,7 +105,7 @@
       .filter(function (item) { return !item.roles || item.roles.indexOf(role) >= 0; })
       .map(function (item) {
         const active = item.key === state.page;
-        return '<a class="' + (active ? "active" : "") + '" href="' + item.href + '" data-admin-nav="' + item.key + '" data-icon="' + item.icon + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(item.label) + "</a>";
+        return '<a class="' + (active ? "active" : "") + '" href="' + item.href + '" data-admin-nav="' + item.key + '" data-icon="' + item.icon + '" title="' + escapeHtml(item.label) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(item.label) + "</a>";
       })
       .join("");
   }
