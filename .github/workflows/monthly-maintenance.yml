@@ -7,9 +7,8 @@ name: Monthly Maintenance
 # objects or Cloudflare/DNS/Access/WAF settings, and NEVER merges the PR.
 
 on:
-  schedule:
-    # 06:00 UTC on the 1st of every month.
-    - cron: "0 6 1 * *"
+  # Automatic schedule and push triggers are paused while this workflow is being repaired.
+  # Use the Actions UI to run it manually when a maintenance check is intentional.
   workflow_dispatch:
     inputs:
       dry_run:
