@@ -808,8 +808,22 @@ function initSponsorProgram() {
             <label>Display name (how you'd like to be recognized)
               <input type="text" name="displayName" maxlength="200" autocomplete="off" />
             </label>
+            <label>Organization type
+              <select name="entityType">
+                <option value="individual">Individual</option>
+                <option value="business">Business</option>
+                <option value="organization">Organization</option>
+              </select>
+            </label>
+            <label>Website (optional)
+              <input type="url" name="websiteUrl" maxlength="1000" autocomplete="url" placeholder="https://" />
+            </label>
             <label data-sponsor-books-field hidden>Number of books (50 minimum)
               <input type="number" name="books" min="50" step="1" value="50" />
+            </label>
+            <label data-sponsor-logo-field hidden>Organization logo (optional)
+              <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+              <small>PNG, JPG, SVG, or WebP · 3 MB maximum</small>
             </label>
             <div class="sponsor-checkbox-group">
               <label class="sponsor-checkbox">
@@ -838,15 +852,21 @@ function initSponsorProgram() {
     const backdrop = document.querySelector(".sponsor-modal-backdrop");
     const summary = document.querySelector("[data-sponsor-modal-summary]");
     const booksField = document.querySelector("[data-sponsor-books-field]");
+    const logoField = document.querySelector("[data-sponsor-logo-field]");
+    const logoInput = document.querySelector('[data-sponsor-form] input[name="logo"]');
     const packageField = document.querySelector("[data-sponsor-package-field]");
     const errorBox = document.querySelector("[data-sponsor-error]");
     packageField.value = packageKey;
     errorBox.hidden = true;
-    if (packageKey === "literacyTrailblazer") {
+    const isTrailblazer = packageKey === "literacyTrailblazer";
+    if (isTrailblazer) {
       booksField.hidden = false;
-      summary.textContent = `${definition.label} - $${definition.pricePerBook} per book, ${definition.minBooks}-book minimum.`;
+      if (logoField) logoField.hidden = false;
+      summary.textContent = `${definition.label} - ${definition.pricePerBook} per book, ${definition.minBooks}-book minimum.`;
     } else {
       booksField.hidden = true;
+      if (logoField) logoField.hidden = true;
+      if (logoInput) logoInput.value = "";
       summary.textContent = `${definition.label} - ${definition.price} sponsors ${definition.books} books.`;
     }
     backdrop.classList.add("open");
@@ -882,14 +902,15 @@ function initSponsorProgram() {
         payerName: formData.get("payerName"),
         payerEmail: formData.get("payerEmail"),
         displayName: formData.get("displayName"),
+        entityType: formData.get("entityType"),
+        websiteUrl: formData.get("websiteUrl"),
         anonymous: formData.get("anonymous") ? "true" : "false",
         publishPermission: formData.get("publishPermission") ? "true" : "false",
         books: formData.get("books") || "",
       };
       const response = await fetch(`${apiBase}/api/sponsors/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: formData,
       });
       const data = await response.json();
       if (!data.ok || !data.url) throw new Error(data.error || "Sponsorship checkout could not be started.");
