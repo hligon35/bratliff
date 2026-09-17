@@ -343,6 +343,8 @@ async function verifyGoogleIdentityToken(token: string, env: Env): Promise<Verif
   return {
     email,
     displayName: text(payload.name || payload.nickname || payload.email, 200) || email,
+    name: text(payload.name || payload.nickname || payload.email, 200) || email,
+    avatarUrl: "",
     role: "manager",
     token: payload as Record<string, unknown>,
     sub: text(payload.sub, 200),
