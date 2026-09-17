@@ -86,12 +86,14 @@ export type FormType =
   | "bookClub"
   | "bookNotification";
 
-export type AdminRole = "owner" | "editor" | "fulfillment" | "marketing";
+export type AdminRole = "owner" | "developer" | "manager";
 
 export interface AdminUser {
   email: string;
   role: AdminRole;
   displayName: string;
+  name: string;
+  avatarUrl: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +102,9 @@ export interface AuthenticatedAdmin {
   email: string;
   role: AdminRole;
   displayName: string;
+  name: string;
+  avatarKey?: string;
+  avatarUrl: string;
   token: Record<string, unknown>;
 }
 
@@ -246,6 +251,9 @@ export interface AuthorRecord {
   portraitAlt: string;
   portraitFocalX: number;
   portraitFocalY: number;
+  bookImageKey: string;
+  bookImageUrl: string;
+  bookImageAlt: string;
   websiteUrl: string;
   socialLinks: string;
   relatedBookIds: string;
