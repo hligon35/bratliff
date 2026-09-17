@@ -522,7 +522,7 @@
         {
           label: "",
           render: function (row) {
-            return '<button class="btn alt" type="button" data-remove-admin="' + escapeHtml(row.email) + '">Remove</button>';
+            return state.viewer && state.viewer.role === "owner" ? '<button class="btn alt" type="button" data-remove-admin="' + escapeHtml(row.email) + '">Remove</button>' : "<span class=\"asset-note\">View only</span>";
           },
         },
       ],
