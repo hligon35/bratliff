@@ -1,5 +1,3 @@
-PRAGMA foreign_keys=OFF;
-
 CREATE TABLE admins_new (
   email TEXT PRIMARY KEY,
   role TEXT NOT NULL CHECK (role IN ('owner', 'developer', 'manager')),
@@ -23,5 +21,3 @@ ALTER TABLE admins_new RENAME TO admins;
 ALTER TABLE authors ADD COLUMN book_image_key TEXT NOT NULL DEFAULT '';
 ALTER TABLE authors ADD COLUMN book_image_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE authors ADD COLUMN book_image_alt TEXT NOT NULL DEFAULT '';
-
-PRAGMA foreign_keys=ON;
