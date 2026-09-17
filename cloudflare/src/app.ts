@@ -1515,6 +1515,8 @@ async function authorizeAdmin(request: Request, env: Env): Promise<Authenticated
       email: identity.email,
       role: "manager",
       displayName: identity.email,
+      name: identity.email,
+      avatarUrl: "",
       token: { provider: "cloudflare-access", sub: identity.sub },
     });
   }
@@ -2985,6 +2987,8 @@ async function sendDueCampaigns(env: Env) {
     email: "system@scheduler",
     role: "manager",
     displayName: "Scheduled worker",
+    name: "Scheduled worker",
+    avatarUrl: "",
     token: { provider: "worker-cron" },
   };
   for (const campaign of rows.results || []) {
