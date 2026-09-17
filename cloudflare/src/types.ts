@@ -93,6 +93,7 @@ export interface AdminUser {
   role: AdminRole;
   displayName: string;
   name: string;
+  avatarKey?: string;
   avatarUrl: string;
   createdAt: string;
   updatedAt: string;
