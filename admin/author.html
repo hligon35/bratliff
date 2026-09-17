@@ -91,23 +91,20 @@
                     <label>Name *</label><input name="name" title="Name" required placeholder="e.g., Maria Alvarez" />
                   </div>
                   <div class="field full">
-                    <label>Title / Role</label><input name="title" title="Title / Role" placeholder="Author of The Salt Line" />
+                    <label>Title / Role</label><input name="title" title="Title / Role" placeholder="Author, educator, poet..." />
                   </div>
                   <div class="field full">
-                    <label>Short Intro</label><textarea name="shortIntro" title="Short Intro" placeholder="One or two sentences shown in the Media page spotlight."></textarea>
+                    <label>Bio</label><textarea name="biography" title="Bio" placeholder="A concise bio for the public author spotlight."></textarea>
                   </div>
                   <div class="field full">
-                    <label>Full Biography</label><textarea name="biography" title="Full Biography" placeholder="Longer author bio shown beneath the short intro on the Media page."></textarea>
+                    <label>Website</label><input type="url" name="websiteUrl" title="Website" placeholder="https://authorwebsite.com" />
                   </div>
-                  <div class="field full">
-                    <label>Website URL</label><input type="url" name="websiteUrl" title="Website URL" placeholder="https://authorwebsite.com" />
-                  </div>
-                  <div class="field">
-                    <label>CTA Label</label><input name="ctaLabel" title="CTA Label" placeholder="Meet the Author" />
-                  </div>
-                  <div class="field">
-                    <label>CTA URL</label><input type="url" name="ctaUrl" title="CTA URL" placeholder="https://authorwebsite.com" />
-                  </div>
+                  <div class="field full"><p class="form-section-label">Socials</p></div>
+                  <div class="field"><label>Facebook</label><input type="url" id="authorFacebook" name="facebook" placeholder="https://facebook.com/..." /></div>
+                  <div class="field"><label>Instagram</label><input type="url" id="authorInstagram" name="instagram" placeholder="https://instagram.com/..." /></div>
+                  <div class="field"><label>LinkedIn</label><input type="url" id="authorLinkedIn" name="linkedin" placeholder="https://linkedin.com/in/..." /></div>
+                  <div class="field"><label>TikTok</label><input type="url" id="authorTikTok" name="tiktok" placeholder="https://tiktok.com/@..." /></div>
+                  <div class="field"><label>YouTube</label><input type="url" id="authorYouTube" name="youtube" placeholder="https://youtube.com/@..." /></div>
                   <div class="field">
                     <label>Feature Start (optional)</label><input type="datetime-local" name="startAt" title="Feature Start" />
                   </div>
@@ -115,22 +112,18 @@
                     <label>Feature End (optional)</label><input type="datetime-local" name="endAt" title="Feature End" />
                   </div>
                   <div class="field">
-                    <label>Display Order</label><input type="number" min="0" name="displayOrder" title="Display Order" placeholder="1" />
-                  </div>
-                  <div class="field full">
-                    <label>Social Links (one URL per line)</label>
-                    <textarea name="socialLinks" title="Social Links" placeholder="https://instagram.com/authorhandle&#10;https://facebook.com/authorhandle"></textarea>
-                  </div>
-                  <div class="field full">
-                    <label>Related Book IDs (one per line)</label>
-                    <textarea name="relatedBookIds" title="Related Book IDs" placeholder="BK-1A2B3C4D"></textarea>
+                    <label>Author Image</label>
+                    <input type="file" id="authorPortrait" name="portrait" title="Author Image" accept="image/png,image/jpeg,image/webp" />
                   </div>
                   <div class="field">
-                    <label>Portrait</label>
-                    <input type="file" id="authorPortrait" name="portrait" title="Portrait" accept="image/png,image/jpeg,image/webp" />
+                    <label>Book Image</label>
+                    <input type="file" id="authorBookImage" name="bookImage" title="Book Image" accept="image/png,image/jpeg,image/webp" />
                   </div>
-                  <div class="field full">
-                    <div class="image-preview" id="authorPortraitPreview"><span>No portrait</span></div>
+                  <div class="field">
+                    <div class="image-preview" id="authorPortraitPreview"><span>No author image</span></div>
+                  </div>
+                  <div class="field">
+                    <div class="image-preview" id="authorBookImagePreview"><span>No book image</span></div>
                   </div>
                 </div>
                 <div class="form-actions">
