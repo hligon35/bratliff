@@ -2169,26 +2169,28 @@ async function saveAdminAuthor(
 ): Promise<AuthorRecord> {
   const existing = body.authorId ? await getAuthorById(env, body.authorId) : null;
   const authorId = existing?.id || "AU-" + crypto.randomUUID().slice(0, 10).toUpperCase();
-  const name = text(body.name, 200) || existing?.name || "";
+  const name = text(body.name, 200);
   if (!name) throw new HttpError(400, "Author name is required.");
 
-  let socialLinks = existing?.socialLinks || "[]";
+  let socialLinks: Record<string, string> = {};
   if (typeof body.socialLinks === "string") {
     try {
-      const parsed = JSON.parse(body.socialLinks || "[]");
-      if (Array.isArray(parsed)) socialLinks = JSON.stringify(parsed.slice(0, 20).map((entry) => String(entry || "").slice(0, 500)));
+      const parsed = JSON.parse(body.socialLinks || "{}") as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+        throw new Error("object required");
+      }
+      for (const key of ["facebook", "instagram", "linkedin", "tiktok", "youtube"]) {
+        const value = safeUrl(String((parsed as Record<string, unknown>)[key] || ""));
+        if (value) socialLinks[key] = value;
+      }
     } catch {
-      throw new HttpError(400, "Social links must be valid JSON (an array of URLs).");
+      throw new HttpError(400, "Social links must be valid JSON.");
     }
-  }
-  let relatedBookIds = existing?.relatedBookIds || "[]";
-  if (typeof body.relatedBookIds === "string") {
+  } else if (existing?.socialLinks) {
     try {
-      const parsed = JSON.parse(body.relatedBookIds || "[]");
-      if (Array.isArray(parsed)) relatedBookIds = JSON.stringify(parsed.slice(0, 50).map((entry) => String(entry || "").slice(0, 120)));
-    } catch {
-      throw new HttpError(400, "Related books must be valid JSON (an array of book IDs).");
-    }
+      const parsed = JSON.parse(existing.socialLinks);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) socialLinks = parsed as Record<string, string>;
+    } catch {}
   }
 
   await env.DB.prepare(
@@ -2196,7 +2198,7 @@ async function saveAdminAuthor(
       id, name, title, short_intro, biography, website_url, social_links, related_book_ids,
       cta_label, cta_url, status, start_at, end_at, display_order,
       portrait_focal_x, portrait_focal_y, created_at, updated_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '[]', '', '', ?8, ?9, ?10, 0, ?11, ?12,
       COALESCE((SELECT created_at FROM authors WHERE id = ?1), datetime('now')), datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       name = excluded.name,
@@ -2205,12 +2207,12 @@ async function saveAdminAuthor(
       biography = excluded.biography,
       website_url = excluded.website_url,
       social_links = excluded.social_links,
-      related_book_ids = excluded.related_book_ids,
-      cta_label = excluded.cta_label,
-      cta_url = excluded.cta_url,
+      related_book_ids = '[]',
+      cta_label = '',
+      cta_url = '',
       start_at = excluded.start_at,
       end_at = excluded.end_at,
-      display_order = excluded.display_order,
+      display_order = 0,
       portrait_focal_x = excluded.portrait_focal_x,
       portrait_focal_y = excluded.portrait_focal_y,
       updated_at = datetime('now')`,
@@ -2218,20 +2220,16 @@ async function saveAdminAuthor(
     .bind(
       authorId,
       name,
-      text(body.title, 200) || existing?.title || "",
-      text(body.shortIntro, 500) || existing?.shortIntro || "",
-      text(body.biography, 12000) || existing?.biography || "",
-      safeUrl(body.websiteUrl) || existing?.websiteUrl || "",
-      socialLinks,
-      relatedBookIds,
-      text(body.ctaLabel, 100) || existing?.ctaLabel || "",
-      safeUrl(body.ctaUrl) || existing?.ctaUrl || "",
+      text(body.title, 200),
+      text(body.biography, 12000).slice(0, 500),
+      text(body.biography, 12000),
+      typeof body.websiteUrl === "string" ? safeUrl(body.websiteUrl) : existing?.websiteUrl || "",
+      JSON.stringify(socialLinks),
       existing?.status || "Draft",
-      text(body.startAt, 50) || existing?.startAt || "",
-      text(body.endAt, 50) || existing?.endAt || "",
-      Math.max(0, Math.floor(Number(body.displayOrder ?? existing?.displayOrder ?? 0))),
-      Math.min(100, Math.max(0, Number(body.portraitFocalX ?? existing?.portraitFocalX ?? 50))),
-      Math.min(100, Math.max(0, Number(body.portraitFocalY ?? existing?.portraitFocalY ?? 50))),
+      typeof body.startAt === "string" ? text(body.startAt, 50) : existing?.startAt || "",
+      typeof body.endAt === "string" ? text(body.endAt, 50) : existing?.endAt || "",
+      Math.min(100, Math.max(0, Number(existing?.portraitFocalX ?? 50))),
+      Math.min(100, Math.max(0, Number(existing?.portraitFocalY ?? 50))),
     )
     .run();
 
