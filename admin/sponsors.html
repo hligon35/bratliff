@@ -91,81 +91,26 @@
               <div class="table-wrap" id="sponsorList"></div>
             </div>
           </div>
-          <div class="panel">
+          <div class="panel sponsor-detail-panel">
             <div class="panel-head"><h2 id="sponsorFormTitle">Sponsor Details</h2></div>
             <div class="panel-body">
-              <form id="sponsorForm">
-                <input type="hidden" name="sponsorId" />
-                <div class="form-grid">
-                  <div class="field">
-                    <label>Package *</label>
-                    <select name="package" title="Package" required>
-                      <option value="pagePal">Page Pal</option>
-                      <option value="chapterChampion">Chapter Champion</option>
-                      <option value="bookshelfBuilder">Bookshelf Builder</option>
-                      <option value="literacyTrailblazer">Literacy Trailblazer</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Books Sponsored</label>
-                    <input type="number" min="1" name="booksSponsored" title="Books Sponsored" />
-                  </div>
-                  <div class="field full">
-                    <label>Payer Name *</label><input name="payerName" title="Payer Name" required />
-                  </div>
-                  <div class="field full">
-                    <label>Payer Email *</label><input type="email" name="payerEmail" title="Payer Email" required />
-                  </div>
-                  <div class="field full">
-                    <label>Public Display Name</label><input name="displayName" title="Public Display Name" />
-                  </div>
-                  <div class="field">
-                    <label>Entity Type</label>
-                    <select name="entityType" title="Entity Type">
-                      <option>Individual</option>
-                      <option>Business</option>
-                      <option>Organization</option>
-                    </select>
-                  </div>
-                  <div class="field">
-                    <label>Recognition Status</label>
-                    <select name="recognitionStatus" title="Recognition Status">
-                      <option>Awaiting Payment</option>
-                      <option>Pending Profile</option>
-                      <option>Pending Review</option>
-                      <option>Published</option>
-                      <option>Hidden</option>
-                      <option>Refunded</option>
-                    </select>
-                  </div>
-                  <div class="field full">
-                    <label>Website URL</label><input type="url" name="websiteUrl" title="Website URL" />
-                  </div>
-                  <div class="field full">
-                    <label>Admin Notes</label><textarea name="adminNotes" title="Admin Notes"></textarea>
-                  </div>
-                  <div class="field">
-                    <label>Sponsor Logo</label>
-                    <input type="file" id="sponsorLogo" name="logo" title="Sponsor Logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-                  </div>
-                  <div class="field full">
-                    <div class="checks">
-                      <label><input type="checkbox" name="anonymous" /> Anonymous (never show name/logo)</label>
-                      <label><input type="checkbox" name="publishPermission" /> Sponsor gave permission to publish</label>
-                    </div>
-                  </div>
-                  <div class="field full">
-                    <div class="image-preview" id="sponsorLogoPreview"><span>No logo</span></div>
+              <div class="sponsor-detail-summary" id="sponsorDetailSummary">
+                <div class="sponsor-detail-empty">Select a sponsor to review their recognition details.</div>
+              </div>
+              <div class="sponsor-detail-actions">
+                <button class="btn alt" type="button" id="publishSponsorBtn">Publish</button>
+                <button class="btn warn" type="button" id="hideSponsorBtn">Hide</button>
+              </div>
+              <div class="status" id="sponsorStatus"></div>
+              <div class="sponsor-logo-section">
+                <div class="sponsor-logo-section-head">
+                  <div>
+                    <div class="sponsor-detail-kicker">RECOGNITION ASSET</div>
+                    <h3>Organization Logo</h3>
                   </div>
                 </div>
-                <div class="form-actions">
-                  <button class="btn" type="submit">Save Sponsor</button>
-                  <button class="btn alt" type="button" id="publishSponsorBtn">Publish</button>
-                  <button class="btn warn" type="button" id="hideSponsorBtn">Hide</button>
-                  <button class="btn" type="button" id="newSponsorBtn">New Sponsor</button>
-                </div>
-                <div class="status" id="sponsorStatus"></div>
-              </form>
+                <div class="sponsor-logo-display" id="sponsorLogoDisplay"><span>No logo submitted</span></div>
+              </div>
             </div>
           </div>
         </div>
