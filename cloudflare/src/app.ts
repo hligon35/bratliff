@@ -1483,7 +1483,7 @@ async function uploadAdminAvatar(request: Request, env: Env, admin: Authenticate
   await env.BOOK_ASSETS.put(avatarKey, await file.arrayBuffer(), { httpMetadata: { contentType: mimeType } });
   const current = await getAdminProfile(env, admin);
   if (current.avatarKey) await env.BOOK_ASSETS.delete(current.avatarKey);
-  const avatarUrl = firstUrlValue(env.PUBLIC_API_URL).replace(/\\/$/, "") + "/media/admin-avatars/" + encodeURIComponent(avatarKey);
+  const avatarUrl = firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "") + "/media/admin-avatars/" + encodeURIComponent(avatarKey);
   await env.DB.prepare("UPDATE admins SET avatar_key = ?1, avatar_url = ?2, updated_at = datetime('now') WHERE lower(email) = ?3")
     .bind(avatarKey, avatarUrl, current.email).run();
   return getAdminProfile(env, current);
@@ -2287,6 +2287,29 @@ async function uploadAuthorPortrait(request: Request, env: Env, authorId: string
   return { portraitKey, portraitUrl };
 }
 
+async function uploadAuthorBookImage(request: Request, env: Env, authorId: string) {
+  const author = await getAuthorById(env, authorId);
+  if (!author) throw new HttpError(404, "Author not found.");
+  const formData = await request.formData();
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new HttpError(400, "Choose an image file.");
+  const mimeType = file.type.toLowerCase();
+  if (!["image/png", "image/jpeg", "image/webp"].includes(mimeType)) {
+    throw new HttpError(400, "Use a PNG, JPG, JPEG, or WebP image.");
+  }
+  if (file.size > 5 * 1024 * 1024) throw new HttpError(400, "Book image must be 5 MB or smaller.");
+  const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+  const bookImageKey = `authors/${authorId}/book-${crypto.randomUUID()}.${extension}`;
+  await env.BOOK_ASSETS.put(bookImageKey, await file.arrayBuffer(), { httpMetadata: { contentType: mimeType } });
+  const bookImageUrl = buildPublicAuthorPortraitUrl(env, bookImageKey);
+  if (author.bookImageKey) await env.BOOK_ASSETS.delete(author.bookImageKey);
+  await env.DB.prepare("UPDATE authors SET book_image_key = ?2, book_image_url = ?3, book_image_alt = ?4, updated_at = datetime('now') WHERE id = ?1")
+    .bind(authorId, bookImageKey, bookImageUrl, text(formData.get("alt"), 300) || (author.name + " book cover"))
+    .run();
+  return { bookImageKey, bookImageUrl };
+}
+
+
 async function removeAuthorPortrait(env: Env, authorId: string) {
   const author = await getAuthorById(env, authorId);
   if (!author) throw new HttpError(404, "Author not found.");
@@ -2334,6 +2357,8 @@ async function getPublicFeaturedAuthor(env: Env): Promise<Record<string, unknown
     title: author.title,
     shortIntro: author.shortIntro,
     biography: author.biography,
+    bookImageUrl: author.bookImageUrl,
+    bookImageAlt: author.bookImageAlt || (author.name + " book cover"),
     portraitUrl: author.portraitUrl,
     portraitAlt: author.portraitAlt || author.name,
     portraitFocalX: author.portraitFocalX,
@@ -2343,7 +2368,7 @@ async function getPublicFeaturedAuthor(env: Env): Promise<Record<string, unknown
       try {
         return JSON.parse(author.socialLinks || "[]");
       } catch {
-        return [];
+        return {};
       }
     })(),
     ctaLabel: author.ctaLabel,
