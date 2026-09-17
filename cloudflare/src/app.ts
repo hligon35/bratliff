@@ -1432,6 +1432,76 @@ async function handleAdminApi(
   return json(request, env, { ok: false, error: "Admin route not found." }, 404);
 }
 
+async function getAdminProfile(env: Env, admin: AuthenticatedAdmin): Promise<AuthenticatedAdmin> {
+  const row = await env.DB.prepare(
+    "SELECT email, role, display_name AS displayName, full_name AS name, avatar_key AS avatarKey, avatar_url AS avatarUrl FROM admins WHERE lower(email) = ?1",
+  ).bind(admin.email).first<Record<string, unknown>>();
+  if (!row) throw new HttpError(404, "Admin profile not found.");
+  return {
+    email: text(row.email, 320).toLowerCase(),
+    role: text(row.role, 40) as AdminRole,
+    displayName: text(row.displayName, 200),
+    name: text(row.name, 200) || text(row.displayName, 200),
+    avatarKey: text(row.avatarKey, 300),
+    avatarUrl: text(row.avatarUrl, 1000),
+    token: admin.token,
+  };
+}
+
+async function updateAdminProfile(
+  env: Env,
+  admin: AuthenticatedAdmin,
+  body: Record<string, string>,
+): Promise<AuthenticatedAdmin> {
+  const current = await getAdminProfile(env, admin);
+  const email = text(body.email, 320).toLowerCase() || current.email;
+  if (!isValidEmail(email)) throw new HttpError(400, "Enter a valid email address.");
+  if (email !== current.email) {
+    const conflict = await env.DB.prepare("SELECT email FROM admins WHERE lower(email) = ?1").bind(email).first();
+    if (conflict) throw new HttpError(409, "That email already has admin access.");
+  }
+  const displayName = typeof body.displayName === "string" ? text(body.displayName, 200) : current.displayName;
+  const name = typeof body.name === "string" ? text(body.name, 200) : current.name;
+  await env.DB.prepare(
+    "UPDATE admins SET email = ?1, display_name = ?2, full_name = ?3, updated_at = datetime('now') WHERE lower(email) = ?4",
+  ).bind(email, displayName, name, current.email).run();
+  return getAdminProfile(env, { ...current, email });
+}
+
+async function uploadAdminAvatar(request: Request, env: Env, admin: AuthenticatedAdmin): Promise<AuthenticatedAdmin> {
+  if (!env.BOOK_ASSETS) throw new HttpError(503, "Image storage is not configured.");
+  const formData = await request.formData();
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new HttpError(400, "Choose an image file.");
+  const mimeType = file.type.toLowerCase();
+  if (!["image/png", "image/jpeg", "image/webp"].includes(mimeType)) {
+    throw new HttpError(400, "Use a PNG, JPG, JPEG, or WebP image.");
+  }
+  if (file.size > 2 * 1024 * 1024) throw new HttpError(400, "Avatar must be 2 MB or smaller.");
+  const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+  const avatarKey = `admin-avatars/${crypto.randomUUID()}.${extension}`;
+  await env.BOOK_ASSETS.put(avatarKey, await file.arrayBuffer(), { httpMetadata: { contentType: mimeType } });
+  const current = await getAdminProfile(env, admin);
+  if (current.avatarKey) await env.BOOK_ASSETS.delete(current.avatarKey);
+  const avatarUrl = firstUrlValue(env.PUBLIC_API_URL).replace(/\\/$/, "") + "/media/admin-avatars/" + encodeURIComponent(avatarKey);
+  await env.DB.prepare("UPDATE admins SET avatar_key = ?1, avatar_url = ?2, updated_at = datetime('now') WHERE lower(email) = ?3")
+    .bind(avatarKey, avatarUrl, current.email).run();
+  return getAdminProfile(env, current);
+}
+
+async function serveAdminAvatar(request: Request, url: URL, env: Env): Promise<Response> {
+  await authorizeAdmin(request, env);
+  if (!env.BOOK_ASSETS) return new Response("Not found", { status: 404 });
+  const key = decodeURIComponent(url.pathname.slice("/media/admin-avatars/".length));
+  if (!key.startsWith("admin-avatars/")) return new Response("Not found", { status: 404 });
+  const object = await env.BOOK_ASSETS.get(key);
+  if (!object || !object.body) return new Response("Not found", { status: 404 });
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "private, max-age=3600");
+  return new Response(object.body, { headers });
+}
+
 async function authorizeAdmin(request: Request, env: Env): Promise<AuthenticatedAdmin> {
   if (hasCloudflareAccessConfig(env)) {
     const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion");
