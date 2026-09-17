@@ -357,12 +357,12 @@ async function resolveDatabaseAdminIdentity(env: Env, identity: AuthenticatedAdm
   if (!env.DB) throw new HttpError(503, "The admin database is not configured for this environment.");
   await ensureBootstrapAdmins(env);
   const admin = await env.DB.prepare(
-    "SELECT email, role, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE lower(email) = ?1",
+    "SELECT email, role, display_name AS displayName, full_name AS name, avatar_key AS avatarKey, avatar_url AS avatarUrl, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE lower(email) = ?1",
   )
     .bind(identity.email)
     .first<AdminUser>();
   if (!admin) throw new HttpError(403, "This Google account is not authorized for admin access.");
-  return { email: admin.email, role: admin.role, displayName: admin.displayName, token: identity.token };
+  return { email: admin.email, role: admin.role, displayName: admin.displayName, name: admin.name || admin.displayName, avatarKey: admin.avatarKey || "", avatarUrl: admin.avatarUrl || "", token: identity.token };
 }
 
 function buildPostLoginRedirect(request: Request, env: Env, returnTo: unknown) {
@@ -392,6 +392,8 @@ async function issueAdminSessionCookie(response: Response, env: Env, viewer: Aut
     email: viewer.email,
     role: viewer.role,
     displayName: viewer.displayName,
+    name: viewer.name,
+    avatarUrl: viewer.avatarUrl,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_TTL_SECONDS,
   }));
@@ -450,6 +452,8 @@ async function requireAdminSession(request: Request, env: Env): Promise<Authenti
     email,
     role,
     displayName: text(claims.displayName, 200) || email,
+    name: text(claims.name, 200) || text(claims.displayName, 200) || email,
+    avatarUrl: text(claims.avatarUrl, 1000),
     token: {
       provider: "google",
       sub: text(claims.sub, 200),
@@ -1482,7 +1486,7 @@ async function buildAdminBootstrap(env: Env, admin: AuthenticatedAdmin) {
     formCounts[String(row.formType || "")] = Number(row.count || 0);
   }
   return {
-    viewer: { email: admin.email, role: admin.role, displayName: admin.displayName },
+    viewer: { email: admin.email, role: admin.role, displayName: admin.displayName, name: admin.name, avatarUrl: admin.avatarUrl },
     metrics: { submissions, subscribers, orders, books, campaigns, lowStock, revenue: money(Number(revenue?.total || 0)) },
     formCounts,
     endpoints: { publicApiUrl: firstUrlValue(env.PUBLIC_API_URL), adminUrl: firstUrlValue(env.PUBLIC_ADMIN_URL) },
@@ -2517,7 +2521,7 @@ function normalizeNewsletterPayload(body: Record<string, string>) {
 
 async function listAdmins(env: Env): Promise<AdminUser[]> {
   const rows = await env.DB.prepare(
-    "SELECT email, role, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt FROM admins ORDER BY email ASC",
+    "SELECT email, role, display_name AS displayName, full_name AS name, avatar_url AS avatarUrl, created_at AS createdAt, updated_at AS updatedAt FROM admins ORDER BY email ASC",
   ).all<AdminUser>();
   return rows.results || [];
 }
@@ -2528,14 +2532,14 @@ async function saveAdmin(env: Env, body: Record<string, string>): Promise<AdminU
   if (!isValidEmail(email)) throw new HttpError(400, "Enter a valid email address.");
   if (!ADMIN_ROLE_ORDER.includes(role)) throw new HttpError(400, "Select a valid admin role.");
   await env.DB.prepare(
-    `INSERT INTO admins (email, role, display_name, created_at, updated_at)
-     VALUES (?1, ?2, ?3, datetime('now'), datetime('now'))
-     ON CONFLICT(email) DO UPDATE SET role = excluded.role, display_name = excluded.display_name, updated_at = datetime('now')`,
+    `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
+     VALUES (?1, ?2, ?3, ?4, datetime('now'), datetime('now'))
+     ON CONFLICT(email) DO UPDATE SET role = excluded.role, display_name = excluded.display_name, full_name = excluded.full_name, updated_at = datetime('now')`,
   )
-    .bind(email, role, text(body.displayName, 200))
+    .bind(email, role, text(body.displayName, 200), text(body.name, 200) || text(body.displayName, 200))
     .run();
   const admin = await env.DB.prepare(
-    "SELECT email, role, display_name AS displayName, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE email = ?1",
+    "SELECT email, role, display_name AS displayName, full_name AS name, avatar_url AS avatarUrl, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE email = ?1",
   ).bind(email).first<AdminUser>();
   if (!admin) throw new Error("Admin could not be reloaded after saving.");
   return admin;
@@ -2833,6 +2837,9 @@ async function getAnalyticsSummary(env: Env, days: number) {
   const totalEvents = eventBreakdownList.reduce((sum, entry) => sum + entry.count, 0);
 
   const sponsorAnalytics = await getSponsorAnalytics(env, since);
+  const bookRevenueRow = await env.DB.prepare(
+    "SELECT COALESCE(SUM(total), 0) AS total FROM orders WHERE lower(payment_status) = 'paid' AND substr(created_at, 1, 10) >= ?1",
+  ).bind(since).first<{ total: number }>();
 
   return {
     totalPageViews,
@@ -2840,6 +2847,7 @@ async function getAnalyticsSummary(env: Env, days: number) {
     dailyTrend,
     topPages: topPagesList,
     eventBreakdown: eventBreakdownList,
+    bookRevenue: money(Number(bookRevenueRow?.total || 0)),
     ...sponsorAnalytics,
   };
 }
