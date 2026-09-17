@@ -1409,3 +1409,83 @@ textarea {
     padding: 8px 10px;
   }
 }
+
+.activity-log {
+  margin-top: 26px;
+  border: 1px solid #e7dfd0;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.activity-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e7dfd0;
+}
+
+.activity-log-kicker {
+  color: #542476;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+}
+
+.activity-log-head h2 {
+  margin: 6px 0 0;
+  color: #0a1628;
+  font: 700 28px Georgia, serif;
+}
+
+.activity-log-head p {
+  margin: 5px 0 0;
+  color: #687386;
+}
+
+.activity-filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 14px 20px 4px;
+}
+
+.activity-filter-chip {
+  border: 1px solid #d8cfbf;
+  border-radius: 999px;
+  background: #fff;
+  color: #542476;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.activity-filter-chip:hover,
+.activity-filter-chip.is-active {
+  border-color: #542476;
+  background: #542476;
+  color: #fff;
+}
+
+.activity-log .status {
+  padding: 0 20px;
+}
+
+.activity-log-table {
+  overflow-x: auto;
+  padding: 0 20px 20px;
+}
+
+.activity-log-table .table {
+  min-width: 620px;
+}
+
+@media (max-width: 640px) {
+  .activity-log-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
