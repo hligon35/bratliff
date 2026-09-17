@@ -662,6 +662,7 @@ function initFeaturedAuthor() {
     const ctaEl = root.querySelector("[data-featured-author-cta]");
     const bookCoverEl = root.querySelector("[data-featured-author-book-cover]");
     const bookTitleEl = root.querySelector("[data-featured-author-book-title]");
+    const socialsEl = root.querySelector("[data-featured-author-socials]");
 
     if (nameEl) nameEl.textContent = author.name || "";
     if (titleEl) titleEl.textContent = author.title || "Featured Author";
@@ -678,18 +679,35 @@ function initFeaturedAuthor() {
         else portraitEl.closest(".featured-author-portrait")?.remove();
       }
     }
+    if (socialsEl) {
+      const icons = { facebook: "f", instagram: "◎", linkedin: "in", tiktok: "♪", youtube: "▶" };
+      let links = author.socialLinks && typeof author.socialLinks === "object" ? author.socialLinks : {};
+      if (Array.isArray(author.socialLinks)) {
+        links = {};
+        author.socialLinks.forEach((url) => {
+          const value = String(url || "");
+          const key = /instagram/i.test(value) ? "instagram" : /linkedin/i.test(value) ? "linkedin" : /tiktok/i.test(value) ? "tiktok" : /youtube/i.test(value) ? "youtube" : "facebook";
+          if (!links[key]) links[key] = value;
+        });
+      }
+      const allowed = ["facebook", "instagram", "linkedin", "tiktok", "youtube"];
+      socialsEl.innerHTML = allowed.filter((key) => links[key]).map((key) =>
+        `<a class="author-social-icon author-social-${key}" href="${escapeHtmlSponsor(links[key])}" target="_blank" rel="noopener" aria-label="${key}"><span aria-hidden="true">${icons[key]}</span></a>`,
+      ).join("");
+      socialsEl.hidden = !socialsEl.children.length;
+    }
     if (ctaEl) {
       if (author.ctaLabel) ctaEl.textContent = author.ctaLabel;
       if (author.ctaUrl) ctaEl.href = author.ctaUrl;
       if (author.ctaLabel || author.ctaUrl) ctaEl.hidden = false;
     }
-    const firstBook = Array.isArray(author.relatedBooks)
-      ? author.relatedBooks.find((book) => book && book.imageUrl)
-      : null;
+    const firstBook = author.bookImageUrl
+      ? { imageUrl: author.bookImageUrl, title: "Featured Book" }
+      : (Array.isArray(author.relatedBooks) ? author.relatedBooks.find((book) => book && book.imageUrl) : null);
     if (firstBook) {
       if (bookCoverEl) {
         bookCoverEl.src = firstBook.imageUrl;
-        bookCoverEl.alt = firstBook.title || "";
+        bookCoverEl.alt = author.bookImageAlt || firstBook.title || "";
         bookCoverEl.hidden = false;
         bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
       }
@@ -697,7 +715,6 @@ function initFeaturedAuthor() {
     }
     root.hidden = false;
   }
-}
 
 function resolvePublicApiBase() {
   const raw = String(siteConfig.publicApiUrl || "").split(",")[0];
