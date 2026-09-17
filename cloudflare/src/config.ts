@@ -39,9 +39,8 @@ export const FORM_ROUTES: Record<
 };
 
 export const ADMIN_ROLE_ORDER: AdminRole[] = [
-  "marketing",
-  "fulfillment",
-  "editor",
+  "manager",
+  "developer",
   "owner",
 ];
 
