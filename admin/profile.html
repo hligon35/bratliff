@@ -76,11 +76,10 @@
                       <label>Display Name</label><input name="displayName" title="Display Name" />
                     </div>
                     <div class="field full">
-                      <label>Role</label>
+                      <label>Role</label><small class="field-help">Owner manages permissions. Developer can view access but cannot change permissions. Manager cannot access logs, analytics, or access management.</small>
                       <select name="role" title="Role">
-                        <option value="marketing">Marketing</option>
-                        <option value="fulfillment">Fulfillment</option>
-                        <option value="editor">Editor</option>
+                        <option value="manager">Manager</option>
+                        <option value="developer">Developer</option>
                         <option value="owner">Owner</option>
                       </select>
                     </div>
