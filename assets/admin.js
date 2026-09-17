@@ -1457,50 +1457,6 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function sponsorPayload() {
-    const form = qs("#sponsorForm");
-    const payload = {};
-    if (!form) return payload;
-    new FormData(form).forEach(function (value, key) {
-      if (key !== "logo") payload[key] = value;
-    });
-    ["anonymous", "publishPermission"].forEach(function (name) {
-      const control = field(form, name);
-      payload[name] = Boolean(control && control.checked);
-    });
-    return payload;
-  }
-
-  async function saveSponsor(event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
-    setStatus("#sponsorStatus", "Saving...", null);
-    try {
-      const data = await api("sponsors", { method: "POST", body: sponsorPayload() });
-      const fileInput = qs("#sponsorLogo");
-      const file = fileInput && fileInput.files ? fileInput.files[0] : null;
-      let sponsor = data.sponsor;
-      if (file && sponsor && sponsor.id) {
-        const upload = new FormData();
-        upload.set("file", file);
-        await api("sponsors/" + encodeURIComponent(sponsor.id) + "/image", { method: "POST", body: upload });
-      }
-      await loadSponsors();
-      sponsor = state.sponsors.find(function (entry) {
-        return entry.id === (sponsor && sponsor.id);
-      }) || sponsor;
-      if (sponsor) populateSponsorForm(sponsor);
-      if (fileInput) fileInput.value = "";
-      setStatus("#sponsorStatus", "Saved.", true);
-    } catch (error) {
-      setStatus("#sponsorStatus", error.message || "Sponsor could not be saved.", false);
-    }
-  }
-
   async function publishCurrentSponsor() {
     const sponsorId = state.selectedSponsorId;
     if (!sponsorId) {
@@ -2111,9 +2067,7 @@
   qs("#orderForm")?.addEventListener("submit", updateOrder);
   qs("#inventoryForm")?.addEventListener("submit", adjustInventory);
   qs("#adminForm")?.addEventListener("submit", saveAdmin);
-  qs("#sponsorForm")?.addEventListener("submit", saveSponsor);
-  qs("#newSponsorBtn")?.addEventListener("click", resetSponsorForm);
-  qs("#publishSponsorBtn")?.addEventListener("click", publishCurrentSponsor);
+   qs("#publishSponsorBtn")?.addEventListener("click", publishCurrentSponsor);
   qs("#hideSponsorBtn")?.addEventListener("click", hideCurrentSponsor);
   qs("#sponsorsStatusFilter")?.addEventListener("change", function (event) {
     state.sponsorFilters.status = event.target.value || "";
@@ -2126,16 +2080,6 @@
     loadSponsors().catch(function (error) {
       setStatus("#sponsorStatus", error.message || "Sponsors could not be loaded.", false);
     });
-  });
-  qs("#sponsorLogo")?.addEventListener("change", function (event) {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function () {
-      const preview = qs("#sponsorLogoPreview");
-      if (preview) preview.innerHTML = '<img src="' + escapeHtml(reader.result) + '" alt="">';
-    };
-    reader.readAsDataURL(file);
   });
   qs("#authorForm")?.addEventListener("submit", saveAuthor);
   qs("#newAuthorBtn")?.addEventListener("click", resetAuthorForm);
