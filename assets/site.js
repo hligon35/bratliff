@@ -715,6 +715,7 @@ function initFeaturedAuthor() {
     }
     root.hidden = false;
   }
+}
 
 function resolvePublicApiBase() {
   const raw = String(siteConfig.publicApiUrl || "").split(",")[0];
