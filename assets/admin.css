@@ -1489,3 +1489,121 @@ textarea {
     flex-direction: column;
   }
 }
+
+
+.sponsor-detail-panel .panel-body {
+  padding: 20px;
+}
+
+.sponsor-detail-summary {
+  min-height: 270px;
+}
+
+.sponsor-detail-empty {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  padding: 28px;
+  border: 1px dashed #d8cfbf;
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+  background: #fcfaf5;
+}
+
+.sponsor-detail-status {
+  margin-bottom: 16px;
+}
+
+.sponsor-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 18px;
+  margin: 0;
+  padding: 0;
+}
+
+.sponsor-detail-grid > div {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sponsor-detail-grid dt {
+  margin-bottom: 4px;
+  color: var(--purple);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.sponsor-detail-grid dd {
+  margin: 0;
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+
+.sponsor-detail-grid dd a {
+  color: var(--purple);
+  font-weight: 700;
+}
+
+.sponsor-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.sponsor-detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 18px;
+}
+
+.sponsor-logo-section {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.sponsor-logo-section-head h3 {
+  margin: 4px 0 12px;
+  color: var(--navy);
+  font: 700 22px Georgia, serif;
+}
+
+.sponsor-detail-kicker {
+  color: var(--purple);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+}
+
+.sponsor-logo-display {
+  display: grid;
+  min-height: 250px;
+  place-items: center;
+  padding: 24px;
+  border: 1px dashed #c8bda9;
+  border-radius: 12px;
+  background: #fcfaf5;
+  color: var(--muted);
+  text-align: center;
+}
+
+.sponsor-logo-display img {
+  display: block;
+  width: min(100%, 360px);
+  height: 220px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(10, 22, 40, 0.12));
+}
+
+@media (max-width: 720px) {
+  .sponsor-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sponsor-detail-wide {
+    grid-column: auto;
+  }
+}
