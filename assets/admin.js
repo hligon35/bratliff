@@ -1288,7 +1288,6 @@
   async function loadDashboard(options) {
     const force = Boolean(options && options.force);
     if (!force && hydrateCachedDashboard()) {
-      await loadActivity();
       return;
     }
     const bootstrap = await api("bootstrap");
@@ -1299,7 +1298,6 @@
     renderViewer();
     renderDashboardSummary();
     renderDashboardSections();
-    await loadActivity({ force: force });
     persistDashboardCache();
   }
 
@@ -1593,20 +1591,21 @@
     if (authorIdField) authorIdField.value = "";
     const title = qs("#authorFormTitle");
     if (title) title.textContent = "New Author";
-    const preview = qs("#authorPortraitPreview");
-    if (preview) preview.innerHTML = "<span>No portrait</span>";
+    const portraitPreview = qs("#authorPortraitPreview");
+    if (portraitPreview) portraitPreview.innerHTML = "<span>No author image</span>";
+    const bookPreview = qs("#authorBookImagePreview");
+    if (bookPreview) bookPreview.innerHTML = "<span>No book image</span>";
     setStatus("#authorStatus", "", null);
   }
 
   async function deleteAuthorRow(authorId) {
-    const author = state.authors.find(function (entry) {
-      return entry.id === authorId;
-    });
+    const author = state.authors.find(function (entry) { return entry.id === authorId; });
     const label = author ? author.name || authorId : "this author";
     if (!window.confirm("Delete " + label + "? This can't be undone.")) return;
     try {
       await api("authors/" + encodeURIComponent(authorId), { method: "DELETE" });
-      if (safeValue(field(qs("#authorForm"), "authorId")) === authorId) resetAuthorForm();
+      const form = qs("#authorForm");
+      if (form && safeValue(field(form, "authorId")) === authorId) resetAuthorForm();
       await loadAuthors();
     } catch (error) {
       setStatus("#authorStatus", error.message || "Author could not be deleted.", false);
@@ -1616,50 +1615,33 @@
   function populateAuthorForm(author) {
     const form = qs("#authorForm");
     if (!form || !author) return;
-    [
-      "authorId",
-      "name",
-      "title",
-      "shortIntro",
-      "biography",
-      "websiteUrl",
-      "ctaLabel",
-      "ctaUrl",
-      "startAt",
-      "endAt",
-      "displayOrder",
-    ].forEach(function (name) {
-      const control = field(form, name === "authorId" ? "authorId" : name);
-      if (!control) return;
-      const sourceKey = name === "authorId" ? "id" : name;
-      control.value = author[sourceKey] == null ? "" : author[sourceKey];
+    [["authorId", "id"], ["name", "name"], ["title", "title"], ["biography", "biography"], ["websiteUrl", "websiteUrl"], ["startAt", "startAt"], ["endAt", "endAt"]].forEach(function (pair) {
+      const control = field(form, pair[0]);
+      if (control) control.value = author[pair[1]] == null ? "" : author[pair[1]];
     });
-    const socialLinksField = field(form, "socialLinks");
-    if (socialLinksField) {
-      let links = [];
-      try {
-        links = JSON.parse(author.socialLinks || "[]");
-      } catch {
-        links = [];
+    let links = {};
+    try {
+      const parsed = JSON.parse(author.socialLinks || "{}");
+      if (Array.isArray(parsed)) {
+        parsed.forEach(function (url) {
+          const value = String(url || "");
+          const key = /instagram/i.test(value) ? "instagram" : /linkedin/i.test(value) ? "linkedin" : /tiktok/i.test(value) ? "tiktok" : /youtube/i.test(value) ? "youtube" : "facebook";
+          if (!links[key]) links[key] = value;
+        });
+      } else if (parsed && typeof parsed === "object") {
+        links = parsed;
       }
-      socialLinksField.value = Array.isArray(links) ? links.join("\n") : "";
-    }
-    const relatedBooksField = field(form, "relatedBookIds");
-    if (relatedBooksField) {
-      let ids = [];
-      try {
-        ids = JSON.parse(author.relatedBookIds || "[]");
-      } catch {
-        ids = [];
-      }
-      relatedBooksField.value = Array.isArray(ids) ? ids.join("\n") : "";
-    }
+    } catch {}
+    [["facebook", "authorFacebook"], ["instagram", "authorInstagram"], ["linkedin", "authorLinkedIn"], ["tiktok", "authorTikTok"], ["youtube", "authorYouTube"]].forEach(function (pair) {
+      const control = qs("#" + pair[1]);
+      if (control) control.value = links[pair[0]] || "";
+    });
     const title = qs("#authorFormTitle");
     if (title) title.textContent = "Edit Author";
-    const preview = qs("#authorPortraitPreview");
-    if (preview) {
-      preview.innerHTML = author.portraitUrl ? '<img src="' + escapeHtml(author.portraitUrl) + '" alt="">' : "<span>No portrait</span>";
-    }
+    const portraitPreview = qs("#authorPortraitPreview");
+    if (portraitPreview) portraitPreview.innerHTML = author.portraitUrl ? '<img src="' + escapeHtml(author.portraitUrl) + '" alt="">' : "<span>No author image</span>";
+    const bookPreview = qs("#authorBookImagePreview");
+    if (bookPreview) bookPreview.innerHTML = author.bookImageUrl ? '<img src="' + escapeHtml(author.bookImageUrl) + '" alt="">' : "<span>No book image</span>";
     const statusPill = qs("#authorStatusPill");
     if (statusPill) statusPill.textContent = author.status || "Draft";
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1667,52 +1649,48 @@
 
   function authorPayload() {
     const form = qs("#authorForm");
+    if (!form) return {};
     const payload = {};
-    if (!form) return payload;
-    new FormData(form).forEach(function (value, key) {
-      if (key !== "portrait" && key !== "socialLinks" && key !== "relatedBookIds") payload[key] = value;
+    [["authorId", "authorId"], ["name", "name"], ["title", "title"], ["biography", "biography"], ["websiteUrl", "websiteUrl"], ["startAt", "startAt"], ["endAt", "endAt"]].forEach(function (pair) {
+      payload[pair[0]] = safeValue(field(form, pair[1]));
     });
-    const socialLinksField = field(form, "socialLinks");
-    payload.socialLinks = JSON.stringify(
-      String(socialLinksField ? socialLinksField.value : "")
-        .split("\n")
-        .map(function (line) { return line.trim(); })
-        .filter(Boolean),
-    );
-    const relatedBooksField = field(form, "relatedBookIds");
-    payload.relatedBookIds = JSON.stringify(
-      String(relatedBooksField ? relatedBooksField.value : "")
-        .split("\n")
-        .map(function (line) { return line.trim(); })
-        .filter(Boolean),
-    );
+    payload.socialLinks = JSON.stringify({
+      facebook: safeValue(qs("#authorFacebook")),
+      instagram: safeValue(qs("#authorInstagram")),
+      linkedin: safeValue(qs("#authorLinkedIn")),
+      tiktok: safeValue(qs("#authorTikTok")),
+      youtube: safeValue(qs("#authorYouTube")),
+    });
     return payload;
   }
 
   async function saveAuthor(event) {
     event.preventDefault();
     const form = event.currentTarget;
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
+    if (!form.checkValidity()) { form.reportValidity(); return; }
     setStatus("#authorStatus", "Saving...", null);
     try {
       const data = await api("authors", { method: "POST", body: authorPayload() });
-      const fileInput = qs("#authorPortrait");
-      const file = fileInput && fileInput.files ? fileInput.files[0] : null;
       let author = data.author;
-      if (file && author && author.id) {
+      const portraitInput = qs("#authorPortrait");
+      const bookInput = qs("#authorBookImage");
+      const portraitFile = portraitInput && portraitInput.files ? portraitInput.files[0] : null;
+      const bookFile = bookInput && bookInput.files ? bookInput.files[0] : null;
+      if (author && author.id && portraitFile) {
         const upload = new FormData();
-        upload.set("file", file);
+        upload.set("file", portraitFile);
         await api("authors/" + encodeURIComponent(author.id) + "/portrait", { method: "POST", body: upload });
       }
+      if (author && author.id && bookFile) {
+        const upload = new FormData();
+        upload.set("file", bookFile);
+        await api("authors/" + encodeURIComponent(author.id) + "/book-image", { method: "POST", body: upload });
+      }
       await loadAuthors();
-      author = state.authors.find(function (entry) {
-        return entry.id === (author && author.id);
-      }) || author;
+      author = state.authors.find(function (entry) { return entry.id === (author && author.id); }) || author;
       if (author) populateAuthorForm(author);
-      if (fileInput) fileInput.value = "";
+      if (portraitInput) portraitInput.value = "";
+      if (bookInput) bookInput.value = "";
       setStatus("#authorStatus", "Saved.", true);
     } catch (error) {
       setStatus("#authorStatus", error.message || "Author could not be saved.", false);
@@ -1841,7 +1819,8 @@
         '<div class="metric"><strong>' + escapeHtml(String(data.totalPageViews || 0)) + '</strong><span>Page Views</span></div>' +
         '<div class="metric"><strong>' + escapeHtml(String(data.totalEvents || 0)) + '</strong><span>Total Events</span></div>' +
         '<div class="metric"><strong>' + escapeHtml(String(data.totalSponsors || 0)) + '</strong><span>Paid Sponsorships</span></div>' +
-        '<div class="metric"><strong>' + escapeHtml(formatMoney(data.totalSponsorRevenue || 0)) + '</strong><span>Sponsorship Revenue</span></div>';
+        '<div class="metric"><strong>' + escapeHtml(formatMoney(data.totalSponsorRevenue || 0)) + '</strong><span>Sponsorship Revenue</span></div>' +
+        '<div class="metric"><strong>' + escapeHtml(formatMoney(data.bookRevenue || 0)) + '</strong><span>Book Revenue</span></div>';
     }
 
     const topPages = qs("#analyticsTopPages");
