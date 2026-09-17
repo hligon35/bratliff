@@ -343,7 +343,7 @@ async function verifyGoogleIdentityToken(token: string, env: Env): Promise<Verif
   return {
     email,
     displayName: text(payload.name || payload.nickname || payload.email, 200) || email,
-    role: "marketing",
+    role: "manager",
     token: payload as Record<string, unknown>,
     sub: text(payload.sub, 200),
   };
@@ -1511,7 +1511,7 @@ async function authorizeAdmin(request: Request, env: Env): Promise<Authenticated
     const identity = await verifyCloudflareAccessJwt(accessJwt, env);
     return resolveDatabaseAdminIdentity(env, {
       email: identity.email,
-      role: "marketing",
+      role: "manager",
       displayName: identity.email,
       token: { provider: "cloudflare-access", sub: identity.sub },
     });
@@ -2981,7 +2981,7 @@ async function sendDueCampaigns(env: Env) {
   ).all<NewsletterCampaignRecord>();
   const scheduler: AuthenticatedAdmin = {
     email: "system@scheduler",
-    role: "marketing",
+    role: "manager",
     displayName: "Scheduled worker",
     token: { provider: "worker-cron" },
   };
