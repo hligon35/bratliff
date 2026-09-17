@@ -1886,3 +1886,37 @@ body.admin-drawer-collapsed {
     margin-top: 20px;
   }
 }
+
+
+/* Keep the collapsed drawer control and logo in separate, visible rows. */
+.jrpp-admin-drawer-toggle {
+  flex: 0 0 auto;
+  min-height: 36px;
+}
+.admin-drawer-collapsed .jrpp-admin-drawer-toggle {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 36px;
+  padding: 0;
+}
+.admin-drawer-collapsed .jrpp-admin-home {
+  flex: 0 0 auto;
+  min-height: 66px;
+  padding: 8px 0 12px;
+  position: relative;
+  z-index: 1;
+}
+.admin-drawer-collapsed .jrpp-admin-logo {
+  position: relative;
+  z-index: 2;
+}
+.analytics-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.analytics-main .hero {
+  margin-bottom: 0;
+}
