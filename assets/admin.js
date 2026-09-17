@@ -82,6 +82,7 @@
     analyticsRangeDays: 30,
     activityFilter: "",
     activities: [],
+    selectedSponsorId: "",
   };
 
   function resolveApiRoot(configuredValue, defaultPath) {
@@ -1351,6 +1352,13 @@
     const data = await api("sponsors" + (query ? "?" + query : ""));
     state.sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
     renderSponsorList();
+    if (state.selectedSponsorId) {
+      const selected = state.sponsors.find(function (entry) {
+        return entry.id === state.selectedSponsorId;
+      });
+      if (selected) populateSponsorForm(selected);
+      else resetSponsorForm();
+    }
   }
 
   function renderSponsorList() {
@@ -1370,7 +1378,7 @@
         {
           label: "",
           render: function (row) {
-            return '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">Edit</button> <button class="btn warn" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '">Delete</button>';
+            return '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">View</button> <button class="btn warn" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '">Delete</button>';
           },
         },
       ],
@@ -1382,15 +1390,13 @@
   }
 
   function resetSponsorForm() {
-    const form = qs("#sponsorForm");
-    if (!form) return;
-    form.reset();
-    const sponsorIdField = field(form, "sponsorId");
-    if (sponsorIdField) sponsorIdField.value = "";
+    state.selectedSponsorId = "";
     const title = qs("#sponsorFormTitle");
-    if (title) title.textContent = "New Sponsor";
-    const preview = qs("#sponsorLogoPreview");
-    if (preview) preview.innerHTML = "<span>No logo</span>";
+    if (title) title.textContent = "Sponsor Details";
+    const summary = qs("#sponsorDetailSummary");
+    if (summary) summary.innerHTML = '<div class="sponsor-detail-empty">Select a sponsor to review their recognition details.</div>';
+    const logo = qs("#sponsorLogoDisplay");
+    if (logo) logo.innerHTML = "<span>No logo submitted</span>";
     setStatus("#sponsorStatus", "", null);
   }
 
@@ -1402,7 +1408,7 @@
     if (!window.confirm("Delete " + label + "? This can't be undone.")) return;
     try {
       await api("sponsors/" + encodeURIComponent(sponsorId), { method: "DELETE" });
-      if (safeValue(field(qs("#sponsorForm"), "sponsorId")) === sponsorId) resetSponsorForm();
+      if (state.selectedSponsorId === sponsorId) resetSponsorForm();
       await loadSponsors();
     } catch (error) {
       setStatus("#sponsorStatus", error.message || "Sponsor could not be deleted.", false);
@@ -1410,35 +1416,44 @@
   }
 
   function populateSponsorForm(sponsor) {
-    const form = qs("#sponsorForm");
-    if (!form || !sponsor) return;
-    [
-      "sponsorId",
-      "package",
-      "booksSponsored",
-      "payerName",
-      "payerEmail",
-      "displayName",
-      "entityType",
-      "recognitionStatus",
-      "websiteUrl",
-      "adminNotes",
-    ].forEach(function (name) {
-      const control = field(form, name === "sponsorId" ? "sponsorId" : name);
-      if (!control) return;
-      const sourceKey = name === "sponsorId" ? "id" : name;
-      control.value = sponsor[sourceKey] == null ? "" : sponsor[sourceKey];
-    });
-    ["anonymous", "publishPermission"].forEach(function (name) {
-      const control = field(form, name);
-      if (control) control.checked = Boolean(sponsor[name]);
-    });
-    const title = qs("#sponsorFormTitle");
-    if (title) title.textContent = "Edit Sponsor";
-    const preview = qs("#sponsorLogoPreview");
-    if (preview) {
-      preview.innerHTML = sponsor.logoUrl ? '<img src="' + escapeHtml(sponsor.logoUrl) + '" alt="">' : "<span>No logo</span>";
+    if (!sponsor) return;
+    state.selectedSponsorId = sponsor.id || "";
+    const packageLabels = {
+      pagePal: "Page Pal",
+      chapterChampion: "Chapter Champion",
+      bookshelfBuilder: "Bookshelf Builder",
+      literacyTrailblazer: "Literacy Trailblazer",
+    };
+    const recognitionName = sponsor.anonymous ? "Anonymous sponsor" : (sponsor.displayName || "Not provided");
+    const website = sponsor.websiteUrl
+      ? '<a href="' + escapeHtml(sponsor.websiteUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(sponsor.websiteUrl) + "</a>"
+      : "Not provided";
+    const detail = qs("#sponsorDetailSummary");
+    if (detail) {
+      detail.innerHTML =
+        '<div class="sponsor-detail-status"><span class="badge">' + escapeHtml(sponsor.recognitionStatus || "Awaiting Payment") + "</span></div>" +
+        '<dl class="sponsor-detail-grid">' +
+        '<div><dt>Sponsor</dt><dd>' + escapeHtml(recognitionName) + "</dd></div>" +
+        '<div><dt>Package</dt><dd>' + escapeHtml(packageLabels[sponsor.package] || sponsor.package || "—") + "</dd></div>" +
+        '<div><dt>Payer name</dt><dd>' + escapeHtml(sponsor.payerName || "—") + "</dd></div>" +
+        '<div><dt>Payer email</dt><dd><a href="mailto:' + escapeHtml(sponsor.payerEmail || "") + '">' + escapeHtml(sponsor.payerEmail || "—") + "</a></dd></div>" +
+        '<div><dt>Books sponsored</dt><dd>' + escapeHtml(String(sponsor.booksSponsored || 0)) + "</dd></div>" +
+        '<div><dt>Amount</dt><dd>' + (Number(sponsor.amountPaidCents || 0) ? escapeHtml(formatMoney(Number(sponsor.amountPaidCents || 0) / 100)) : "Pending payment") + "</dd></div>" +
+        '<div><dt>Entity type</dt><dd>' + escapeHtml(sponsor.entityType || "Individual") + "</dd></div>" +
+        '<div><dt>Website</dt><dd>' + website + "</dd></div>" +
+        '<div><dt>Public recognition</dt><dd>' + escapeHtml(sponsor.anonymous ? "Anonymous" : (sponsor.displayName || "Not provided")) + "</dd></div>" +
+        '<div><dt>Permission to publish</dt><dd>' + escapeHtml(sponsor.publishPermission ? "Granted" : "Not granted") + "</dd></div>" +
+        '<div class="sponsor-detail-wide"><dt>Admin notes</dt><dd>' + escapeHtml(sponsor.adminNotes || "No internal notes.") + "</dd></div>" +
+        "</dl>";
     }
+    const logo = qs("#sponsorLogoDisplay");
+    if (logo) {
+      logo.innerHTML = sponsor.logoUrl
+        ? '<img src="' + escapeHtml(sponsor.logoUrl) + '" alt="' + escapeHtml(sponsor.logoAlt || recognitionName) + '">'
+        : "<span>No logo submitted</span>";
+    }
+    const title = qs("#sponsorFormTitle");
+    if (title) title.textContent = "Sponsor Details";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1487,8 +1502,7 @@
   }
 
   async function publishCurrentSponsor() {
-    const form = qs("#sponsorForm");
-    const sponsorId = form ? safeValue(field(form, "sponsorId")) : "";
+    const sponsorId = state.selectedSponsorId;
     if (!sponsorId) {
       window.alert("Save the sponsor first.");
       return;
@@ -1508,8 +1522,7 @@
   }
 
   async function hideCurrentSponsor() {
-    const form = qs("#sponsorForm");
-    const sponsorId = form ? safeValue(field(form, "sponsorId")) : "";
+    const sponsorId = state.selectedSponsorId;
     if (!sponsorId) return;
     setStatus("#sponsorStatus", "Hiding...", null);
     try {
