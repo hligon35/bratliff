@@ -2329,6 +2329,7 @@ async function deleteAuthor(env: Env, authorId: string) {
   const author = await getAuthorById(env, authorId);
   if (!author) throw new HttpError(404, "Author not found.");
   if (author.portraitKey) await env.BOOK_ASSETS.delete(author.portraitKey);
+  if (author.bookImageKey) await env.BOOK_ASSETS.delete(author.bookImageKey);
   await env.DB.prepare("DELETE FROM authors WHERE id = ?1").bind(authorId).run();
 }
 
