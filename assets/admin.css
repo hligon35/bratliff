@@ -1675,6 +1675,7 @@ body.admin-drawer-collapsed {
   padding-inline: 10px;
 }
 .admin-drawer-collapsed .jrpp-admin-brandcopy,
+.admin-drawer-collapsed .drawer-toggle-label,
 .admin-drawer-collapsed .jrpp-admin-nav a,
 .admin-drawer-collapsed .jrpp-admin-action {
   font-size: 0;
