@@ -167,7 +167,7 @@ const app: AppHandler = {
         if (request.method !== "POST") {
           return json(request, env, { ok: false, error: "Method not allowed." }, 405);
         }
-        return await handleSponsorCheckout(request, env, await parseBody(request));
+        return await handleSponsorCheckout(request, env);
       }
 
       if (url.pathname === "/api/authors/featured") {
@@ -770,8 +770,14 @@ async function handleStoreCheckout(
 async function handleSponsorCheckout(
   request: Request,
   env: Env,
-  payload: Record<string, string>,
 ): Promise<Response> {
+  const contentType = request.headers.get("content-type") || "";
+  const isMultipart = contentType.includes("multipart/form-data");
+  const payload = await parseBody(isMultipart ? request.clone() : request);
+  const formData = isMultipart ? await request.formData() : null;
+  const submittedLogo = formData?.get("logo");
+  const logoFile = submittedLogo instanceof File && submittedLogo.size > 0 ? submittedLogo : null;
+
   if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) {
     throw new HttpError(503, "Square is not configured yet.");
   }
@@ -780,8 +786,19 @@ async function handleSponsorCheckout(
   if (!definition) throw new HttpError(400, "Select a valid sponsorship package.");
 
   const payerName = text(payload.payerName, 200);
+  if (!payerName) throw new HttpError(400, "Enter your name.");
   const payerEmail = text(payload.payerEmail, 320).toLowerCase();
   if (!isValidEmail(payerEmail)) throw new HttpError(400, "Enter a valid email address.");
+  if (logoFile && packageKey !== "literacyTrailblazer") {
+    throw new HttpError(400, "Logo uploads are available for Literacy Trailblazer sponsorships.");
+  }
+  if (logoFile) {
+    const mimeType = logoFile.type.toLowerCase();
+    if (!["image/png", "image/jpeg", "image/webp", "image/svg+xml"].includes(mimeType)) {
+      throw new HttpError(400, "Use a PNG, JPG, JPEG, SVG, or WebP image.");
+    }
+    if (logoFile.size > 3 * 1024 * 1024) throw new HttpError(400, "Logo must be 3 MB or smaller.");
+  }
   const displayName = text(payload.displayName, 200) || payerName;
   const anonymous = toBoolean(payload.anonymous);
   const publishPermission = toBoolean(payload.publishPermission);
@@ -807,6 +824,17 @@ async function handleSponsorCheckout(
   )
     .bind(sponsorId, packageKey, books, amountCents, payerName, payerEmail, displayName, entityType, anonymous ? 1 : 0, publishPermission ? 1 : 0, websiteUrl)
     .run();
+
+  if (logoFile) {
+    const mimeType = logoFile.type.toLowerCase();
+    const extension = mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : mimeType === "image/svg+xml" ? "svg" : "jpg";
+    const logoKey = `sponsors/${sponsorId}/${crypto.randomUUID()}.${extension}`;
+    await env.BOOK_ASSETS.put(logoKey, await logoFile.arrayBuffer(), { httpMetadata: { contentType: mimeType } });
+    const logoUrl = buildPublicSponsorLogoUrl(env, logoKey);
+    await env.DB.prepare("UPDATE sponsors SET logo_key = ?2, logo_url = ?3, logo_alt = ?4, updated_at = datetime('now') WHERE id = ?1")
+      .bind(sponsorId, logoKey, logoUrl, text(displayName || "Literacy Trailblazer sponsor logo", 300))
+      .run();
+  }
 
   const sponsorSuccessUrl = firstUrlValue(env.SPONSOR_SUCCESS_URL) || firstUrlValue(env.ORDER_SUCCESS_URL);
   const redirectSeparator = sponsorSuccessUrl.includes("?") ? "&" : "?";
