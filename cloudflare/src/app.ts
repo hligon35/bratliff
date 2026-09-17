@@ -59,6 +59,8 @@ type VerifiedGoogleIdentity = {
   email: string;
   role: AdminRole;
   displayName: string;
+  name: string;
+  avatarUrl: string;
   token: Record<string, unknown>;
   sub: string;
 };
