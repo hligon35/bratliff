@@ -54,6 +54,7 @@ const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
+const SPONSOR_CERTIFICATE_TIME_ZONE = "America/New_York"; // Atlanta, GA
 const SPONSOR_CERTIFICATE_PACKAGES = new Set<SponsorPackageKey>([
   "chapterChampion",
   "bookshelfBuilder",
@@ -2778,7 +2779,7 @@ function formatSponsorCertificateDate(value: string): string {
   const date = new Date(value);
   const validDate = Number.isFinite(date.getTime()) ? date : new Date();
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: SPONSOR_CERTIFICATE_TIME_ZONE,
     month: "long",
     day: "numeric",
     year: "numeric",
