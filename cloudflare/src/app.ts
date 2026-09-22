@@ -2705,13 +2705,13 @@ function pdfBytesToLatin1(bytes: Uint8Array): string {
 function pdfString(value: string): string {
   return String(value || "")
     .normalize("NFKD")
-    .replace(/[^\\x20-\\x7E]/g, "")
-    .replace(/([\\\\()])/g, "\\\\$1");
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/([\\()])/g, "\\$1");
 }
 
 function getPdfObject(source: string, objectNumber: number): string {
   const expression = new RegExp(
-    `[\\\\r\\\\n]${objectNumber} 0 obj[\\\\r\\\\n]([\\\\s\\\\S]*?)[\\\\r\\\\n]endobj`,
+    `[\\r\\n]${objectNumber} 0 obj[\\r\\n]([\\s\\S]*?)[\\r\\n]endobj`,
   );
   const match = source.match(expression);
   if (!match) throw new Error("Certificate PDF object " + objectNumber + " was not found.");
@@ -2725,13 +2725,13 @@ function buildCertificateAppearance(
   value: string,
 ): string {
   const escaped = pdfString(value);
-  const stream = `q\\nBT\\n/TiIt ${fontSize} Tf\\n0.121569 0.235294 0.533333 rg\\n3 ${Math.max(4, Math.round((height - fontSize) / 2))} Td\\n(${escaped}) Tj\\nET\\nQ\\n`;
-  return `<< /BBox [0 0 ${width} ${height}] /FormType 1 /Length ${stream.length} /Matrix [1 0 0 1 0 0] /Resources << /Font << /TiIt 13 0 R >> /ProcSet [/PDF /Text] >> /Subtype /Form /Type /XObject >>\\nstream\\n${stream}endstream`;
+  const stream = `q\nBT\n/TiIt ${fontSize} Tf\n0.121569 0.235294 0.533333 rg\n3 ${Math.max(4, Math.round((height - fontSize) / 2))} Td\n(${escaped}) Tj\nET\nQ\n`;
+  return `<< /BBox [0 0 ${width} ${height}] /FormType 1 /Length ${stream.length} /Matrix [1 0 0 1 0 0] /Resources << /Font << /TiIt 13 0 R >> /ProcSet [/PDF /Text] >> /Subtype /Form /Type /XObject >>\nstream\n${stream}endstream`;
 }
 
 function fillSponsorCertificate(template: ArrayBuffer, recipient: string, date: string): Uint8Array {
   const original = pdfBytesToLatin1(new Uint8Array(template));
-  const startXrefMatches = [...original.matchAll(/startxref[\\r\\n]+(\\d+)/g)];
+  const startXrefMatches = [...original.matchAll(/startxref[\r\n]+(\d+)/g)];
   const originalStartXref = startXrefMatches.at(-1)?.[1];
   if (!originalStartXref) throw new Error("Certificate PDF xref pointer was not found.");
 
@@ -2753,24 +2753,24 @@ function fillSponsorCertificate(template: ArrayBuffer, recipient: string, date: 
   const objectOffsets = new Map<number, number>();
   for (const objectNumber of [9, 11, 12, 15, 16]) {
     objectOffsets.set(objectNumber, source.length);
-    source += `${objectNumber} 0 obj\\n${updatedObjects.get(objectNumber)}\\nendobj\\n`;
+    source += `${objectNumber} 0 obj\n${updatedObjects.get(objectNumber)}\nendobj\n`;
   }
 
   const xrefOffset = source.length;
   const xref = [
-    "xref\\n",
-    "9 1\\n",
-    String(objectOffsets.get(9)).padStart(10, "0") + " 00000 n \\n",
-    "11 2\\n",
-    String(objectOffsets.get(11)).padStart(10, "0") + " 00000 n \\n",
-    String(objectOffsets.get(12)).padStart(10, "0") + " 00000 n \\n",
-    "15 2\\n",
-    String(objectOffsets.get(15)).padStart(10, "0") + " 00000 n \\n",
-    String(objectOffsets.get(16)).padStart(10, "0") + " 00000 n \\n",
+    "xref\n",
+    "9 1\n",
+    String(objectOffsets.get(9)).padStart(10, "0") + " 00000 n \n",
+    "11 2\n",
+    String(objectOffsets.get(11)).padStart(10, "0") + " 00000 n \n",
+    String(objectOffsets.get(12)).padStart(10, "0") + " 00000 n \n",
+    "15 2\n",
+    String(objectOffsets.get(15)).padStart(10, "0") + " 00000 n \n",
+    String(objectOffsets.get(16)).padStart(10, "0") + " 00000 n \n",
   ].join("");
-  const sizeMatches = [...original.matchAll(/\\/Size(\\d+)/g)];
+  const sizeMatches = [...original.matchAll(/\/Size(\d+)/g)];
   const pdfSize = sizeMatches.at(-1)?.[1] || "62";
-  const trailer = `trailer\\n<</Size ${pdfSize}/Root 8 0 R/Prev ${originalStartXref}>>\\nstartxref\\n${xrefOffset}\\n%%EOF\\n`;
+  const trailer = `trailer\n<</Size ${pdfSize}/Root 8 0 R/Prev ${originalStartXref}>>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return pdfLatin1ToBytes(source + xref + trailer);
 }
 
@@ -2843,7 +2843,7 @@ async function sendSponsorCertificateIfEligible(
         "Your Certificate of Appreciation is attached.",
         "Presented to: " + (sponsor.payerName || "Read It Forward Sponsor"),
         "Date: " + certificateDate,
-      ].join("\\n"),
+      ].join("\n"),
       html: `<p>Thank you for supporting JPP's <strong>Read It Forward Program</strong>.</p><p>Your Certificate of Appreciation is attached.</p><p><strong>Presented to:</strong> ${safeName}<br><strong>Date:</strong> ${certificateDate}</p>`,
       replyTo: env.ADMIN_NOTIFICATION_EMAIL,
       fromName: "Jackrabbit Punkin Publishing LLC",
