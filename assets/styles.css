@@ -1204,6 +1204,53 @@ body[data-page="books"] .future-title-grid .button {
   margin: 0;
   color: var(--muted);
 }
+.download-menu {
+  position: relative;
+  justify-self: end;
+}
+
+.download-menu summary {
+  list-style: none;
+}
+
+.download-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.download-menu summary::after {
+  content: "⌄";
+  display: inline-block;
+  margin-left: 0.35rem;
+  transition: transform 0.2s;
+}
+
+.download-menu[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.download-menu-list {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 10;
+  min-width: 250px;
+  padding: 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.download-menu-list a {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  color: var(--navy);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.download-menu-list a:hover {
+  background: var(--cream);
+}
 .empty-state {
   padding: 2rem;
   border: 1px dashed #b8ae9c;
@@ -1774,6 +1821,10 @@ textarea {
   }
   .resource .button {
     grid-column: 1 / -1;
+  }
+  .resource .download-menu {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
   .newsletter {
     grid-template-columns: 1fr;
