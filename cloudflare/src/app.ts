@@ -2828,20 +2828,21 @@ async function sendSponsorCertificateIfEligible(
     if (!templateResponse.ok) {
       throw new Error("Certificate template could not be loaded from static assets.");
     }
+    const certificateRecipient = text(sponsor.payerName, 100) || "Read It Forward Sponsor";
+    const certificateDate = formatSponsorCertificateDate(paymentTimestamp);
     const certificate = fillSponsorCertificate(
       await templateResponse.arrayBuffer(),
-      sponsor.payerName || "Read It Forward Sponsor",
-      formatSponsorCertificateDate(paymentTimestamp),
+      certificateRecipient,
+      certificateDate,
     );
-    const certificateDate = formatSponsorCertificateDate(paymentTimestamp);
-    const safeName = escapeHtml(sponsor.payerName || "Read It Forward Sponsor");
+    const safeName = escapeHtml(certificateRecipient);
     await sendEmail(env, {
       to: sponsor.payerEmail,
       subject: "Your Certificate of Appreciation | Jackrabbit Punkin Publishing",
       text: [
         "Thank you for supporting JPP's Read It Forward Program.",
         "Your Certificate of Appreciation is attached.",
-        "Presented to: " + (sponsor.payerName || "Read It Forward Sponsor"),
+        "Presented to: " + certificateRecipient,
         "Date: " + certificateDate,
       ].join("\n"),
       html: `<p>Thank you for supporting JPP's <strong>Read It Forward Program</strong>.</p><p>Your Certificate of Appreciation is attached.</p><p><strong>Presented to:</strong> ${safeName}<br><strong>Date:</strong> ${certificateDate}</p>`,
