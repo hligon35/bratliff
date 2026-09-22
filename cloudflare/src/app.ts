@@ -2724,9 +2724,14 @@ function buildCertificateAppearance(
   height: number,
   fontSize: number,
   value: string,
+  alignment: "left" | "center" = "left",
 ): string {
   const escaped = pdfString(value);
-  const stream = `q\nBT\n/TiIt ${fontSize} Tf\n0.121569 0.235294 0.533333 rg\n3 ${Math.max(4, Math.round((height - fontSize) / 2))} Td\n(${escaped}) Tj\nET\nQ\n`;
+  const estimatedTextWidth = Math.min(width - 6, value.length * fontSize * 0.52);
+  const textX = alignment === "center"
+    ? Math.max(3, Math.round((width - estimatedTextWidth) / 2))
+    : 3;
+  const stream = `q\nBT\n/TiIt ${fontSize} Tf\n0.121569 0.235294 0.533333 rg\n${textX} ${Math.max(4, Math.round((height - fontSize) / 2))} Td\n(${escaped}) Tj\nET\nQ\n`;
   return `<< /BBox [0 0 ${width} ${height}] /FormType 1 /Length ${stream.length} /Matrix [1 0 0 1 0 0] /Resources << /Font << /TiIt 13 0 R >> /ProcSet [/PDF /Text] >> /Subtype /Form /Type /XObject >>\nstream\n${stream}endstream`;
 }
 
@@ -2747,7 +2752,7 @@ function fillSponsorCertificate(template: ArrayBuffer, recipient: string, date: 
     );
   }
   const recipientFontSize = Math.min(22, Math.max(10, Math.floor(340 / Math.max(1, recipient.length * 0.52))));
-  updatedObjects.set(12, buildCertificateAppearance(360, 32, recipientFontSize, recipient));
+  updatedObjects.set(12, buildCertificateAppearance(360, 32, recipientFontSize, recipient, "center"));
   updatedObjects.set(16, buildCertificateAppearance(150, 16, 10, date));
 
   let source = original;
