@@ -123,18 +123,25 @@
       toggle.innerHTML = "<span aria-hidden=\"true\">☰</span><span class=\"drawer-toggle-label\">Collapse menu</span>";
       drawer.insertBefore(toggle, drawer.firstChild);
     }
-    let collapsed = false;
-    try { collapsed = window.localStorage.getItem("jrpp-admin-drawer-collapsed") === "1"; } catch {}
-    if (collapsed) document.body.classList.add("admin-drawer-collapsed");
-    const update = function () {
-      const isCollapsed = document.body.classList.toggle("admin-drawer-collapsed");
+    // Class is already applied to <html> by the inline head script; mirror it on <body>
+    // without touching the DOM if it's already collapsed, so no layout shift occurs here.
+    const collapsed = document.documentElement.classList.contains("admin-drawer-collapsed");
+    if (collapsed && !document.body.classList.contains("admin-drawer-collapsed")) {
+      document.body.classList.add("admin-drawer-collapsed");
+    }
+    const syncToggleLabel = function (isCollapsed) {
       toggle.setAttribute("aria-expanded", String(!isCollapsed));
       toggle.setAttribute("aria-label", isCollapsed ? "Expand admin navigation" : "Collapse admin navigation");
       const label = toggle.querySelector(".drawer-toggle-label");
       if (label) label.textContent = isCollapsed ? "Expand menu" : "Collapse menu";
+    };
+    const update = function () {
+      const isCollapsed = document.body.classList.toggle("admin-drawer-collapsed");
+      document.documentElement.classList.toggle("admin-drawer-collapsed", isCollapsed);
+      syncToggleLabel(isCollapsed);
       try { window.localStorage.setItem("jrpp-admin-drawer-collapsed", isCollapsed ? "1" : "0"); } catch {}
     };
-    toggle.setAttribute("aria-expanded", String(!document.body.classList.contains("admin-drawer-collapsed")));
+    syncToggleLabel(collapsed);
     toggle.addEventListener("click", update);
     renderAdminNavigation();
   }
