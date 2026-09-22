@@ -2751,7 +2751,7 @@ function fillSponsorCertificate(template: ArrayBuffer, recipient: string, date: 
         .replace("/Ff 0", "/Ff 1"),
     );
   }
-  const recipientFontSize = Math.min(22, Math.max(10, Math.floor(340 / Math.max(1, recipient.length * 0.52))));
+  const recipientFontSize = Math.min(23, Math.max(10, Math.floor(340 / Math.max(1, recipient.length * 0.52))));
   updatedObjects.set(12, buildCertificateAppearance(360, 32, recipientFontSize, recipient, "center"));
   updatedObjects.set(16, buildCertificateAppearance(150, 16, 10, date));
 
