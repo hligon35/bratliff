@@ -53,6 +53,12 @@ const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
+const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
+const SPONSOR_CERTIFICATE_PACKAGES = new Set<SponsorPackageKey>([
+  "chapterChampion",
+  "bookshelfBuilder",
+  "literacyTrailblazer",
+]);
 const SPEAKING_BUDGETS = new Set(["Budget Available", "Community or Nonprofit Request", "Not Yet Determined"]);
 
 type VerifiedGoogleIdentity = {
@@ -963,18 +969,28 @@ async function handleSquareWebhook(request: Request, env: Env): Promise<Response
   const eventId = text(event.event_id, 200);
   if (!eventId) return new Response("Missing event id", { status: 400 });
 
-  const alreadyProcessed = await env.DB.prepare(
-    "SELECT event_id FROM webhook_events WHERE event_id = ?1 AND provider = 'square'",
+  const existingWebhook = await env.DB.prepare(
+    "SELECT event_id AS eventId, status FROM webhook_events WHERE event_id = ?1 AND provider = 'square'",
   )
     .bind(eventId)
-    .first();
-  if (alreadyProcessed) return new Response("Already processed", { status: 200 });
+    .first<{ eventId: string; status: string }>();
+  if (existingWebhook?.status === "processed") {
+    return new Response("Already processed", { status: 200 });
+  }
 
-  await env.DB.prepare(
-    "INSERT INTO webhook_events (event_id, event_type, processed_at, status, provider, attempt_count, last_error) VALUES (?1, ?2, datetime('now'), 'processing', 'square', 1, '')",
-  )
-    .bind(eventId, event.type)
-    .run();
+  if (existingWebhook) {
+    await env.DB.prepare(
+      "UPDATE webhook_events SET event_type = ?2, processed_at = datetime('now'), status = 'processing', attempt_count = attempt_count + 1, last_error = '' WHERE event_id = ?1 AND provider = 'square'",
+    )
+      .bind(eventId, event.type)
+      .run();
+  } else {
+    await env.DB.prepare(
+      "INSERT INTO webhook_events (event_id, event_type, processed_at, status, provider, attempt_count, last_error) VALUES (?1, ?2, datetime('now'), 'processing', 'square', 1, '')",
+    )
+      .bind(eventId, event.type)
+      .run();
+  }
 
   try {
     const dataObject = event.data?.object || {};
@@ -1091,7 +1107,12 @@ async function recordPaidSponsorFromSquarePayment(
     .bind(squareOrderId)
     .first<{ id: string; sponsorId: string; status: string }>();
   if (!pending) return; // Not a sponsor payment.
-  if (pending.status === "paid") return;
+
+  const paymentTimestamp = text(payment.created_at, 80) || new Date().toISOString();
+  if (pending.status === "paid") {
+    await sendSponsorCertificateIfEligible(env, pending.sponsorId, paymentTimestamp);
+    return;
+  }
 
   const amountMoney = (payment.amount_money as Record<string, JsonValue> | undefined) || {};
   const amountCents = Number(amountMoney.amount || 0);
@@ -1107,6 +1128,8 @@ async function recordPaidSponsorFromSquarePayment(
   )
     .bind(pending.sponsorId)
     .run();
+
+  await sendSponsorCertificateIfEligible(env, pending.sponsorId, paymentTimestamp);
 }
 
 async function recordRefundFromSquareEvent(env: Env, refund: Record<string, JsonValue>): Promise<void> {
@@ -2661,24 +2684,221 @@ async function sendSubmissionEmails(env: Env, formType: FormType, record: Return
   }
 }
 
+function pdfLatin1ToBytes(value: string): Uint8Array {
+  const bytes = new Uint8Array(value.length);
+  for (let index = 0; index < value.length; index += 1) {
+    bytes[index] = value.charCodeAt(index) & 0xff;
+  }
+  return bytes;
+}
+
+function pdfBytesToLatin1(bytes: Uint8Array): string {
+  let value = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+    for (const byte of chunk) value += String.fromCharCode(byte);
+  }
+  return value;
+}
+
+function pdfString(value: string): string {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[^\\x20-\\x7E]/g, "")
+    .replace(/([\\\\()])/g, "\\\\$1");
+}
+
+function getPdfObject(source: string, objectNumber: number): string {
+  const expression = new RegExp(
+    `[\\\\r\\\\n]${objectNumber} 0 obj[\\\\r\\\\n]([\\\\s\\\\S]*?)[\\\\r\\\\n]endobj`,
+  );
+  const match = source.match(expression);
+  if (!match) throw new Error("Certificate PDF object " + objectNumber + " was not found.");
+  return match[1];
+}
+
+function buildCertificateAppearance(
+  width: number,
+  height: number,
+  fontSize: number,
+  value: string,
+): string {
+  const escaped = pdfString(value);
+  const stream = `q\\nBT\\n/TiIt ${fontSize} Tf\\n0.121569 0.235294 0.533333 rg\\n3 ${Math.max(4, Math.round((height - fontSize) / 2))} Td\\n(${escaped}) Tj\\nET\\nQ\\n`;
+  return `<< /BBox [0 0 ${width} ${height}] /FormType 1 /Length ${stream.length} /Matrix [1 0 0 1 0 0] /Resources << /Font << /TiIt 13 0 R >> /ProcSet [/PDF /Text] >> /Subtype /Form /Type /XObject >>\\nstream\\n${stream}endstream`;
+}
+
+function fillSponsorCertificate(template: ArrayBuffer, recipient: string, date: string): Uint8Array {
+  const original = pdfBytesToLatin1(new Uint8Array(template));
+  const startXrefMatches = [...original.matchAll(/startxref[\\r\\n]+(\\d+)/g)];
+  const originalStartXref = startXrefMatches.at(-1)?.[1];
+  if (!originalStartXref) throw new Error("Certificate PDF xref pointer was not found.");
+
+  const updatedObjects = new Map<number, string>();
+  updatedObjects.set(9, getPdfObject(original, 9).replace(">>/Fields[", ">>/NeedAppearances true/Fields["));
+  for (const [objectNumber, value] of [[11, recipient], [15, date]] as const) {
+    updatedObjects.set(
+      objectNumber,
+      getPdfObject(original, objectNumber)
+        .replace("/V()", `/V(${pdfString(value)})`)
+        .replace("/Ff 0", "/Ff 1"),
+    );
+  }
+  const recipientFontSize = Math.min(22, Math.max(10, Math.floor(340 / Math.max(1, recipient.length * 0.52))));
+  updatedObjects.set(12, buildCertificateAppearance(360, 32, recipientFontSize, recipient));
+  updatedObjects.set(16, buildCertificateAppearance(150, 16, 10, date));
+
+  let source = original;
+  const objectOffsets = new Map<number, number>();
+  for (const objectNumber of [9, 11, 12, 15, 16]) {
+    objectOffsets.set(objectNumber, source.length);
+    source += `${objectNumber} 0 obj\\n${updatedObjects.get(objectNumber)}\\nendobj\\n`;
+  }
+
+  const xrefOffset = source.length;
+  const xref = [
+    "xref\\n",
+    "9 1\\n",
+    String(objectOffsets.get(9)).padStart(10, "0") + " 00000 n \\n",
+    "11 2\\n",
+    String(objectOffsets.get(11)).padStart(10, "0") + " 00000 n \\n",
+    String(objectOffsets.get(12)).padStart(10, "0") + " 00000 n \\n",
+    "15 2\\n",
+    String(objectOffsets.get(15)).padStart(10, "0") + " 00000 n \\n",
+    String(objectOffsets.get(16)).padStart(10, "0") + " 00000 n \\n",
+  ].join("");
+  const sizeMatches = [...original.matchAll(/\\/Size(\\d+)/g)];
+  const pdfSize = sizeMatches.at(-1)?.[1] || "62";
+  const trailer = `trailer\\n<</Size ${pdfSize}/Root 8 0 R/Prev ${originalStartXref}>>\\nstartxref\\n${xrefOffset}\\n%%EOF\\n`;
+  return pdfLatin1ToBytes(source + xref + trailer);
+}
+
+function formatSponsorCertificateDate(value: string): string {
+  const date = new Date(value);
+  const validDate = Number.isFinite(date.getTime()) ? date : new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(validDate);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.month} ${values.day}, ${values.year} at ${values.hour}:${values.minute} ${values.dayPeriod}`;
+}
+
+function pdfBytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length));
+    for (const byte of chunk) binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+async function sendSponsorCertificateIfEligible(
+  env: Env,
+  sponsorId: string,
+  paymentTimestamp: string,
+): Promise<void> {
+  const sponsor = await env.DB.prepare(
+    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, certificate_status AS certificateStatus FROM sponsors WHERE id = ?1",
+  )
+    .bind(sponsorId)
+    .first<{ package: string; payerName: string; payerEmail: string; certificateStatus: string }>();
+  if (!sponsor || !SPONSOR_CERTIFICATE_PACKAGES.has(sponsor.package as SponsorPackageKey)) return;
+  if (sponsor.certificateStatus === "sent") return;
+
+  await env.DB.prepare(
+    "UPDATE sponsors SET certificate_status = 'sending', certificate_error = '', updated_at = datetime('now') WHERE id = ?1 AND certificate_status != 'sent'",
+  )
+    .bind(sponsorId)
+    .run();
+
+  try {
+    if (!isValidEmail(sponsor.payerEmail)) {
+      throw new Error("The paid sponsor does not have a valid certificate email address.");
+    }
+    const assetUrl = new URL(SPONSOR_CERTIFICATE_ASSET_PATH, firstUrlValue(env.SITE_URL)).toString();
+    const templateResponse = await env.ASSETS.fetch(new Request(assetUrl));
+    if (!templateResponse.ok) {
+      throw new Error("Certificate template could not be loaded from static assets.");
+    }
+    const certificate = fillSponsorCertificate(
+      await templateResponse.arrayBuffer(),
+      sponsor.payerName || "Read It Forward Sponsor",
+      formatSponsorCertificateDate(paymentTimestamp),
+    );
+    const certificateDate = formatSponsorCertificateDate(paymentTimestamp);
+    const safeName = escapeHtml(sponsor.payerName || "Read It Forward Sponsor");
+    await sendEmail(env, {
+      to: sponsor.payerEmail,
+      subject: "Your Certificate of Appreciation | Jackrabbit Punkin Publishing",
+      text: [
+        "Thank you for supporting JPP's Read It Forward Program.",
+        "Your Certificate of Appreciation is attached.",
+        "Presented to: " + (sponsor.payerName || "Read It Forward Sponsor"),
+        "Date: " + certificateDate,
+      ].join("\\n"),
+      html: `<p>Thank you for supporting JPP's <strong>Read It Forward Program</strong>.</p><p>Your Certificate of Appreciation is attached.</p><p><strong>Presented to:</strong> ${safeName}<br><strong>Date:</strong> ${certificateDate}</p>`,
+      replyTo: env.ADMIN_NOTIFICATION_EMAIL,
+      fromName: "Jackrabbit Punkin Publishing LLC",
+      idempotencyKey: "sponsor-certificate-" + sponsorId,
+      attachments: [{
+        filename: "JPP_Certificate_of_Appreciation_09222026.pdf",
+        content: pdfBytesToBase64(certificate),
+      }],
+    });
+    await env.DB.prepare(
+      "UPDATE sponsors SET certificate_status = 'sent', certificate_sent_at = datetime('now'), certificate_error = '', updated_at = datetime('now') WHERE id = ?1",
+    )
+      .bind(sponsorId)
+      .run();
+  } catch (error) {
+    await env.DB.prepare(
+      "UPDATE sponsors SET certificate_status = 'error', certificate_error = ?2, updated_at = datetime('now') WHERE id = ?1",
+    )
+      .bind(sponsorId, getErrorMessage(error).slice(0, 500))
+      .run();
+    throw error;
+  }
+}
+
 async function sendEmail(
   env: Env,
-  message: { to: string; subject: string; text: string; html: string; replyTo: string; fromName: string },
+  message: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    replyTo: string;
+    fromName: string;
+    attachments?: Array<{ filename: string; content: string }>;
+    idempotencyKey?: string;
+  },
 ) {
+  const headers = new Headers({
+    Authorization: "Bearer " + env.RESEND_API_KEY,
+    "Content-Type": "application/json",
+  });
+  if (message.idempotencyKey) headers.set("Idempotency-Key", message.idempotencyKey);
+  const body: Record<string, unknown> = {
+    from: message.fromName + " <" + env.MAIL_FROM_EMAIL + ">",
+    to: [message.to],
+    reply_to: message.replyTo,
+    subject: message.subject,
+    html: message.html,
+    text: message.text,
+  };
+  if (message.attachments?.length) body.attachments = message.attachments;
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: {
-      Authorization: "Bearer " + env.RESEND_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: message.fromName + " <" + env.MAIL_FROM_EMAIL + ">",
-      to: [message.to],
-      reply_to: message.replyTo,
-      subject: message.subject,
-      html: message.html,
-      text: message.text,
-    }),
+    headers,
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error("Resend send failed (" + response.status + "): " + (await response.text()));
