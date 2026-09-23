@@ -186,10 +186,10 @@ function socialLinks() {
   return `<div class="socials" aria-label="Social media">
   <span>
     <a class="social-icon facebook"
-       href="https://www.facebook.com/barbara.ratliff.771"
+       href="https://www.facebook.com/profile.php?id=61589931405662"
        target="_blank"
        rel="noopener noreferrer"
-       aria-label="Facebook — Barbara J. Ratliff">
+       aria-label="Facebook — Jackrabbit Punkin Publishing">
       <img src="assets/facebook.png" alt="Facebook">
     </a>
   </span>
@@ -917,6 +917,10 @@ function initSponsorProgram() {
             <label data-sponsor-books-field hidden>Number of books (50 minimum)
               <input type="number" name="books" min="50" step="1" value="50" />
             </label>
+            <label data-sponsor-mailing-field hidden>Mailing address (private; required for Literacy Trailblazer certificate)
+              <textarea name="mailingAddress" rows="4" maxlength="1200" autocomplete="street-address"></textarea>
+              <small>This address is used privately to prepare and mail your certificate.</small>
+            </label>
             <label data-sponsor-logo-field hidden>Organization logo (optional)
               <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
               <small>PNG, JPG, SVG, or WebP · 3 MB maximum</small>
@@ -949,6 +953,8 @@ function initSponsorProgram() {
     const summary = document.querySelector("[data-sponsor-modal-summary]");
     const booksField = document.querySelector("[data-sponsor-books-field]");
     const logoField = document.querySelector("[data-sponsor-logo-field]");
+    const mailingField = document.querySelector("[data-sponsor-mailing-field]");
+    const mailingInput = document.querySelector('[data-sponsor-form] textarea[name="mailingAddress"]');
     const logoInput = document.querySelector('[data-sponsor-form] input[name="logo"]');
     const packageField = document.querySelector("[data-sponsor-package-field]");
     const errorBox = document.querySelector("[data-sponsor-error]");
@@ -957,10 +963,17 @@ function initSponsorProgram() {
     const isTrailblazer = packageKey === "literacyTrailblazer";
     if (isTrailblazer) {
       booksField.hidden = false;
+      if (mailingField) mailingField.hidden = false;
+      if (mailingInput) mailingInput.required = true;
       if (logoField) logoField.hidden = false;
       summary.textContent = `${definition.label} - ${definition.pricePerBook} per book, ${definition.minBooks}-book minimum.`;
     } else {
       booksField.hidden = true;
+      if (mailingField) mailingField.hidden = true;
+      if (mailingInput) {
+        mailingInput.required = false;
+        mailingInput.value = "";
+      }
       if (logoField) logoField.hidden = true;
       if (logoInput) logoInput.value = "";
       summary.textContent = `${definition.label} - ${definition.price} sponsors ${definition.books} books.`;
