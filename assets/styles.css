@@ -1204,6 +1204,12 @@ body[data-page="books"] .future-title-grid .button {
   margin: 0;
   color: var(--muted);
 }
+.resource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
 .download-menu {
   position: relative;
   justify-self: end;
@@ -1575,6 +1581,86 @@ textarea {
   font-size: 1.5rem;
 }
 
+.document-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background: rgba(10, 22, 40, 0.84);
+}
+
+.document-viewer.open {
+  display: flex;
+}
+
+.document-viewer-card {
+  display: flex;
+  flex-direction: column;
+  width: min(1100px, 100%);
+  height: min(92vh, 920px);
+  overflow: hidden;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.document-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.document-viewer-header .eyebrow {
+  margin-bottom: 0.25rem;
+}
+
+.document-viewer-header h2 {
+  font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.document-viewer-close {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--navy);
+  font-size: 1.65rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.document-viewer-frame {
+  min-height: 0;
+  flex: 1;
+  background: #e9e5dc;
+}
+
+.document-viewer-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.document-viewer-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+
 .site-footer {
   padding: 4rem 0 2rem;
   background: var(--navy);
@@ -1821,6 +1907,10 @@ textarea {
   }
   .resource .button {
     grid-column: 1 / -1;
+  }
+  .resource .resource-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
   }
   .resource .download-menu {
     grid-column: 1 / -1;
