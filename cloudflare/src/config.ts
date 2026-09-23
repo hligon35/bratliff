@@ -98,3 +98,5 @@ export const SPONSOR_PACKAGES: Record<
 };
 
 export const SPONSOR_MAX_BOOKS = 1000;
+
+export const STORE_SHIPPING_PER_BOOK_CENTS = 500;
