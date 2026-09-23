@@ -46,18 +46,16 @@ const envLocalValues = readEnvFile(envLocalPath);
 const values = { ...exampleValues, ...envValues, ...envLocalValues };
 
 const siteUrl = pickPrimaryUrl(values.SITE_URL);
-const publicApiUrl = isPlaceholder(values.PUBLIC_API_URL) ? '' : normalizeUrl(values.PUBLIC_API_URL).replace(/\/$/, '');
-const publicAdminUrl = isPlaceholder(values.PUBLIC_ADMIN_URL)
-  ? ''
-  : normalizeUrl(values.PUBLIC_ADMIN_URL);
-
-const formEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/forms/submit') : '';
-const storeBooksEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/books') : '';
-const storeCheckoutEndpoint = publicApiUrl ? joinUrl(publicApiUrl, '/api/store/checkout') : '';
-const adminApiUrl = publicApiUrl ? joinUrl(publicApiUrl, '/api/admin') : '';
-const adminUrl = publicAdminUrl || (siteUrl ? joinUrl(siteUrl, '/admin/') : 'admin/');
-const loginUrl = siteUrl ? joinUrl(siteUrl, '/login/') : 'login/';
-const authApiRoot = publicApiUrl || '';
+const publicApiUrl = '';
+const formEndpoint = '/api/forms/submit';
+const storeBooksEndpoint = '/api/store/books';
+const storeCheckoutEndpoint = '/api/store/checkout';
+const adminApiUrl = '/api/admin';
+const adminUrl = '/admin/';
+const loginUrl = '/login/';
+const authGoogleEndpoint = '/api/auth/google';
+const authSessionEndpoint = '/api/auth/session';
+const authLogoutEndpoint = '/api/auth/logout';
 
 const publicConfig = {
   siteUrl,
@@ -68,9 +66,9 @@ const publicConfig = {
   loginUrl,
   adminUrl,
   adminApiUrl,
-  authGoogleEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/google') : '',
-  authSessionEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/session') : '',
-  authLogoutEndpoint: authApiRoot ? joinUrl(authApiRoot, '/api/auth/logout') : '',
+  authGoogleEndpoint,
+  authSessionEndpoint,
+  authLogoutEndpoint,
   googleClientId: normalizeUrl(values.GOOGLE_CLIENT_ID),
   adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL),
   turnstileSiteKey: normalizeUrl(values.TURNSTILE_SITE_KEY),
