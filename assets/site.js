@@ -56,7 +56,13 @@ function getConfigValue(path) {
 
 function hydrateConfiguredLinks() {
   document.querySelectorAll("[data-config-url]").forEach((link) => {
-    const value = normalizeUrl(getConfigValue(link.dataset.configUrl));
+    const configPath = String(link.dataset.configUrl || "");
+    if (window.location.hostname === "jrpp.alphazonelabs.com" && /^squareLinks\./i.test(configPath)) {
+      link.removeAttribute("href");
+      link.hidden = true;
+      return;
+    }
+    const value = normalizeUrl(getConfigValue(configPath));
     let url;
     try {
       url = new URL(value);
@@ -622,6 +628,73 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+const documentViewer = document.querySelector("[data-document-viewer-modal]");
+let documentViewerTrigger = null;
+
+function closeDocumentViewer() {
+  if (!documentViewer?.classList.contains("open")) return;
+  documentViewer.classList.remove("open");
+  documentViewer.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("document-viewer-open");
+  const frame = documentViewer.querySelector("[data-document-viewer-frame]");
+  if (frame) frame.removeAttribute("src");
+  documentViewerTrigger?.focus();
+  documentViewerTrigger = null;
+}
+
+function openDocumentViewer(button) {
+  const source = button?.dataset.documentViewer;
+  if (!documentViewer || !source) return;
+  documentViewerTrigger = button;
+  const title = button.dataset.documentTitle || "Document viewer";
+  const heading = documentViewer.querySelector("#document-viewer-title");
+  const frame = documentViewer.querySelector("[data-document-viewer-frame]");
+  const newTab = documentViewer.querySelector("[data-document-viewer-new-tab]");
+  if (heading) heading.textContent = title;
+  if (frame) {
+    frame.title = title + " document viewer";
+    frame.src = source;
+  }
+  if (newTab) newTab.href = source;
+  documentViewer.classList.add("open");
+  documentViewer.setAttribute("aria-hidden", "false");
+  document.body.classList.add("document-viewer-open");
+  documentViewer.querySelector("[data-document-viewer-close]")?.focus();
+}
+
+document.querySelectorAll("[data-document-viewer]").forEach((button) => {
+  button.addEventListener("click", () => openDocumentViewer(button));
+});
+documentViewer?.querySelectorAll("[data-document-viewer-close]").forEach((button) => {
+  button.addEventListener("click", closeDocumentViewer);
+});
+documentViewer?.addEventListener("click", (event) => {
+  if (event.target === documentViewer) closeDocumentViewer();
+});
+document.addEventListener("keydown", (event) => {
+  if (!documentViewer?.classList.contains("open")) return;
+  if (event.key === "Escape") {
+    closeDocumentViewer();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [
+    ...documentViewer.querySelectorAll(
+      'button:not([disabled]), a[href], iframe',
+    ),
+  ].filter((element) => !element.hidden);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
 const requestedSubject = new URLSearchParams(location.search).get("subject");
 if (requestedSubject) {
   const subject = document.querySelector('select[name="subject"]');
@@ -718,8 +791,13 @@ function initFeaturedAuthor() {
 }
 
 function resolvePublicApiBase() {
-  const raw = String(siteConfig.publicApiUrl || "").split(",")[0];
-  return normalizeUrl(raw).replace(/\/$/, "");
+  const raw = normalizeUrl(siteConfig.publicApiUrl);
+  if (!raw) return window.location.origin;
+  try {
+    return new URL(raw, window.location.href).origin;
+  } catch {
+    return window.location.origin;
+  }
 }
 
 function trackEvent(eventType, extra) {

@@ -77,6 +77,19 @@ Set the notification URL to `${SITE_URL}/square/webhook` and copy the subscripti
 
 Existing D1 deployments must apply [cloudflare/migrations/0002_review_form_fields.sql](cloudflare/migrations/0002_review_form_fields.sql) and [cloudflare/migrations/0003_square_sponsors_content.sql](cloudflare/migrations/0003_square_sponsors_content.sql) after the initial migration.
 
+### Square sandbox deployment
+
+The default Wrangler environment remains production at `https://jackrabbitpunkinpublishing.com`. The named `sandbox` environment deploys a separate Worker at `https://jrpp.alphazonelabs.com`, uses isolated D1/R2 resources, and selects Square's sandbox API.
+
+Deploy the sandbox Worker and apply its migrations with:
+
+```sh
+npx wrangler deploy --config cloudflare/wrangler.jsonc --env sandbox
+npx wrangler d1 migrations apply bratliff-platform-sandbox --remote --config cloudflare/wrangler.jsonc --env sandbox
+```
+
+Set the sandbox values for `SQUARE_ACCESS_TOKEN`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_LOCATION_ID`, and the other required secrets with `--env sandbox`. Keep the production secrets on the default environment. The `jrpp.alphazonelabs.com` DNS record must be proxied through the `alphazonelabs.com` Cloudflare zone for the route to receive traffic. The legacy `/square/sandbox` path redirects to the sandbox host; the production root and production checkout remain unchanged.
+
 ## Temporary launch page
 
 The public homepage temporarily redirects visitors to `coming-soon.html`, while the admin, login, API, and completed site files remain intact. Remove the temporary redirect block marked in `index.html` when the full website is ready to launch.
