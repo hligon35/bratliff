@@ -1038,6 +1038,51 @@ body[data-page="books"] .future-title-grid .button {
 .price-card p {
   margin-bottom: 1.25rem;
 }
+.sponsor-tier-benefits {
+  margin: 0 0 1.25rem;
+  padding-left: 1.2rem;
+}
+.sponsor-tier-benefits li {
+  margin-top: 0.45rem;
+}
+.store-checkout-note {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.recognition-entry-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+.recognition-entry {
+  display: grid;
+  gap: 1.5rem;
+}
+.recognition-certificate {
+  margin: 0;
+  max-width: 520px;
+}
+.recognition-certificate a {
+  display: block;
+}
+.recognition-certificate img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(10, 22, 40, 0.12);
+}
+.recognition-certificate figcaption {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+@media (min-width: 769px) {
+  .recognition-entry {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 520px);
+    align-items: start;
+  }
+}
 .price-card .button {
   align-self: end;
   justify-self: start;
