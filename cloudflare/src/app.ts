@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
-import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_MAX_BOOKS, SPONSOR_PACKAGES } from "./config";
+import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_MAX_BOOKS, SPONSOR_PACKAGES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import type {
   AdminRole,
   AdminUser,
@@ -56,8 +56,6 @@ const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Ei
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
 const SPONSOR_CERTIFICATE_TIME_ZONE = "America/New_York"; // Atlanta, GA
 const SPONSOR_CERTIFICATE_PACKAGES = new Set<SponsorPackageKey>([
-  "chapterChampion",
-  "bookshelfBuilder",
   "literacyTrailblazer",
 ]);
 const SPEAKING_BUDGETS = new Set(["Budget Available", "Community or Nonprofit Request", "Not Yet Determined"]);
@@ -752,14 +750,17 @@ async function handleStoreCheckout(
 
   const orderNumber = createOrderNumber();
   const subtotal = money(items.reduce((sum, item) => sum + item.lineTotal, 0));
+  const bookCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const shipping = money((bookCount * STORE_SHIPPING_PER_BOOK_CENTS) / 100);
+  const total = money(subtotal + shipping);
 
   await env.DB.prepare(
     `INSERT INTO orders (
       order_number, provider, created_at, subtotal, shipping, tax, total,
       payment_status, fulfillment_status, tracking_number, shipping_address, notes
-    ) VALUES (?1, 'square', datetime('now'), ?2, 0, 0, ?2, 'Pending', 'Unfulfilled', '', '', '')`,
+    ) VALUES (?1, 'square', datetime('now'), ?2, ?3, 0, ?4, 'Pending', 'Unfulfilled', '', '', '')`,
   )
-    .bind(orderNumber, subtotal)
+    .bind(orderNumber, subtotal, shipping, total)
     .run();
 
   await env.DB.prepare(
@@ -774,14 +775,23 @@ async function handleStoreCheckout(
     order: {
       location_id: env.SQUARE_LOCATION_ID,
       reference_id: orderNumber,
-      line_items: items.map((item) => ({
-        name: item.title.slice(0, 500),
-        quantity: String(item.quantity),
-        base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
-        metadata: { sku: item.sku, bookId: item.bookId },
-      })),
+      line_items: [
+        ...items.map((item) => ({
+          name: item.title.slice(0, 500),
+          quantity: String(item.quantity),
+          base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
+          metadata: { sku: item.sku, bookId: item.bookId },
+        })),
+        {
+          name: "U.S. Shipping & Handling",
+          quantity: "1",
+          base_price_money: { amount: Math.round(shipping * 100), currency: "USD" },
+          metadata: { type: "shipping", perBookCents: STORE_SHIPPING_PER_BOOK_CENTS },
+        },
+      ],
     },
     checkout_options: {
+      ask_for_shipping_address: true,
       redirect_url: `${env.ORDER_SUCCESS_URL}${redirectSeparator}orderNumber=${encodeURIComponent(orderNumber)}`,
     },
   });
@@ -830,6 +840,10 @@ async function handleSponsorCheckout(
   const publishPermission = toBoolean(payload.publishPermission);
   const websiteUrl = safeUrl(payload.websiteUrl);
   const entityType = text(payload.entityType, 40) || "individual";
+  const mailingAddress = text(payload.mailingAddress, 1200);
+  if (packageKey === "literacyTrailblazer" && !mailingAddress) {
+    throw new HttpError(400, "Enter a private mailing address for the Literacy Trailblazer certificate.");
+  }
 
   let books = definition.books;
   let amountCents = definition.priceCents;
@@ -845,10 +859,10 @@ async function handleSponsorCheckout(
   await env.DB.prepare(
     `INSERT INTO sponsors (
       id, package, books_sponsored, amount_paid_cents, payer_name, payer_email, display_name,
-      entity_type, anonymous, publish_permission, website_url, recognition_status, created_at, updated_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'Awaiting Payment', datetime('now'), datetime('now'))`,
+      entity_type, anonymous, publish_permission, website_url, mailing_address, recognition_status, created_at, updated_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'Awaiting Payment', datetime('now'), datetime('now'))`,
   )
-    .bind(sponsorId, packageKey, books, amountCents, payerName, payerEmail, displayName, entityType, anonymous ? 1 : 0, publishPermission ? 1 : 0, websiteUrl)
+    .bind(sponsorId, packageKey, books, amountCents, payerName, payerEmail, displayName, entityType, anonymous ? 1 : 0, publishPermission ? 1 : 0, websiteUrl, mailingAddress)
     .run();
 
   if (logoFile) {
@@ -2838,10 +2852,10 @@ async function sendSponsorCertificateIfEligible(
   paymentTimestamp: string,
 ): Promise<void> {
   const sponsor = await env.DB.prepare(
-    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, certificate_status AS certificateStatus FROM sponsors WHERE id = ?1",
+    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, mailing_address AS mailingAddress, certificate_status AS certificateStatus FROM sponsors WHERE id = ?1",
   )
     .bind(sponsorId)
-    .first<{ package: string; payerName: string; payerEmail: string; certificateStatus: string }>();
+    .first<{ package: string; payerName: string; payerEmail: string; mailingAddress: string; certificateStatus: string }>();
   if (!sponsor || !SPONSOR_CERTIFICATE_PACKAGES.has(sponsor.package as SponsorPackageKey)) return;
   if (sponsor.certificateStatus === "sent") return;
 
@@ -2854,6 +2868,12 @@ async function sendSponsorCertificateIfEligible(
   try {
     if (!isValidEmail(sponsor.payerEmail)) {
       throw new Error("The paid sponsor does not have a valid certificate email address.");
+    }
+    if (!text(sponsor.mailingAddress, 1200)) {
+      throw new Error("The paid Literacy Trailblazer does not have a mailing address for the certificate.");
+    }
+    if (!isValidEmail(env.ADMIN_NOTIFICATION_EMAIL)) {
+      throw new Error("The admin notification email is not configured for certificate preparation.");
     }
     const assetUrl = new URL(SPONSOR_CERTIFICATE_ASSET_PATH, firstUrlValue(env.SITE_URL)).toString();
     const templateResponse = await env.ASSETS.fetch(new Request(assetUrl));
@@ -2868,23 +2888,40 @@ async function sendSponsorCertificateIfEligible(
       certificateDate,
     );
     const safeName = escapeHtml(certificateRecipient);
+    const safeAddress = escapeHtml(text(sponsor.mailingAddress, 1200)).replace(/\n/g, "<br>");
     await sendEmail(env, {
-      to: sponsor.payerEmail,
-      subject: "Your Certificate of Appreciation | Jackrabbit Punkin Publishing",
+      to: env.ADMIN_NOTIFICATION_EMAIL,
+      subject: "Prepare Literacy Trailblazer Certificate | " + certificateRecipient,
       text: [
-        "Thank you for supporting JPP's Read It Forward Program.",
-        "Your Certificate of Appreciation is attached.",
-        "Presented to: " + certificateRecipient,
-        "Date: " + certificateDate,
+        "A Literacy Trailblazer sponsorship has been paid.",
+        "Prepare, sign, and mail the attached JPP Certificate of Appreciation within 3–4 business days.",
+        "Recipient: " + certificateRecipient,
+        "Mailing address:",
+        text(sponsor.mailingAddress, 1200),
+        "Payment date: " + certificateDate,
       ].join("\n"),
-      html: `<p>Thank you for supporting JPP's <strong>Read It Forward Program</strong>.</p><p>Your Certificate of Appreciation is attached.</p><p><strong>Presented to:</strong> ${safeName}<br><strong>Date:</strong> ${certificateDate}</p>`,
-      replyTo: env.ADMIN_NOTIFICATION_EMAIL,
+      html: `<p>A <strong>Literacy Trailblazer</strong> sponsorship has been paid.</p><p>Please prepare, sign, and mail the attached JPP Certificate of Appreciation within 3–4 business days.</p><p><strong>Recipient:</strong> ${safeName}<br><strong>Mailing address:</strong><br>${safeAddress}<br><strong>Payment date:</strong> ${certificateDate}</p>`,
+      replyTo: sponsor.payerEmail,
       fromName: "Jackrabbit Punkin Publishing LLC",
-      idempotencyKey: "sponsor-certificate-" + sponsorId,
+      idempotencyKey: "sponsor-certificate-admin-" + sponsorId,
       attachments: [{
         filename: "JPP_Certificate_of_Appreciation_09222026.pdf",
         content: pdfBytesToBase64(certificate),
       }],
+    });
+    await sendEmail(env, {
+      to: sponsor.payerEmail,
+      subject: "Your JPP Certificate of Appreciation is being prepared",
+      text: [
+        "Thank you for supporting JPP's Read It Forward Program.",
+        "Your personalized Literacy Trailblazer Certificate of Appreciation is being prepared, signed, and will be mailed within 3–4 business days after your sponsorship is confirmed.",
+        "Recipient: " + certificateRecipient,
+        "Payment date: " + certificateDate,
+      ].join("\n"),
+      html: `<p>Thank you for supporting JPP's <strong>Read It Forward Program</strong>.</p><p>Your personalized Literacy Trailblazer Certificate of Appreciation is being prepared, signed, and will be mailed within 3–4 business days after your sponsorship is confirmed.</p><p><strong>Recipient:</strong> ${safeName}<br><strong>Payment date:</strong> ${certificateDate}</p>`,
+      replyTo: env.ADMIN_NOTIFICATION_EMAIL,
+      fromName: "Jackrabbit Punkin Publishing LLC",
+      idempotencyKey: "sponsor-certificate-confirmation-" + sponsorId,
     });
     await env.DB.prepare(
       "UPDATE sponsors SET certificate_status = 'sent', certificate_sent_at = datetime('now'), certificate_error = '', updated_at = datetime('now') WHERE id = ?1",
@@ -2900,7 +2937,6 @@ async function sendSponsorCertificateIfEligible(
     throw error;
   }
 }
-
 async function sendEmail(
   env: Env,
   message: {
