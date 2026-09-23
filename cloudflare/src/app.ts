@@ -116,6 +116,13 @@ const app: AppHandler = {
         return await serveAdminAvatar(request, url, env);
       }
 
+      if (url.pathname === "/square/sandbox") {
+        const target = env.SQUARE_ENVIRONMENT === "production"
+          ? "https://jrpp.alphazonelabs.com/"
+          : new URL("/", url).toString();
+        return Response.redirect(target, 302);
+      }
+
       if (url.pathname === "/square/webhook") {
         if (!env.DB) {
           return new Response("Not configured", { status: 404 });
