@@ -75,10 +75,11 @@
   "env": {
     "sandbox": {
       "name": "bratliff-platform-sandbox",
+      "account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
       "routes": [
         {
-          "pattern": "jrpp.alphazonelabs.com/*",
-          "zone_name": "alphazonelabs.com"
+          "pattern": "jrpp.alphazonelabs.com",
+          "custom_domain": true
         }
       ],
       "triggers": {
