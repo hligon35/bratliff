@@ -1454,8 +1454,9 @@ async function handleAdminApi(
   if (request.method === "DELETE" && path.startsWith("books/")) {
     requireRole(admin, "manager");
     const bookId = decodeURIComponent(path.slice("books/".length));
-    await deleteBook(env, bookId);
-    return json(request, env, { ok: true });
+    const result = await deleteBook(env, bookId);
+    await writeAuditLog(env, admin, result.action === "archived" ? "book_archived" : "book_deleted", "book", bookId, result.message);
+    return json(request, env, { ok: true, ...result });
   }
   return json(request, env, { ok: false, error: "Admin route not found." }, 404);
 }
@@ -1859,11 +1860,29 @@ async function removeBookImage(env: Env, bookId: string) {
     .run();
 }
 
-async function deleteBook(env: Env, bookId: string) {
+async function deleteBook(env: Env, bookId: string): Promise<{ action: "archived" | "deleted"; message: string }> {
   const book = await getStoreBookById(env, bookId);
   if (!book) throw new HttpError(404, "Book not found.");
+
+  const [orderReferences, inventoryReferences] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS count FROM order_items WHERE book_id = ?1").bind(bookId).first<{ count: number }>(),
+    env.DB.prepare("SELECT COUNT(*) AS count FROM inventory_events WHERE book_id = ?1").bind(bookId).first<{ count: number }>(),
+  ]);
+  const hasHistory = Number(orderReferences?.count || 0) > 0 || Number(inventoryReferences?.count || 0) > 0;
+
+  if (hasHistory) {
+    await env.DB.prepare(
+      "UPDATE books SET status = 'Archived', featured = 0, coming_soon = 0, preorder = 0, updated_at = datetime('now') WHERE id = ?1",
+    ).bind(bookId).run();
+    return {
+      action: "archived",
+      message: "This book has order or inventory history, so it was archived instead of permanently deleted.",
+    };
+  }
+
   if (book.imageKey) await env.BOOK_ASSETS.delete(book.imageKey);
   await env.DB.prepare("DELETE FROM books WHERE id = ?1").bind(bookId).run();
+  return { action: "deleted", message: "Book permanently deleted." };
 }
 
 async function serveBookImage(url: URL, env: Env): Promise<Response> {
