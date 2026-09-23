@@ -83,7 +83,15 @@
                   <h2>Books</h2>
                   <button class="btn" id="newBookBtn" type="button">+ Add Book</button>
                 </div>
-                <div class="panel-body table-wrap" id="bookList"></div>
+                <div class="panel-body">
+                  <div class="toolbar toolbar-books">
+                    <div class="toolbar-field"><label for="bookSearch">Search</label><input id="bookSearch" title="Search books" placeholder="Title, SKU, author, category" /></div>
+                    <div class="toolbar-field"><label for="bookStatusFilter">Status</label><select id="bookStatusFilter" title="Book status filter"><option value="">All statuses</option><option value="Published">Published</option><option value="Coming Soon">Coming Soon</option><option value="Out of Stock">Out of Stock</option><option value="Draft">Draft</option><option value="Archived">Archived</option></select></div>
+                    <div class="toolbar-field"><label for="bookSort">Sort by</label><select id="bookSort" title="Book sort"><option value="updated-desc">Recently updated</option><option value="title-asc">Title A-Z</option><option value="stock-asc">Stock low-high</option><option value="price-asc">Price low-high</option><option value="price-desc">Price high-low</option></select></div>
+                  </div>
+                  <div class="toolbar-summary" id="bookFilterSummary"></div>
+                  <div class="table-wrap" id="bookList"></div>
+                </div>
               </div>
               <div class="panel">
                 <div class="panel-head"><h2 id="formTitle">Add Book</h2></div>
@@ -174,8 +182,11 @@
                     </div>
                     <div class="form-actions">
                       <button class="btn" type="submit">Save Book</button>
+                      <button class="btn alt" type="button" id="cancelBookBtn">Cancel</button>
+                      <button class="btn alt" type="button" id="duplicateBookBtn">Duplicate</button>
                       <button class="btn alt" type="button" id="publishBtn">Publish</button>
                       <button class="btn warn" type="button" id="archiveBtn">Archive</button>
+                      <button class="btn warn" type="button" id="removeBookImageBtn">Remove Image</button>
                     </div>
                     <div class="status" id="bookStatus"></div>
                   </form>
