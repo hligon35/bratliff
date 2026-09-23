@@ -56,7 +56,13 @@ function getConfigValue(path) {
 
 function hydrateConfiguredLinks() {
   document.querySelectorAll("[data-config-url]").forEach((link) => {
-    const value = normalizeUrl(getConfigValue(link.dataset.configUrl));
+    const configPath = String(link.dataset.configUrl || "");
+    if (window.location.hostname === "jrpp.alphazonelabs.com" && /^squareLinks\./i.test(configPath)) {
+      link.removeAttribute("href");
+      link.hidden = true;
+      return;
+    }
+    const value = normalizeUrl(getConfigValue(configPath));
     let url;
     try {
       url = new URL(value);
@@ -718,8 +724,13 @@ function initFeaturedAuthor() {
 }
 
 function resolvePublicApiBase() {
-  const raw = String(siteConfig.publicApiUrl || "").split(",")[0];
-  return normalizeUrl(raw).replace(/\/$/, "");
+  const raw = normalizeUrl(siteConfig.publicApiUrl);
+  if (!raw) return window.location.origin;
+  try {
+    return new URL(raw, window.location.href).origin;
+  } catch {
+    return window.location.origin;
+  }
 }
 
 function trackEvent(eventType, extra) {
