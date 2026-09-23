@@ -70,6 +70,11 @@
       health: "",
       sort: "updated-desc",
     },
+    bookFilters: {
+      search: "",
+      status: "",
+      sort: "updated-desc",
+    },
     sponsors: [],
     sponsorFilters: {
       status: "",
@@ -639,6 +644,31 @@
     return rows;
   }
 
+  function filteredBooks() {
+    const search = state.bookFilters.search.trim().toLowerCase();
+    const status = state.bookFilters.status.toLowerCase();
+    const rows = state.books.filter(function (book) {
+      if (status && String(book.status || "").toLowerCase() !== status) return false;
+      return includesNeedle([book.title, book.sku, book.author, book.category], search);
+    });
+    rows.sort(function (left, right) {
+      switch (state.bookFilters.sort) {
+        case "title-asc":
+          return String(left.title || "").localeCompare(String(right.title || ""));
+        case "stock-asc":
+          return Number(left.stock || 0) - Number(right.stock || 0);
+        case "price-asc":
+          return Number(left.price || 0) - Number(right.price || 0);
+        case "price-desc":
+          return Number(right.price || 0) - Number(left.price || 0);
+        case "updated-desc":
+        default:
+          return asTime(right.updatedAt) - asTime(left.updatedAt);
+      }
+    });
+    return rows;
+  }
+
   function renderStoreMetrics() {
     const root = qs("#metrics");
     if (!root) return;
@@ -738,6 +768,7 @@
   function renderBooks() {
     const root = qs("#bookList");
     if (!root) return;
+    const rows = filteredBooks();
     root.innerHTML = tableMarkup(
       "table",
       [
@@ -747,11 +778,13 @@
         { label: "Price", render: function (book) { return escapeHtml(formatMoney(book.price)); } },
         { label: "Stock", key: "stock" },
         { label: "Status", render: function (book) { return '<span class="badge">' + escapeHtml(book.status || "") + "</span>"; } },
-        { label: "", render: function (book) { return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button> <button class="btn warn" type="button" data-delete-book="' + escapeHtml(book.bookId) + '">Delete</button>'; } },
+        { label: "", render: function (book) { return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button> <button class="btn alt" type="button" data-duplicate-book="' + escapeHtml(book.bookId) + '">Duplicate</button> <button class="btn warn" type="button" data-delete-book="' + escapeHtml(book.bookId) + '">Remove</button>'; } },
       ],
-      state.books,
-      "No books yet.",
+      rows,
+      "No books match the current filters.",
     );
+    const summary = qs("#bookFilterSummary");
+    if (summary) summary.textContent = rows.length + " of " + state.books.length + " books shown";
     renderInventory();
     renderStoreMetrics();
   }
@@ -762,8 +795,10 @@
     form.reset();
     const bookIdField = field(form, "bookId");
     const thresholdField = field(form, "lowStockThreshold");
+    const fileInput = qs("#bookImage");
     if (bookIdField) bookIdField.value = "";
     if (thresholdField) thresholdField.value = 5;
+    if (fileInput) fileInput.value = "";
     const title = qs("#formTitle");
     if (title) title.textContent = "Add Book";
     const preview = qs("#imagePreview");
@@ -775,13 +810,80 @@
     const book = state.books.find(function (entry) {
       return entry.bookId === bookId;
     });
-    if (!window.confirm("Delete " + (book ? '"' + book.title + '"' : "this book") + "? This can't be undone.")) return;
+    if (!window.confirm("Remove " + (book ? '"' + book.title + '"' : "this book") + "? Books with order or inventory history will be archived instead of permanently deleted.")) return;
     try {
-      await api("books/" + encodeURIComponent(bookId), { method: "DELETE" });
+      const result = await api("books/" + encodeURIComponent(bookId), { method: "DELETE" });
       if (safeValue(field(qs("#bookForm"), "bookId")) === bookId) resetBookForm();
       await loadBooks();
+      setStatus("#bookStatus", result.message || "Book removed.", true);
     } catch (error) {
-      setStatus("#bookStatus", error.message || "Book could not be deleted.", false);
+      setStatus("#bookStatus", error.message || "Book could not be removed.", false);
+    }
+  }
+
+  async function duplicateBookRow(bookId) {
+    const source = state.books.find(function (entry) {
+      return entry.bookId === bookId;
+    });
+    if (!source) return;
+    const suffix = "-COPY-" + String(Date.now()).slice(-4);
+    const payload = {
+      sku: String(source.sku || "BOOK").slice(0, 100 - suffix.length) + suffix,
+      isbn: source.isbn || "",
+      title: String(source.title || "Untitled Book") + " Copy",
+      subtitle: source.subtitle || "",
+      author: source.author || "",
+      category: source.category || "",
+      format: source.format || "Paperback",
+      publicationDate: source.publicationDate || "",
+      price: source.price || 0,
+      comparePrice: source.comparePrice || 0,
+      stock: 0,
+      lowStockThreshold: source.lowStockThreshold || 5,
+      shortDescription: source.shortDescription || "",
+      synopsis: source.synopsis || "",
+      status: "Draft",
+      featured: false,
+      comingSoon: false,
+      preorder: false,
+      squareCatalogItemId: "",
+      squareCatalogVariationId: "",
+    };
+    try {
+      setStatus("#bookStatus", "Duplicating...", null);
+      const data = await api("books", { method: "POST", body: payload });
+      await loadBooks();
+      const duplicate = state.books.find(function (entry) {
+        return entry.bookId === (data.book && data.book.bookId);
+      });
+      if (duplicate) populateBookForm(duplicate);
+      setStatus("#bookStatus", "Book duplicated as a draft. Review the SKU and details before publishing.", true);
+    } catch (error) {
+      setStatus("#bookStatus", error.message || "Book could not be duplicated.", false);
+    }
+  }
+
+  async function removeCurrentBookImage() {
+    const form = qs("#bookForm");
+    const fileInput = qs("#bookImage");
+    const bookId = safeValue(field(form, "bookId"));
+    const current = state.books.find(function (entry) { return entry.bookId === bookId; });
+    if (fileInput) fileInput.value = "";
+    if (!bookId) {
+      const preview = qs("#imagePreview");
+      if (preview) preview.innerHTML = "<span>No image</span>";
+      return;
+    }
+    if (!current || !current.imageUrl) return;
+    if (!window.confirm("Remove this book image?")) return;
+    try {
+      setStatus("#bookStatus", "Removing image...", null);
+      await api("books/" + encodeURIComponent(bookId) + "/image", { method: "DELETE" });
+      await loadBooks();
+      populateBookForm(state.books.find(function (entry) { return entry.bookId === bookId; }));
+      setStatus("#bookStatus", "Image removed.", true);
+    } catch (error) {
+      setStatus("#bookStatus", error.message || "Image could not be removed.", false);
     }
   }
 
@@ -817,6 +919,8 @@
     });
     const title = qs("#formTitle");
     if (title) title.textContent = "Edit Book";
+    const fileInput = qs("#bookImage");
+    if (fileInput) fileInput.value = "";
     const preview = qs("#imagePreview");
     if (preview) {
       preview.innerHTML = book.imageUrl ? '<img src="' + escapeHtml(book.imageUrl) + '" alt="">' : "<span>No image</span>";
@@ -2078,6 +2182,12 @@
       return;
     }
 
+    const duplicateBookButton = event.target.closest("[data-duplicate-book]");
+    if (duplicateBookButton) {
+      duplicateBookRow(duplicateBookButton.getAttribute("data-duplicate-book"));
+      return;
+    }
+
     const editSponsorButton = event.target.closest("[data-edit-sponsor]");
     if (editSponsorButton) {
       populateSponsorForm(
@@ -2165,6 +2275,13 @@
     }
   });
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);
+  qs("#cancelBookBtn")?.addEventListener("click", resetBookForm);
+  qs("#duplicateBookBtn")?.addEventListener("click", function () {
+    const bookId = safeValue(field(qs("#bookForm"), "bookId"));
+    if (bookId) duplicateBookRow(bookId);
+    else window.alert("Save the book first.");
+  });
+  qs("#removeBookImageBtn")?.addEventListener("click", removeCurrentBookImage);
   qs("#publishBtn")?.addEventListener("click", publishCurrentBook);
   qs("#archiveBtn")?.addEventListener("click", archiveCurrentBook);
   qs("#bookForm")?.addEventListener("submit", saveBook);
@@ -2246,6 +2363,18 @@
   qs("#ordersSort")?.addEventListener("change", function (event) {
     state.orderFilters.sort = event.target.value || "date-desc";
     renderStoreOrders();
+  });
+  qs("#bookSearch")?.addEventListener("input", function (event) {
+    state.bookFilters.search = event.target.value || "";
+    renderBooks();
+  });
+  qs("#bookStatusFilter")?.addEventListener("change", function (event) {
+    state.bookFilters.status = event.target.value || "";
+    renderBooks();
+  });
+  qs("#bookSort")?.addEventListener("change", function (event) {
+    state.bookFilters.sort = event.target.value || "updated-desc";
+    renderBooks();
   });
   qs("#inventorySearch")?.addEventListener("input", function (event) {
     state.inventoryFilters.search = event.target.value || "";
