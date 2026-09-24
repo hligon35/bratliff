@@ -1003,7 +1003,7 @@ body[data-page="books"] .future-title-grid .button {
   border: 1px solid var(--line);
   background: white;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto minmax(3.75rem, auto) minmax(0, 1fr) auto;
   align-items: start;
 }
 .price-card h3 {
@@ -1038,12 +1038,26 @@ body[data-page="books"] .future-title-grid .button {
 .price-card p {
   margin-bottom: 1.25rem;
 }
+.price-card .tier-includes {
+  min-height: 3.75rem;
+}
+.price-card .tier-includes-placeholder {
+  visibility: hidden;
+  user-select: none;
+}
 .sponsor-tier-benefits {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   margin: 0 0 1.25rem;
   padding-left: 1.2rem;
 }
 .sponsor-tier-benefits li {
   margin-top: 0.45rem;
+}
+.sponsor-tier-benefits li:last-child {
+  margin-top: auto;
 }
 .store-checkout-note {
   margin: 0.35rem 0 0;
