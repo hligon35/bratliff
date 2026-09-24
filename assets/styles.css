@@ -1006,6 +1006,12 @@ body[data-page="books"] .future-title-grid .button {
   grid-template-rows: auto auto auto minmax(3.75rem, auto) minmax(0, 1fr) auto;
   align-items: start;
 }
+.price-card > h3 { grid-row: 1; }
+.price-card > .price { grid-row: 2; }
+.price-card > p:not(.tier-includes) { grid-row: 3; }
+.price-card > .tier-includes { grid-row: 4; }
+.price-card > .sponsor-tier-benefits { grid-row: 5; }
+.price-card > button { grid-row: 6; width: 100%; }
 .price-card h3 {
   margin-top: 0.75rem;
   min-height: 2.16em;
