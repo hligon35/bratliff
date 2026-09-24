@@ -714,9 +714,43 @@ initFeaturedAuthor();
 function initFeaturedAuthor() {
   const section = document.querySelector("[data-featured-author]");
   if (!section) return;
-  const apiBase = resolvePublicApiBase();
-  if (!apiBase) return;
 
+  const portraits = [
+    { src: "assets/maleFeature.png", alt: "Featured male author" },
+    { src: "assets/femaleFeature.png", alt: "Featured female author" },
+  ];
+  const portraitEl = section.querySelector("[data-featured-author-portrait]");
+  const portraitCaptionEl = section.querySelector("[data-featured-author-portrait-caption]");
+  const bookCoverEl = section.querySelector("[data-featured-author-book-cover]");
+  const bookTitleEl = section.querySelector("[data-featured-author-book-title]");
+  let portraitIndex = 0;
+
+  function showPortrait() {
+    if (!portraitEl) return;
+    const portrait = portraits[portraitIndex];
+    portraitEl.src = portrait.src;
+    portraitEl.alt = portrait.alt;
+    portraitEl.hidden = false;
+    portraitEl.closest(".spotlight-visual")?.classList.add("has-image");
+    if (portraitCaptionEl) portraitCaptionEl.hidden = true;
+  }
+
+  showPortrait();
+  window.setInterval(() => {
+    portraitIndex = (portraitIndex + 1) % portraits.length;
+    showPortrait();
+  }, 3000);
+
+  if (bookCoverEl) {
+    bookCoverEl.src = "assets/bookFeature.png";
+    bookCoverEl.alt = "Featured book cover";
+    bookCoverEl.hidden = false;
+    bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
+  }
+  if (bookTitleEl) bookTitleEl.textContent = "Featured Book";
+  section.hidden = false;
+
+  const apiBase = resolvePublicApiBase();
   fetch(`${apiBase}/api/authors/featured`, { cache: "no-store" })
     .then((response) => response.json())
     .then((data) => {
@@ -730,28 +764,13 @@ function initFeaturedAuthor() {
     const titleEl = root.querySelector("[data-featured-author-title]");
     const introEl = root.querySelector("[data-featured-author-intro]");
     const bioEl = root.querySelector("[data-featured-author-bio]");
-    const portraitEl = root.querySelector("[data-featured-author-portrait]");
-    const portraitCaptionEl = root.querySelector("[data-featured-author-portrait-caption]");
     const ctaEl = root.querySelector("[data-featured-author-cta]");
-    const bookCoverEl = root.querySelector("[data-featured-author-book-cover]");
-    const bookTitleEl = root.querySelector("[data-featured-author-book-title]");
     const socialsEl = root.querySelector("[data-featured-author-socials]");
 
     if (nameEl) nameEl.textContent = author.name || "";
     if (titleEl) titleEl.textContent = author.title || "Featured Author";
     if (introEl) introEl.textContent = author.shortIntro || "";
     if (bioEl) bioEl.textContent = author.biography || "";
-    if (portraitEl) {
-      if (author.portraitUrl) {
-        portraitEl.src = author.portraitUrl;
-        portraitEl.alt = author.portraitAlt || author.name || "";
-        portraitEl.style.objectPosition = `${author.portraitFocalX ?? 50}% ${author.portraitFocalY ?? 50}%`;
-        portraitEl.hidden = false;
-        portraitEl.closest(".spotlight-visual")?.classList.add("has-image");
-        if (portraitCaptionEl) portraitCaptionEl.hidden = true;
-        else portraitEl.closest(".featured-author-portrait")?.remove();
-      }
-    }
     if (socialsEl) {
       const icons = { facebook: "f", instagram: "◎", linkedin: "in", tiktok: "♪", youtube: "▶" };
       let links = author.socialLinks && typeof author.socialLinks === "object" ? author.socialLinks : {};
@@ -774,19 +793,6 @@ function initFeaturedAuthor() {
       if (author.ctaUrl) ctaEl.href = author.ctaUrl;
       if (author.ctaLabel || author.ctaUrl) ctaEl.hidden = false;
     }
-    const firstBook = author.bookImageUrl
-      ? { imageUrl: author.bookImageUrl, title: "Featured Book" }
-      : (Array.isArray(author.relatedBooks) ? author.relatedBooks.find((book) => book && book.imageUrl) : null);
-    if (firstBook) {
-      if (bookCoverEl) {
-        bookCoverEl.src = firstBook.imageUrl;
-        bookCoverEl.alt = author.bookImageAlt || firstBook.title || "";
-        bookCoverEl.hidden = false;
-        bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
-      }
-      if (bookTitleEl) bookTitleEl.textContent = firstBook.title || "Featured Book";
-    }
-    root.hidden = false;
   }
 }
 
