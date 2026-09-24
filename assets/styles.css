@@ -1064,6 +1064,7 @@ body[data-page="books"] .future-title-grid .button {
 }
 .sponsor-tier-benefits li:last-child {
   margin-top: auto;
+  min-height: 7rem;
 }
 .store-checkout-note {
   margin: 0.35rem 0 0;
@@ -1910,6 +1911,9 @@ body.document-viewer-open {
 }
 
 @media (max-width: 600px) {
+  .sponsor-tier-benefits li:last-child {
+    min-height: 0;
+  }
   [data-header] {
     min-height: 72px;
   }
