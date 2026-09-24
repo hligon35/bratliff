@@ -660,7 +660,7 @@ function openDocumentViewer(button) {
   const image = documentViewer.querySelector("[data-document-viewer-image]");
   const newTab = documentViewer.querySelector("[data-document-viewer-new-tab]");
   if (heading) heading.textContent = title;
-  const isImage = /\\.(?:png|jpe?g|gif|webp|svg)(?:[?#]|$)/i.test(source);
+  const isImage = /\.(?:png|jpe?g|gif|webp|svg)(?:[?#]|$)/i.test(source);
   if (frame) {
     frame.title = title + " document viewer";
     if (isImage) {
