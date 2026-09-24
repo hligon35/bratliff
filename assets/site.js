@@ -747,7 +747,7 @@ function initFeaturedAuthor() {
     bookCoverEl.hidden = false;
     bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
   }
-  if (bookTitleEl) bookTitleEl.textContent = "Featured Book";
+  if (bookTitleEl) bookTitleEl.hidden = true;
   section.hidden = false;
 
   const apiBase = resolvePublicApiBase();
