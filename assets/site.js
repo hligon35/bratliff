@@ -637,7 +637,15 @@ function closeDocumentViewer() {
   documentViewer.setAttribute("aria-hidden", "true");
   document.body.classList.remove("document-viewer-open");
   const frame = documentViewer.querySelector("[data-document-viewer-frame]");
-  if (frame) frame.removeAttribute("src");
+  const image = documentViewer.querySelector("[data-document-viewer-image]");
+  if (frame) {
+    frame.removeAttribute("src");
+    frame.hidden = false;
+  }
+  if (image) {
+    image.removeAttribute("src");
+    image.hidden = true;
+  }
   documentViewerTrigger?.focus();
   documentViewerTrigger = null;
 }
@@ -649,11 +657,29 @@ function openDocumentViewer(button) {
   const title = button.dataset.documentTitle || "Document viewer";
   const heading = documentViewer.querySelector("#document-viewer-title");
   const frame = documentViewer.querySelector("[data-document-viewer-frame]");
+  const image = documentViewer.querySelector("[data-document-viewer-image]");
   const newTab = documentViewer.querySelector("[data-document-viewer-new-tab]");
   if (heading) heading.textContent = title;
+  const isImage = /\\.(?:png|jpe?g|gif|webp|svg)(?:[?#]|$)/i.test(source);
   if (frame) {
     frame.title = title + " document viewer";
-    frame.src = source;
+    if (isImage) {
+      frame.removeAttribute("src");
+      frame.hidden = true;
+    } else {
+      frame.hidden = false;
+      frame.src = source;
+    }
+  }
+  if (image) {
+    if (isImage) {
+      image.src = source;
+      image.alt = title;
+      image.hidden = false;
+    } else {
+      image.removeAttribute("src");
+      image.hidden = true;
+    }
   }
   if (newTab) newTab.href = source;
   documentViewer.classList.add("open");
