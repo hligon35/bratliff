@@ -59,6 +59,7 @@ export interface Env {
   SITE_URL: string;
   PUBLIC_ADMIN_URL: string;
   PUBLIC_API_URL: string;
+  ADMIN_AUTH_MODE?: string;
   ADMIN_BOOTSTRAP_EMAILS: string;
   GOOGLE_CLIENT_ID: string;
   CF_ACCESS_TEAM_DOMAIN: string;
