@@ -1083,8 +1083,17 @@ body[data-page="books"] .future-title-grid .button {
   margin: 0;
   max-width: 520px;
 }
-.recognition-certificate a {
+.recognition-certificate-view-button {
   display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.recognition-certificate-view-button:focus-visible {
+  outline: 3px solid var(--accent, #6b4eff);
+  outline-offset: 4px;
 }
 .recognition-certificate img {
   display: block;
