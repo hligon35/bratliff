@@ -280,7 +280,42 @@ function readFirstRow(sql) {
   };
   return walk(parsed);
 }
+async function openSandboxOrder(orderId) {
+  const headers = {
+    Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN,
+    "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17",
+    "Content-Type": "application/json",
+  };
+  const currentResponse = await fetch(SQUARE_SANDBOX_API + "/orders/" + encodeURIComponent(orderId), { headers });
+  const current = await currentResponse.json().catch(() => ({}));
+  if (!currentResponse.ok || !current.order?.id) {
+    throw new Error("Could not retrieve Square Sandbox order " + orderId + ": " + JSON.stringify(current.errors || current));
+  }
+  if (current.order.state === "OPEN") return;
+  if (current.order.state !== "DRAFT") {
+    throw new Error("Square Sandbox order " + orderId + " is " + current.order.state + "; expected DRAFT or OPEN.");
+  }
+
+  const updateResponse = await fetch(SQUARE_SANDBOX_API + "/orders/" + encodeURIComponent(orderId), {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      idempotency_key: crypto.randomUUID(),
+      order: {
+        id: current.order.id,
+        location_id: current.order.location_id,
+        version: current.order.version,
+        state: "OPEN",
+      },
+    }),
+  });
+  const updated = await updateResponse.json().catch(() => ({}));
+  if (!updateResponse.ok || updated.order?.state !== "OPEN") {
+    throw new Error("Could not open Square Sandbox order " + orderId + ": " + JSON.stringify(updated.errors || updated));
+  }
+}
 async function completeSandboxPayment(orderId, amountCents, label) {
+  await openSandboxOrder(orderId);
   const response = await fetch(SQUARE_SANDBOX_API + "/payments", {
     method: "POST",
     headers: { Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN, "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17", "Content-Type": "application/json" },
