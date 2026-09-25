@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { writeFileSync, unlinkSync } from "node:fs";
-import { resolve } from "node:path";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -211,8 +210,16 @@ function makeCleanupSql(id) {
   ].join("\n") + "\n";
 }
 
+function quoteWindowsShellArg(value) {
+  const text = String(value);
+  return '"' + text.replace(/"/g, '\\"') + '"';
+}
+function wranglerArgs(args) {
+  const values = ["wrangler", ...args];
+  return process.platform === "win32" ? values.map(quoteWindowsShellArg) : values;
+}
 function runWrangler(args) {
-  const result = spawnSync("npx", ["wrangler", ...args], {
+  const result = spawnSync("npx", wranglerArgs(args), {
     cwd: process.cwd(),
     encoding: "utf8",
     stdio: "inherit",
@@ -255,7 +262,7 @@ async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
 const SPONSOR_PACKAGES = ["pagePal", "chapterChampion", "bookshelfBuilder", "literacyTrailblazer"];
 const SQUARE_SANDBOX_API = "https://connect.squareupsandbox.com/v2";
 function wranglerOutput(args) {
-  const result = spawnSync("npx", ["wrangler", ...args], { cwd: process.cwd(), encoding: "utf8", shell: process.platform === "win32" });
+  const result = spawnSync("npx", wranglerArgs(args), { cwd: process.cwd(), encoding: "utf8", shell: process.platform === "win32" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error("Sandbox D1 operation failed: " + (result.stderr || result.stdout || result.status));
   return result.stdout || "";
@@ -343,7 +350,7 @@ async function main() {
       console.log("Pass --apply to execute this cleanup against the sandbox database.");
       return;
     }
-    const file = resolve(".review-data-cleanup-" + cleanupId + ".sql");
+    const file = ".review-data-cleanup-" + cleanupId + ".sql";
     try {
       writeFileSync(file, sql, "utf8");
       runWrangler(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--file", file]);
@@ -385,7 +392,7 @@ async function main() {
   if (process.env.SQUARE_ENVIRONMENT && process.env.SQUARE_ENVIRONMENT !== "sandbox") throw new Error("SQUARE_ENVIRONMENT must be sandbox.");
 
   const sql = makeSeedSql(forms);
-  const file = resolve(".review-data-seed-" + runId + ".sql");
+  const file = ".review-data-seed-" + runId + ".sql";
   try {
     writeFileSync(file, sql, "utf8");
     runWrangler(["d1", "migrations", "apply", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox"]);
