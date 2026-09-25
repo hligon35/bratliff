@@ -354,6 +354,15 @@ async function main() {
     try {
       writeFileSync(file, sql, "utf8");
       runWrangler(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--file", file]);
+      const remaining = readFirstRow(
+        "SELECT COUNT(*) AS remaining FROM books WHERE id GLOB " + q("TEST-" + cleanupId + "-BOOK-*"),
+      );
+      if (Number(remaining?.remaining) !== 0) {
+        throw new Error(
+          "Cleanup did not remove all synthetic books for run " + cleanupId +
+          " (" + Number(remaining?.remaining || 0) + " remain). Check that the run ID is exact.",
+        );
+      }
     } finally {
       try { unlinkSync(file); } catch {}
     }
