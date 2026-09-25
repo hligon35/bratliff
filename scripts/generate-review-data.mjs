@@ -236,15 +236,15 @@ async function sendReviewDigest(forms, bookOrders, sponsorResults, failures) {
   const groups = formKinds.map((type) => ({ type, rows: forms.filter((form) => form.formType === type) }));
   const htmlGroups = groups.map((group) => "<h2>" + htmlEscape(group.type) + " (" + group.rows.length + ")</h2><ol>" +
     group.rows.map((form) => "<li>" + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => "<strong>" + htmlEscape(key) + ":</strong> " + htmlEscape(value)).join("<br>") + "</li>").join("") + "</ol>").join("");
-  const textGroups = groups.map((group) => group.type + " (" + group.rows.length + ")\\n" +
-    group.rows.map((form, index) => (index + 1) + ". " + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")).join("\\n")).join("\\n\\n");
-  const summary = "Run: " + runId + "\\nSandbox: " + SITE_URL + "\\nPaid Square Sandbox book orders: " + bookOrders.length +
-    "\\nPaid sponsor Sandbox payments: " + sponsorResults.length + "\\nSynthetic form submissions: " + forms.length + " (" + COUNT + " per type).\\n" +
-    "No real funds were used. IngramSpark and Amazon purchase paths were not called.\\n\\nPublished sponsor names:\\n" +
-    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\\n") +
-    "\\n\\nCompleted book orders:\\n" + bookOrders.map((item) => item.orderNumber + " (payment " + item.paymentId + ")").join("\\n") +
-    (failures.length ? "\\n\\nItems needing attention:\\n" + failures.join("\\n") : "");
-  const textBody = summary + "\\n\\n" + textGroups;
+  const textGroups = groups.map((group) => group.type + " (" + group.rows.length + ")\n" +
+    group.rows.map((form, index) => (index + 1) + ". " + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")).join("\n")).join("\n\n");
+  const summary = "Run: " + runId + "\nSandbox: " + SITE_URL + "\nPaid Square Sandbox book orders: " + bookOrders.length +
+    "\nPaid sponsor Sandbox payments: " + sponsorResults.length + "\nSynthetic form submissions: " + forms.length + " (" + COUNT + " per type).\n" +
+    "No real funds were used. IngramSpark and Amazon purchase paths were not called.\n\nPublished sponsor names:\n" +
+    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\n") +
+    "\n\nCompleted book orders:\n" + bookOrders.map((item) => item.orderNumber + " (payment " + item.paymentId + ")").join("\n") +
+    (failures.length ? "\n\nItems needing attention:\n" + failures.join("\n") : "");
+  const textBody = summary + "\n\n" + textGroups;
   const htmlBody = "<main><h1>Sandbox QA review data</h1><p>Run " + htmlEscape(runId) + " on " + htmlEscape(SITE_URL) +
     "<br>" + forms.length + " generated form submissions; " + sponsorResults.length + " paid/published sponsor samples.</p>" +
     "<h2>Completed book orders</h2><ul>" + bookOrders.map((item) => "<li>" + htmlEscape(item.orderNumber) + " — payment " + htmlEscape(item.paymentId) + "</li>").join("") + "</ul>" +
