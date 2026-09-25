@@ -178,19 +178,7 @@ function makeSeedSql(forms) {
 
   // Create real Square Sandbox checkout sessions through the site API after seeding its catalog.
 
-  const packages = [
-    ["pagePal", 5, 10000],
-    ["chapterChampion", 12, 25000],
-    ["bookshelfBuilder", 25, 50000],
-    ["literacyTrailblazer", 50, 100000],
-  ];
-  for (let n = 1; n <= COUNT; n += 1) {
-    const [packageName, bookCount, amountCents] = packages[(n - 1) % packages.length];
-    const sponsorId = prefix + "SPONSOR-" + pad(n);
-    statements.push(sqlInsert("sponsors",
-      ["id", "package", "books_sponsored", "amount_paid_cents", "payer_name", "payer_email", "display_name", "entity_type", "anonymous", "publish_permission", "website_url", "recognition_status", "admin_notes", "paid_at"],
-      [sponsorId, packageName, bookCount, 0, "Sandbox Sponsor " + pad(n), sampleEmail("sponsor." + pad(n)), "QA Sponsor " + pad(n), n % 2 ? "individual" : "organization", n % 3 === 0 ? 1 : 0, 0, "", "Awaiting Payment", "[TEST DATA " + runId + "] Synthetic unpaid sandbox review record. No Square transaction occurred.", ""]));
-  }
+  // Sponsor records are created by the sandbox checkout API below.
 
   for (let i = 0; i < forms.length; i += 1) {
     const form = forms[i];
@@ -236,57 +224,95 @@ function runWrangler(args) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error("Wrangler exited with code " + result.status + ".");
 }
-async function sendReviewDigest(forms, checkoutLinks) {
+async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.REVIEW_FROM_EMAIL || process.env.MAIL_FROM_EMAIL || "no-reply@jackrabbitpunkinpublishing.com";
-  if (!apiKey) throw new Error("Set RESEND_API_KEY in .env or the environment before using --apply.");
-  const groups = formKinds.map((type) => ({
-    type,
-    rows: forms.filter((form) => form.formType === type),
-  }));
-  const htmlGroups = groups.map((group) =>
-    "<h2>" + htmlEscape(group.type) + " (" + group.rows.length + ")</h2><ol>" +
-    group.rows.map((form) => {
-      const fields = Object.entries(form)
-        .filter(([key]) => key !== "formType")
-        .map(([key, value]) => "<li><strong>" + htmlEscape(key) + ":</strong> " + htmlEscape(value) + "</li>")
-        .join("");
-      return "<li><ul>" + fields + "</ul></li>";
-    }).join("") + "</ol>"
-  ).join("");
-  const textGroups = groups.map((group) =>
-    group.type + " (" + group.rows.length + ")\n" +
-    group.rows.map((form, index) => (index + 1) + ". " +
-      Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")
-    ).join("\n")
-  ).join("\n\n");
-  const summary = "Run: " + runId + "\nSandbox: " + SITE_URL + "\nSquare Sandbox checkout links:\n" + checkoutLinks.join("\n") + "\n" +
-    "Generated " + forms.length + " synthetic website form submissions (" + COUNT + " per type).\n" +
-    "Also generated sandbox-only admin sample records for catalog, inventory, authors, sponsors, draft campaigns, contacts, inactive subscribers, interests, orders, analytics, and audit history.\n" +
-    "All emails except this review digest use example.invalid. No user confirmations were sent. Square Sandbox checkout links were created; no card payments were submitted. No IngramSpark or Amazon purchases were generated.\n\n";
+  if (!apiKey) throw new Error("Set RESEND_API_KEY before applying.");
+  const groups = formKinds.map((type) => ({ type, rows: forms.filter((form) => form.formType === type) }));
+  const htmlGroups = groups.map((group) => "<h2>" + htmlEscape(group.type) + " (" + group.rows.length + ")</h2><ol>" +
+    group.rows.map((form) => "<li>" + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => "<strong>" + htmlEscape(key) + ":</strong> " + htmlEscape(value)).join("<br>") + "</li>").join("") + "</ol>").join("");
+  const textGroups = groups.map((group) => group.type + " (" + group.rows.length + ")\n" +
+    group.rows.map((form, index) => (index + 1) + ". " + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")).join("\n")).join("\n\n");
+  const summary = "Run: " + runId + "\nSandbox: " + SITE_URL + "\nPaid Square Sandbox book orders: " + checkoutLinks.length +
+    "\nPaid sponsor Sandbox payments: " + sponsorResults.length + "\nSynthetic form submissions: " + forms.length + " (" + COUNT + " per type).\n" +
+    "No real funds were used. IngramSpark and Amazon purchase paths were not called.\n\nPublished sponsor names:\n" +
+    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\n") + "\n\nBook checkout links (already paid in Sandbox):\n" + checkoutLinks.join("\n");
   const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + apiKey,
-      "Content-Type": "application/json",
-    },
+    method: "POST", headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
       from: "Jackrabbit Punkin Publishing Sandbox <" + fromEmail + ">",
       to: [REVIEWER],
       subject: "Sandbox QA review data — " + runId + " (" + forms.length + " form submissions)",
-      text: summary + textGroups,
-      html: "<main><h1>Sandbox QA review data</h1><p><strong>Run:</strong> " + htmlEscape(runId) +
-        "<br><strong>Sandbox:</strong> <a href=\"" + htmlEscape(SITE_URL) + "\">" + htmlEscape(SITE_URL) +
-        "</a><br><strong>Submissions:</strong> " + forms.length + " (" + COUNT +
-        " of each type)</p><p>All other addresses use <code>example.invalid</code>. No user confirmations were sent. Square Sandbox checkout links were created; no card payments were submitted. No IngramSpark or Amazon purchases were generated.</p><h2>Square Sandbox checkout links</h2><ol>" + checkoutLinks.map((link) => "<li><a href=\"" + htmlEscape(link) + "\">" + htmlEscape(link) + "</a></li>").join("") + "</ol>" +
-        htmlGroups + "</main>",
+      text: summary + "\n\n" + textGroups,
+      html: "<main><h1>Sandbox QA review data</h1><p>Run " + htmlEscape(runId) + " on " + htmlEscape(SITE_URL) +
+        "<br>" + forms.length + " generated form submissions; " + sponsorResults.length + " paid/published sponsor samples.</p>" +
+        "<h2>Book checkouts</h2><ul>" + checkoutLinks.map((link) => "<li><a href=\"" + htmlEscape(link) + "\">" + htmlEscape(link) + "</a></li>").join("") + "</ul>" +
+        "<h2>Published test sponsors</h2><ul>" + sponsorResults.map((item) => "<li>" + htmlEscape(item.package) + ": " + htmlEscape(item.displayName) + "</li>").join("") + "</ul>" +
+        "<p>Square Sandbox only; no real funds. IngramSpark and Amazon purchase paths excluded.</p>" + htmlGroups + "</main>",
     }),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error("Review digest email failed (" + response.status + "): " + JSON.stringify(payload));
-  }
+  if (!response.ok) throw new Error("Review digest email failed (" + response.status + "): " + JSON.stringify(payload));
   console.log("Review digest sent to " + REVIEWER + " (Resend id: " + (payload.id || "unknown") + ").");
+}
+const SPONSOR_PACKAGES = ["pagePal", "chapterChampion", "bookshelfBuilder"];
+const SQUARE_SANDBOX_API = "https://connect.squareupsandbox.com/v2";
+function wranglerOutput(args) {
+  const result = spawnSync("npx", ["wrangler", ...args], { cwd: process.cwd(), encoding: "utf8", shell: process.platform === "win32" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error("Sandbox D1 operation failed: " + (result.stderr || result.stdout || result.status));
+  return result.stdout || "";
+}
+function readFirstRow(sql) {
+  const output = wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", sql, "--json"]);
+  let parsed; try { parsed = JSON.parse(output); } catch { throw new Error("Unable to parse sandbox D1 query output."); }
+  const walk = (value) => {
+    if (Array.isArray(value)) { for (const item of value) { const found = walk(item); if (found) return found; } }
+    if (value && typeof value === "object") {
+      if (Array.isArray(value.results)) return value.results[0] || null;
+      for (const item of Object.values(value)) { const found = walk(item); if (found) return found; }
+    }
+    return null;
+  };
+  return walk(parsed);
+}
+async function completeSandboxPayment(orderId, amountCents, label) {
+  const response = await fetch(SQUARE_SANDBOX_API + "/payments", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN, "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17", "Content-Type": "application/json" },
+    body: JSON.stringify({ source_id: "cnon:card-nonce-ok", idempotency_key: crypto.randomUUID(), amount_money: { amount: amountCents, currency: "USD" }, location_id: process.env.SQUARE_LOCATION_ID, order_id: orderId, autocomplete: true, note: "[TEST DATA " + runId + "] " + label }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.payment?.id || result.payment.status !== "COMPLETED") throw new Error("Sandbox payment failed for " + label + " (" + response.status + "): " + JSON.stringify(result.errors || result));
+  return result.payment;
+}
+async function waitForSql(sql, expected, label) {
+  for (let n = 0; n < 30; n += 1) {
+    const row = readFirstRow(sql);
+    if (row?.status === expected) return row;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error("Timed out waiting for Square webhook to reconcile " + label + " at " + SITE_URL + "/square/webhook.");
+}
+async function createSquareSponsorPayments() {
+  const results = [];
+  for (const packageName of SPONSOR_PACKAGES) for (let n = 1; n <= COUNT; n += 1) {
+    const suffix = packageName + "." + pad(n);
+    const response = await fetch(SITE_URL + "/api/sponsors/checkout", {
+      method: "POST", headers: { "Content-Type": "application/json", "Origin": SITE_URL },
+      body: JSON.stringify({ package: packageName, payerName: "Sandbox QA Sponsor " + packageName + " " + pad(n), payerEmail: sampleEmail("paid-sponsor." + suffix), displayName: "Sandbox QA " + packageName + " " + pad(n), entityType: "organization", anonymous: false, publishPermission: true }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.sponsorId || !payload.url) throw new Error("Sponsor checkout failed for " + suffix + ": " + JSON.stringify(payload));
+    const row = readFirstRow("SELECT square_order_id AS squareOrderId, amount_cents AS amountCents FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId));
+    if (!row?.squareOrderId || Number(row.amountCents) <= 0) throw new Error("Missing Square order for sponsor " + payload.sponsorId);
+    await completeSandboxPayment(row.squareOrderId, Number(row.amountCents), "sponsor-" + suffix);
+    await waitForSql("SELECT status FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId), "paid", "sponsor " + payload.sponsorId);
+    const publishSql = "UPDATE sponsors SET recognition_status = 'Published', updated_at = datetime('now') WHERE id = " + q(payload.sponsorId) + " AND recognition_status = 'Pending Review' AND EXISTS (SELECT 1 FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId) + " AND status = 'paid')";
+    wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", publishSql]);
+    results.push({ package: packageName, displayName: "Sandbox QA " + packageName + " " + pad(n), sponsorId: payload.sponsorId, url: payload.url });
+  }
+  return results;
 }
 
 async function createSquareSandboxCheckouts() {
@@ -302,7 +328,11 @@ async function createSquareSandboxCheckouts() {
     if (!response.ok || !payload.url) throw new Error("Square Sandbox checkout " + n + " failed (" + response.status + "): " + JSON.stringify(payload));
     const checkoutUrl = new URL(payload.url);
     if (checkoutUrl.protocol !== "https:") throw new Error("Square returned a non-HTTPS checkout URL.");
-    links.push(payload.url);
+    const order = readFirstRow("SELECT square_order_id AS squareOrderId, CAST(ROUND(total * 100) AS INTEGER) AS amountCents FROM orders WHERE order_number = " + q(payload.id));
+    if (!order?.squareOrderId || Number(order.amountCents) <= 0) throw new Error("Missing Square order for bookstore checkout " + n);
+    const payment = await completeSandboxPayment(order.squareOrderId, Number(order.amountCents), "book-" + n);
+    await waitForSql("SELECT payment_status AS status FROM orders WHERE order_number = " + q(payload.id), "Paid", "book order " + payload.id);
+    links.push(payload.url + " (Square payment " + payment.id + ")");
   }
   return links;
 }
@@ -337,6 +367,7 @@ async function main() {
     inactiveSubscribers: COUNT,
     bookInterests: COUNT,
     squareSandboxCheckouts: COUNT,
+    sponsorSandboxPayments: COUNT * SPONSOR_PACKAGES.length,
     sponsorRecords: COUNT,
     analyticsEvents: COUNT,
     auditEntries: COUNT,
@@ -350,7 +381,10 @@ async function main() {
     console.log("Cleanup command: npm run review-data:generate -- --apply --cleanup=" + runId);
     return;
   }
-  if (!process.env.RESEND_API_KEY) {
+  if (!process.env.RESEND_API_KEY) throw new Error("Set RESEND_API_KEY before applying.");
+  if (!process.env.SQUARE_ACCESS_TOKEN || !process.env.SQUARE_LOCATION_ID) throw new Error("Set Square Sandbox SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID in .env.local before applying.");
+  if (process.env.SQUARE_ENVIRONMENT && process.env.SQUARE_ENVIRONMENT !== "sandbox") throw new Error("SQUARE_ENVIRONMENT must be sandbox.");
+  if (false) {
     throw new Error("Set RESEND_API_KEY in .env or the environment before using --apply.");
   }
 
@@ -365,10 +399,11 @@ async function main() {
   }
 
   const checkoutLinks = await createSquareSandboxCheckouts();
-  console.log("Created sandbox review records and Square Sandbox checkouts. Run ID: " + runId);
+  const sponsorResults = await createSquareSponsorPayments();
+  console.log("Created sandbox review records and completed Square Sandbox payments. Run ID: " + runId);
   console.log(JSON.stringify(counts, null, 2));
   console.log("Square Sandbox checkout links:\n" + checkoutLinks.join("\n"));
-  await sendReviewDigest(forms, checkoutLinks);
+  await sendReviewDigest(forms, checkoutLinks, sponsorResults);
 }
 
 main().catch((error) => {
