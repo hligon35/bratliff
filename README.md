@@ -90,6 +90,26 @@ npx wrangler d1 migrations apply bratliff-platform-sandbox --remote --config clo
 
 Set the sandbox values for `SQUARE_ACCESS_TOKEN`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_LOCATION_ID`, and the other required secrets with `--env sandbox`. Keep the production secrets on the default environment. The `jrpp.alphazonelabs.com` DNS record must be proxied through the `alphazonelabs.com` Cloudflare zone for the route to receive traffic. The legacy `/square/sandbox` path redirects to the sandbox host; the production root and production checkout remain unchanged.
 
+## Sandbox review data generator
+
+Generate clearly labeled sample records for review on the isolated sandbox site. The default run is a dry run; it does not write to D1 or send email.
+
+Before applying, place a Resend API key in `.env` or `.env.local` as `RESEND_API_KEY`. Wrangler must also be authenticated for the Cloudflare sandbox account. Then run:
+
+```sh
+npm run review-data:generate -- --apply
+```
+
+The script applies pending sandbox migrations, then creates at least 10 records of each public form type (contact, newsletter, speaking, book club, and book notification) and 10 examples of each admin data type: books, inventory events, authors, sponsors and sponsor payment records, bookstore orders, newsletter campaigns, contacts, inactive subscribers, book interests, analytics events, and audit entries. It emails one review digest containing all generated form submissions to `hligon@getsparqd.com`. Generated user addresses use `example.invalid`; user confirmation emails are not sent.
+
+All inserts target only the `bratliff-platform-sandbox` database with Wrangler's `sandbox` environment. Synthetic bookstore and sponsorship records are written directly to D1: the script does not create Square checkout links or charges. Newsletter campaigns are drafts, synthetic subscribers are inactive and have no consent, and author profiles are drafts. It does not create IngramSpark or Amazon purchases or seed administrator accounts.
+
+Use `--count 15` to create more than 10 of each type (allowed range 10–100). Each run prints a run ID. To remove only that run's synthetic data:
+
+```sh
+npm run review-data:generate -- --apply --cleanup=RUN_ID
+```
+
 ## Temporary launch page
 
 The public homepage temporarily redirects visitors to `coming-soon.html`, while the admin, login, API, and completed site files remain intact. Remove the temporary redirect block marked in `index.html` when the full website is ready to launch.
