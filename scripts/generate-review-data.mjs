@@ -368,7 +368,7 @@ async function main() {
     bookInterests: COUNT,
     squareSandboxCheckouts: COUNT,
     sponsorSandboxPayments: COUNT * SPONSOR_PACKAGES.length,
-    sponsorRecords: COUNT,
+    sponsorRecords: COUNT * SPONSOR_PACKAGES.length,
     analyticsEvents: COUNT,
     auditEntries: COUNT,
   };
@@ -384,9 +384,6 @@ async function main() {
   if (!process.env.RESEND_API_KEY) throw new Error("Set RESEND_API_KEY before applying.");
   if (!process.env.SQUARE_ACCESS_TOKEN || !process.env.SQUARE_LOCATION_ID) throw new Error("Set Square Sandbox SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID in .env.local before applying.");
   if (process.env.SQUARE_ENVIRONMENT && process.env.SQUARE_ENVIRONMENT !== "sandbox") throw new Error("SQUARE_ENVIRONMENT must be sandbox.");
-  if (false) {
-    throw new Error("Set RESEND_API_KEY in .env or the environment before using --apply.");
-  }
 
   const sql = makeSeedSql(forms);
   const file = resolve(".review-data-seed-" + runId + ".sql");
