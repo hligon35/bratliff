@@ -233,36 +233,60 @@ function runWrangler(args) {
 async function sendReviewDigest(forms, bookOrders, sponsorResults, failures) {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.REVIEW_FROM_EMAIL || process.env.MAIL_FROM_EMAIL || "no-reply@jackrabbitpunkinpublishing.com";
-  if (!apiKey) throw new Error("Set RESEND_API_KEY before applying.");
   const groups = formKinds.map((type) => ({ type, rows: forms.filter((form) => form.formType === type) }));
   const htmlGroups = groups.map((group) => "<h2>" + htmlEscape(group.type) + " (" + group.rows.length + ")</h2><ol>" +
     group.rows.map((form) => "<li>" + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => "<strong>" + htmlEscape(key) + ":</strong> " + htmlEscape(value)).join("<br>") + "</li>").join("") + "</ol>").join("");
-  const textGroups = groups.map((group) => group.type + " (" + group.rows.length + ")\n" +
-    group.rows.map((form, index) => (index + 1) + ". " + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")).join("\n")).join("\n\n");
-  const summary = "Run: " + runId + "\nSandbox: " + SITE_URL + "\nPaid Square Sandbox book orders: " + bookOrders.length +
-    "\nPaid sponsor Sandbox payments: " + sponsorResults.length + "\nSynthetic form submissions: " + forms.length + " (" + COUNT + " per type).\n" +
-    "No real funds were used. IngramSpark and Amazon purchase paths were not called.\n\nPublished sponsor names:\n" +
-    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\n") +
-    "\n\nCompleted book orders:\n" + bookOrders.map((item) => item.orderNumber + " (payment " + item.paymentId + ")").join("\n") +
-    (failures.length ? "\n\nItems needing attention:\n" + failures.join("\n") : "");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST", headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: "Jackrabbit Punkin Publishing Sandbox <" + fromEmail + ">",
-      to: [REVIEWER],
-      subject: "Sandbox QA review data — " + runId + " (" + forms.length + " form submissions)",
-      text: summary + "\n\n" + textGroups,
-      html: "<main><h1>Sandbox QA review data</h1><p>Run " + htmlEscape(runId) + " on " + htmlEscape(SITE_URL) +
-        "<br>" + forms.length + " generated form submissions; " + sponsorResults.length + " paid/published sponsor samples.</p>" +
-        "<h2>Completed book orders</h2><ul>" + bookOrders.map((item) => "<li>" + htmlEscape(item.orderNumber) + " — payment " + htmlEscape(item.paymentId) + "</li>").join("") + "</ul>" +
-        "<h2>Published test sponsors</h2><ul>" + sponsorResults.map((item) => "<li>" + htmlEscape(item.package) + ": " + htmlEscape(item.displayName) + "</li>").join("") + "</ul>" +
-        (failures.length ? "<h2>Items needing attention</h2><ul>" + failures.map((item) => "<li>" + htmlEscape(item) + "</li>").join("") + "</ul>" : "") +
-        "<p>Square Sandbox only; no real funds. IngramSpark and Amazon purchase paths excluded.</p>" + htmlGroups + "</main>",
-    }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error("Review digest email failed (" + response.status + "): " + JSON.stringify(payload));
-  console.log("Review digest sent to " + REVIEWER + " (Resend id: " + (payload.id || "unknown") + ").");
+  const textGroups = groups.map((group) => group.type + " (" + group.rows.length + ")\\n" +
+    group.rows.map((form, index) => (index + 1) + ". " + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")).join("\\n")).join("\\n\\n");
+  const summary = "Run: " + runId + "\\nSandbox: " + SITE_URL + "\\nPaid Square Sandbox book orders: " + bookOrders.length +
+    "\\nPaid sponsor Sandbox payments: " + sponsorResults.length + "\\nSynthetic form submissions: " + forms.length + " (" + COUNT + " per type).\\n" +
+    "No real funds were used. IngramSpark and Amazon purchase paths were not called.\\n\\nPublished sponsor names:\\n" +
+    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\\n") +
+    "\\n\\nCompleted book orders:\\n" + bookOrders.map((item) => item.orderNumber + " (payment " + item.paymentId + ")").join("\\n") +
+    (failures.length ? "\\n\\nItems needing attention:\\n" + failures.join("\\n") : "");
+  const textBody = summary + "\\n\\n" + textGroups;
+  const htmlBody = "<main><h1>Sandbox QA review data</h1><p>Run " + htmlEscape(runId) + " on " + htmlEscape(SITE_URL) +
+    "<br>" + forms.length + " generated form submissions; " + sponsorResults.length + " paid/published sponsor samples.</p>" +
+    "<h2>Completed book orders</h2><ul>" + bookOrders.map((item) => "<li>" + htmlEscape(item.orderNumber) + " — payment " + htmlEscape(item.paymentId) + "</li>").join("") + "</ul>" +
+    "<h2>Published test sponsors</h2><ul>" + sponsorResults.map((item) => "<li>" + htmlEscape(item.package) + ": " + htmlEscape(item.displayName) + "</li>").join("") + "</ul>" +
+    (failures.length ? "<h2>Items needing attention</h2><ul>" + failures.map((item) => "<li>" + htmlEscape(item) + "</li>").join("") + "</ul>" : "") +
+    "<p>Square Sandbox only; no real funds. IngramSpark and Amazon purchase paths excluded.</p>" + htmlGroups + "</main>";
+  const saveLocalDigest = () => {
+    const textPath = "review-data-digest-" + runId + ".txt";
+    const htmlPath = "review-data-digest-" + runId + ".html";
+    writeFileSync(textPath, textBody, "utf8");
+    writeFileSync(htmlPath, htmlBody, "utf8");
+    return { textPath, htmlPath };
+  };
+  if (!apiKey) {
+    const files = saveLocalDigest();
+    console.warn("RESEND_API_KEY is missing; review digest saved locally to " + files.textPath + " and " + files.htmlPath + ".");
+    return;
+  }
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST", headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Jackrabbit Punkin Publishing Sandbox <" + fromEmail + ">",
+        to: [REVIEWER],
+        subject: "Sandbox QA review data — " + runId + " (" + forms.length + " form submissions)",
+        text: textBody,
+        html: htmlBody,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const files = saveLocalDigest();
+      console.warn("Review digest email failed (" + response.status + "): " + JSON.stringify(payload) +
+        ". Digest saved locally to " + files.textPath + " and " + files.htmlPath + ".");
+      return;
+    }
+    console.log("Review digest sent to " + REVIEWER + " (Resend id: " + (payload.id || "unknown") + ").");
+  } catch (error) {
+    const files = saveLocalDigest();
+    console.warn("Review digest email request failed: " + (error?.message || String(error)) +
+      ". Digest saved locally to " + files.textPath + " and " + files.htmlPath + ".");
+  }
 }
 const SPONSOR_PACKAGES = ["pagePal", "chapterChampion", "bookshelfBuilder", "literacyTrailblazer"];
 const SQUARE_SANDBOX_API = "https://connect.squareupsandbox.com/v2";
@@ -315,7 +339,7 @@ async function createSquareSandboxOrder(referenceId, lineItems, label) {
       order: {
         location_id: process.env.SQUARE_LOCATION_ID,
         reference_id: referenceId,
-        line_items,
+        line_items: lineItems,
       },
     }),
   });
