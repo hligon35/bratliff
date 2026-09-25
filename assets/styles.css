@@ -1323,6 +1323,13 @@ body[data-page="books"] .future-title-grid .button {
 .download-menu-list a:hover {
   background: var(--cream);
 }
+
+.download-menu-list .download-menu-coming-soon {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  color: var(--muted);
+  white-space: normal;
+}
 .empty-state {
   padding: 2rem;
   border: 1px dashed #b8ae9c;
