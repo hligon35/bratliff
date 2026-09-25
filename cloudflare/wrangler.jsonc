@@ -121,6 +121,7 @@
 				"ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
 				"CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
 				"CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
+				"ADMIN_AUTH_MODE": "google",
 				"CORS_ORIGIN": "https://jrpp.alphazonelabs.com",
 				"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
 				"MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
