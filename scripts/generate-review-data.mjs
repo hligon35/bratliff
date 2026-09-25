@@ -256,7 +256,7 @@ async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
   if (!response.ok) throw new Error("Review digest email failed (" + response.status + "): " + JSON.stringify(payload));
   console.log("Review digest sent to " + REVIEWER + " (Resend id: " + (payload.id || "unknown") + ").");
 }
-const SPONSOR_PACKAGES = ["pagePal", "chapterChampion", "bookshelfBuilder"];
+const SPONSOR_PACKAGES = ["pagePal", "chapterChampion", "bookshelfBuilder", "literacyTrailblazer"];
 const SQUARE_SANDBOX_API = "https://connect.squareupsandbox.com/v2";
 function wranglerOutput(args) {
   const result = spawnSync("npx", ["wrangler", ...args], { cwd: process.cwd(), encoding: "utf8", shell: process.platform === "win32" });
@@ -301,7 +301,7 @@ async function createSquareSponsorPayments() {
     const suffix = packageName + "." + pad(n);
     const response = await fetch(SITE_URL + "/api/sponsors/checkout", {
       method: "POST", headers: { "Content-Type": "application/json", "Origin": SITE_URL },
-      body: JSON.stringify({ package: packageName, payerName: "Sandbox QA Sponsor " + packageName + " " + pad(n), payerEmail: sampleEmail("paid-sponsor." + suffix), displayName: "Sandbox QA " + packageName + " " + pad(n), entityType: "organization", anonymous: false, publishPermission: true }),
+      body: JSON.stringify({ package: packageName, payerName: "Sandbox QA Sponsor " + packageName + " " + pad(n), payerEmail: sampleEmail("paid-sponsor." + suffix), displayName: "Sandbox QA " + packageName + " " + pad(n), entityType: "organization", anonymous: false, publishPermission: true, mailingAddress: "123 Sandbox Test Lane, QA City, IN 00000" }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.sponsorId || !payload.url) throw new Error("Sponsor checkout failed for " + suffix + ": " + JSON.stringify(payload));
