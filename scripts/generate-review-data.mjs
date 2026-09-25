@@ -10,12 +10,8 @@ dotenv.config({ path: ".env.local", override: true });
 const REVIEWER = "hligon@getsparqd.com";
 const DATABASE = "bratliff-platform-sandbox";
 const WRANGLER_CONFIG = "cloudflare/wrangler.jsonc";
+// The review generator ignores deployment URL values in .env; all site/API traffic is pinned here.
 const SITE_URL = "https://jrpp.alphazonelabs.com";
-for (const key of ["SITE_URL", "PUBLIC_API_URL"]) {
-  if (process.env[key] && new URL(process.env[key]).origin !== SITE_URL) {
-    throw new Error(key + " must point to " + SITE_URL + "; refusing to target any other domain.");
-  }
-}
 if (new URL(SITE_URL).hostname !== "jrpp.alphazonelabs.com") throw new Error("Sandbox host mismatch.");
 const COUNT = parseCountArg();
 const runId = parseRunIdArg() || makeRunId();
