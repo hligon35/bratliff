@@ -50,7 +50,7 @@ import {
 
 
 const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
-const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
+const ADMIN_SESSION_TTL_SECONDS = 60 * 60;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
