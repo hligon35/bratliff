@@ -195,12 +195,13 @@ function makeSeedSql(forms) {
 function makeCleanupSql(id) {
   const prefix = "TEST-" + id + "-";
   const subscriber = "test+" + id + ".%";
+  const marker = q("%[TEST DATA " + id + "]%");
   return [
-    "DELETE FROM order_items WHERE order_number GLOB " + q(prefix + "ORDER-*") + ";",
-    "DELETE FROM checkout_sessions WHERE session_id GLOB " + q(prefix + "ORDER-*") + ";",
-    "DELETE FROM orders WHERE order_number GLOB " + q(prefix + "ORDER-*") + ";",
-    "DELETE FROM sponsor_payments WHERE sponsor_id GLOB " + q(prefix + "SPONSOR-*") + ";",
-    "DELETE FROM sponsors WHERE id GLOB " + q(prefix + "SPONSOR-*") + ";",
+    "DELETE FROM order_items WHERE order_number IN (SELECT order_number FROM orders WHERE notes LIKE " + marker + ");",
+    "DELETE FROM checkout_sessions WHERE session_id IN (SELECT order_number FROM orders WHERE notes LIKE " + marker + ");",
+    "DELETE FROM orders WHERE notes LIKE " + marker + ";",
+    "DELETE FROM sponsor_payments WHERE sponsor_id IN (SELECT id FROM sponsors WHERE admin_notes LIKE " + marker + ");",
+    "DELETE FROM sponsors WHERE admin_notes LIKE " + marker + " OR id GLOB " + q(prefix + "SPONSOR-*") + ";",
     "DELETE FROM inventory_events WHERE id GLOB " + q(prefix + "INV-*") + ";",
     "DELETE FROM book_interests WHERE id GLOB " + q(prefix + "INTEREST-*") + ";",
     "DELETE FROM authors WHERE id GLOB " + q(prefix + "AUTHOR-*") + ";",
@@ -306,6 +307,7 @@ async function createSquareSponsorPayments() {
     if (!response.ok || !payload.sponsorId || !payload.url) throw new Error("Sponsor checkout failed for " + suffix + ": " + JSON.stringify(payload));
     const row = readFirstRow("SELECT square_order_id AS squareOrderId, amount_cents AS amountCents FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId));
     if (!row?.squareOrderId || Number(row.amountCents) <= 0) throw new Error("Missing Square order for sponsor " + payload.sponsorId);
+    wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", "UPDATE sponsors SET admin_notes = " + q("[TEST DATA " + runId + "] Square Sandbox QA sponsor") + " WHERE id = " + q(payload.sponsorId)]);
     await completeSandboxPayment(row.squareOrderId, Number(row.amountCents), "sponsor-" + suffix);
     await waitForSql("SELECT status FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId), "paid", "sponsor " + payload.sponsorId);
     const publishSql = "UPDATE sponsors SET recognition_status = 'Published', updated_at = datetime('now') WHERE id = " + q(payload.sponsorId) + " AND recognition_status = 'Pending Review' AND EXISTS (SELECT 1 FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId) + " AND status = 'paid')";
@@ -330,6 +332,7 @@ async function createSquareSandboxCheckouts() {
     if (checkoutUrl.protocol !== "https:") throw new Error("Square returned a non-HTTPS checkout URL.");
     const order = readFirstRow("SELECT square_order_id AS squareOrderId, CAST(ROUND(total * 100) AS INTEGER) AS amountCents FROM orders WHERE order_number = " + q(payload.id));
     if (!order?.squareOrderId || Number(order.amountCents) <= 0) throw new Error("Missing Square order for bookstore checkout " + n);
+    wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", "UPDATE orders SET notes = " + q("[TEST DATA " + runId + "] Square QA order") + " WHERE order_number = " + q(payload.id)]);
     const payment = await completeSandboxPayment(order.squareOrderId, Number(order.amountCents), "book-" + n);
     await waitForSql("SELECT payment_status AS status FROM orders WHERE order_number = " + q(payload.id), "Paid", "book order " + payload.id);
     links.push(payload.url + " (Square payment " + payment.id + ")");
