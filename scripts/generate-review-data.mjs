@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeFileSync, unlinkSync } from "node:fs";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ path: ".env" });
+dotenv.config({ path: ".env.local", override: true });
 dotenv.config({ path: ".secrets.sandbox", override: true });
 
 const REVIEWER = "hligon@getsparqd.com";
@@ -228,7 +230,7 @@ function runWrangler(args) {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error("Wrangler exited with code " + result.status + ".");
 }
-async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
+async function sendReviewDigest(forms, bookOrders, sponsorResults, failures) {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.REVIEW_FROM_EMAIL || process.env.MAIL_FROM_EMAIL || "no-reply@jackrabbitpunkinpublishing.com";
   if (!apiKey) throw new Error("Set RESEND_API_KEY before applying.");
@@ -237,10 +239,12 @@ async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
     group.rows.map((form) => "<li>" + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => "<strong>" + htmlEscape(key) + ":</strong> " + htmlEscape(value)).join("<br>") + "</li>").join("") + "</ol>").join("");
   const textGroups = groups.map((group) => group.type + " (" + group.rows.length + ")\n" +
     group.rows.map((form, index) => (index + 1) + ". " + Object.entries(form).filter(([key]) => key !== "formType").map(([key, value]) => key + ": " + value).join(" | ")).join("\n")).join("\n\n");
-  const summary = "Run: " + runId + "\nSandbox: " + SITE_URL + "\nPaid Square Sandbox book orders: " + checkoutLinks.length +
+  const summary = "Run: " + runId + "\nSandbox: " + SITE_URL + "\nPaid Square Sandbox book orders: " + bookOrders.length +
     "\nPaid sponsor Sandbox payments: " + sponsorResults.length + "\nSynthetic form submissions: " + forms.length + " (" + COUNT + " per type).\n" +
     "No real funds were used. IngramSpark and Amazon purchase paths were not called.\n\nPublished sponsor names:\n" +
-    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\n") + "\n\nBook checkout links (already paid in Sandbox):\n" + checkoutLinks.join("\n");
+    sponsorResults.map((item) => item.package + ": " + item.displayName).join("\n") +
+    "\n\nCompleted book orders:\n" + bookOrders.map((item) => item.orderNumber + " (payment " + item.paymentId + ")").join("\n") +
+    (failures.length ? "\n\nItems needing attention:\n" + failures.join("\n") : "");
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: { Authorization: "Bearer " + apiKey, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -250,8 +254,9 @@ async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
       text: summary + "\n\n" + textGroups,
       html: "<main><h1>Sandbox QA review data</h1><p>Run " + htmlEscape(runId) + " on " + htmlEscape(SITE_URL) +
         "<br>" + forms.length + " generated form submissions; " + sponsorResults.length + " paid/published sponsor samples.</p>" +
-        "<h2>Book checkouts</h2><ul>" + checkoutLinks.map((link) => "<li><a href=\"" + htmlEscape(link) + "\">" + htmlEscape(link) + "</a></li>").join("") + "</ul>" +
+        "<h2>Completed book orders</h2><ul>" + bookOrders.map((item) => "<li>" + htmlEscape(item.orderNumber) + " — payment " + htmlEscape(item.paymentId) + "</li>").join("") + "</ul>" +
         "<h2>Published test sponsors</h2><ul>" + sponsorResults.map((item) => "<li>" + htmlEscape(item.package) + ": " + htmlEscape(item.displayName) + "</li>").join("") + "</ul>" +
+        (failures.length ? "<h2>Items needing attention</h2><ul>" + failures.map((item) => "<li>" + htmlEscape(item) + "</li>").join("") + "</ul>" : "") +
         "<p>Square Sandbox only; no real funds. IngramSpark and Amazon purchase paths excluded.</p>" + htmlGroups + "</main>",
     }),
   });
@@ -291,49 +296,62 @@ function readFirstRow(sql) {
   };
   return walk(parsed);
 }
-async function openSandboxOrder(orderId) {
-  const headers = {
-    Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN,
-    "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17",
-    "Content-Type": "application/json",
-  };
-  const currentResponse = await fetch(SQUARE_SANDBOX_API + "/orders/" + encodeURIComponent(orderId), { headers });
-  const current = await currentResponse.json().catch(() => ({}));
-  if (!currentResponse.ok || !current.order?.id) {
-    throw new Error("Could not retrieve Square Sandbox order " + orderId + ": " + JSON.stringify(current.errors || current));
-  }
-  if (current.order.state === "OPEN") return;
-  if (current.order.state !== "DRAFT") {
-    throw new Error("Square Sandbox order " + orderId + " is " + current.order.state + "; expected DRAFT or OPEN.");
-  }
+function deterministicKey(label) {
+  return createHash("sha256").update(runId + "|" + label).digest("hex");
+}
 
-  const updateResponse = await fetch(SQUARE_SANDBOX_API + "/orders/" + encodeURIComponent(orderId), {
-    method: "PUT",
-    headers,
+// CreateOrder defaults to OPEN. Payment Links instead create DRAFT orders until
+// a buyer finishes hosted checkout, so scripted Sandbox card payments use Orders API.
+async function createSquareSandboxOrder(referenceId, lineItems, label) {
+  const response = await fetch(SQUARE_SANDBOX_API + "/orders", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN,
+      "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17",
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
-      idempotency_key: crypto.randomUUID(),
+      idempotency_key: deterministicKey("order:" + label),
       order: {
-        id: current.order.id,
-        location_id: current.order.location_id,
-        version: current.order.version,
-        state: "OPEN",
+        location_id: process.env.SQUARE_LOCATION_ID,
+        reference_id: referenceId,
+        line_items,
       },
     }),
   });
-  const updated = await updateResponse.json().catch(() => ({}));
-  if (!updateResponse.ok || updated.order?.state !== "OPEN") {
-    throw new Error("Could not open Square Sandbox order " + orderId + ": " + JSON.stringify(updated.errors || updated));
+  const result = await response.json().catch(() => ({}));
+  const order = result.order || {};
+  if (!response.ok || !order.id) {
+    throw new Error("Square Sandbox order creation failed for " + label + " (" + response.status + "): " + JSON.stringify(result.errors || result));
   }
+  if (order.state !== "OPEN" && order.state !== "COMPLETED") {
+    throw new Error("Square Sandbox order " + order.id + " has state " + String(order.state || "unknown") + "; expected OPEN.");
+  }
+  return { id: order.id, amountCents: Number(order.total_money?.amount || 0), state: order.state };
 }
+
 async function completeSandboxPayment(orderId, amountCents, label) {
-  await openSandboxOrder(orderId);
   const response = await fetch(SQUARE_SANDBOX_API + "/payments", {
     method: "POST",
-    headers: { Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN, "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17", "Content-Type": "application/json" },
-    body: JSON.stringify({ source_id: "cnon:card-nonce-ok", idempotency_key: crypto.randomUUID(), amount_money: { amount: amountCents, currency: "USD" }, location_id: process.env.SQUARE_LOCATION_ID, order_id: orderId, autocomplete: true, note: "[TEST DATA " + runId + "] " + label }),
+    headers: {
+      Authorization: "Bearer " + process.env.SQUARE_ACCESS_TOKEN,
+      "Square-Version": process.env.SQUARE_API_VERSION || "2024-10-17",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source_id: "cnon:card-nonce-ok",
+      idempotency_key: deterministicKey("payment:" + label),
+      amount_money: { amount: amountCents, currency: "USD" },
+      location_id: process.env.SQUARE_LOCATION_ID,
+      order_id: orderId,
+      autocomplete: true,
+      note: "[TEST DATA " + runId + "] " + label,
+    }),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.payment?.id || result.payment.status !== "COMPLETED") throw new Error("Sandbox payment failed for " + label + " (" + response.status + "): " + JSON.stringify(result.errors || result));
+  if (!response.ok || !result.payment?.id || result.payment.status !== "COMPLETED") {
+    throw new Error("Square Sandbox payment failed for " + label + " (" + response.status + "): " + JSON.stringify(result.errors || result));
+  }
   return result.payment;
 }
 async function waitForSql(sql, expected, label) {
@@ -344,56 +362,165 @@ async function waitForSql(sql, expected, label) {
   }
   throw new Error("Timed out waiting for Square webhook to reconcile " + label + " at " + SITE_URL + "/square/webhook.");
 }
-async function createSquareSponsorPayments() {
-  const results = [];
-  for (const packageName of SPONSOR_PACKAGES) for (let n = 1; n <= COUNT; n += 1) {
-    const suffix = packageName + "." + pad(n);
-    const response = await fetch(SITE_URL + "/api/sponsors/checkout", {
-      method: "POST", headers: { "Content-Type": "application/json", "Origin": SITE_URL },
-      body: JSON.stringify({ package: packageName, payerName: "Sandbox QA Sponsor " + packageName + " " + pad(n), payerEmail: sampleEmail("paid-sponsor." + suffix), displayName: "Sandbox QA " + packageName + " " + pad(n), entityType: "organization", anonymous: false, publishPermission: true, mailingAddress: "123 Sandbox Test Lane, QA City, IN 00000" }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.sponsorId || !payload.url) throw new Error("Sponsor checkout failed for " + suffix + ": " + JSON.stringify(payload));
-    const sponsorCheckoutUrl = new URL(payload.url);
-    if (sponsorCheckoutUrl.protocol !== "https:" || sponsorCheckoutUrl.hostname !== "sandbox.square.link") {
-      throw new Error("Square returned a non-sandbox sponsor checkout URL for " + suffix + ".");
-    }
-    const row = readFirstRow("SELECT square_order_id AS squareOrderId, amount_cents AS amountCents FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId));
-    if (!row?.squareOrderId || Number(row.amountCents) <= 0) throw new Error("Missing Square order for sponsor " + payload.sponsorId);
-    wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", "UPDATE sponsors SET admin_notes = " + q("[TEST DATA " + runId + "] Square Sandbox QA sponsor") + " WHERE id = " + q(payload.sponsorId)]);
-    await completeSandboxPayment(row.squareOrderId, Number(row.amountCents), "sponsor-" + suffix);
-    await waitForSql("SELECT status FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId), "paid", "sponsor " + payload.sponsorId);
-    const publishSql = "UPDATE sponsors SET recognition_status = 'Published', updated_at = datetime('now') WHERE id = " + q(payload.sponsorId) + " AND recognition_status = 'Pending Review' AND EXISTS (SELECT 1 FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId) + " AND status = 'paid')";
-    wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", publishSql]);
-    results.push({ package: packageName, displayName: "Sandbox QA " + packageName + " " + pad(n), sponsorId: payload.sponsorId, url: payload.url });
+const SPONSOR_DEFINITIONS = [
+  { key: "pagePal", label: "Page Pal", books: 5, amountCents: 10000 },
+  { key: "chapterChampion", label: "Chapter Champion", books: 12, amountCents: 25000 },
+  { key: "bookshelfBuilder", label: "Bookshelf Builder", books: 25, amountCents: 50000 },
+  { key: "literacyTrailblazer", label: "Literacy Trailblazer", books: 50, amountCents: 100000 },
+];
+
+async function seedAndPaySponsor(definition, n) {
+  const sequence = pad(n);
+  const suffix = definition.key + "." + sequence;
+  const sponsorId = "TEST-" + runId + "-SPONSOR-" + definition.key + "-" + sequence;
+  const localPaymentId = "TEST-" + runId + "-SPAY-" + definition.key + "-" + sequence;
+  const payerName = "Sandbox QA Sponsor " + definition.label + " " + sequence;
+  const displayName = "Sandbox QA " + definition.label + " " + sequence;
+  const payerEmail = sampleEmail("paid-sponsor." + suffix);
+  const mailingAddress = definition.key === "literacyTrailblazer"
+    ? "123 Sandbox Test Lane, QA City, IN 00000"
+    : "";
+  const order = await createSquareSandboxOrder(sponsorId, [{
+    name: "Read It Forward sponsorship - " + definition.label + " (" + definition.books + " books)",
+    quantity: "1",
+    base_price_money: { amount: definition.amountCents, currency: "USD" },
+  }], "sponsor-" + suffix);
+  if (order.amountCents !== definition.amountCents) {
+    throw new Error("Square Sandbox order total did not match " + definition.label + " for " + sequence + ".");
   }
-  return results;
+
+  wranglerOutput([
+    "d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox",
+    "--command",
+    "INSERT OR IGNORE INTO sponsors (id, package, books_sponsored, amount_paid_cents, payer_name, payer_email, display_name, entity_type, anonymous, publish_permission, mailing_address, recognition_status, admin_notes, created_at, updated_at) VALUES (" +
+      [sponsorId, definition.key, definition.books, definition.amountCents, payerName, payerEmail, displayName, "organization", 0, 1, mailingAddress, "Awaiting Payment", "[TEST DATA " + runId + "] Square Sandbox QA sponsor", "datetime('now')", "datetime('now')"].map((value, index) => index >= 13 ? value : q(value)).join(", ") +
+    ")",
+  ]);
+  wranglerOutput([
+    "d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox",
+    "--command",
+    "INSERT OR IGNORE INTO sponsor_payments (id, sponsor_id, square_order_id, amount_cents, status, created_at, updated_at) VALUES (" +
+      [localPaymentId, sponsorId, order.id, definition.amountCents, "pending", "datetime('now')", "datetime('now')"].map((value, index) => index >= 5 ? value : q(value)).join(", ") +
+    ")",
+  ]);
+
+  const prior = readFirstRow("SELECT status, square_payment_id AS paymentId FROM sponsor_payments WHERE id = " + q(localPaymentId));
+  let payment = null;
+  if (prior?.status !== "paid") {
+    payment = await completeSandboxPayment(order.id, definition.amountCents, "sponsor-" + suffix);
+    await waitForSql("SELECT status FROM sponsor_payments WHERE id = " + q(localPaymentId), "paid", "sponsor " + sponsorId);
+  }
+  const publishSql = "UPDATE sponsors SET recognition_status = 'Published', updated_at = datetime('now') WHERE id = " + q(sponsorId) +
+    " AND EXISTS (SELECT 1 FROM sponsor_payments WHERE id = " + q(localPaymentId) + " AND status = 'paid')";
+  wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", publishSql]);
+  return {
+    package: definition.key,
+    displayName,
+    sponsorId,
+    paymentId: payment?.id || prior?.paymentId || "",
+    amountCents: definition.amountCents,
+  };
 }
 
-async function createSquareSandboxCheckouts() {
-  const links = [];
-  for (let n = 1; n <= COUNT; n += 1) {
-    const sku = "TEST-" + runId + "-SKU-" + pad(n);
-    const response = await fetch(SITE_URL + "/api/store/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": SITE_URL },
-      body: JSON.stringify({ cart: JSON.stringify([{ sku, quantity: 1 }]) }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.url) throw new Error("Square Sandbox checkout " + n + " failed (" + response.status + "): " + JSON.stringify(payload));
-    const checkoutUrl = new URL(payload.url);
-    if (checkoutUrl.protocol !== "https:" || checkoutUrl.hostname !== "sandbox.square.link") {
-      throw new Error("Square returned a non-sandbox bookstore checkout URL.");
+async function createSquareSponsorPayments() {
+  const results = [];
+  const errors = [];
+  for (const definition of SPONSOR_DEFINITIONS) {
+    for (let n = 1; n <= COUNT; n += 1) {
+      try {
+        results.push(await seedAndPaySponsor(definition, n));
+      } catch (error) {
+        const message = error?.message || String(error);
+        errors.push("Sponsor " + definition.key + " " + pad(n) + ": " + message);
+        console.error("Sponsor sample failed: " + message);
+        if (message.includes("Timed out waiting for Square webhook")) return { results, errors, stoppedForWebhook: true };
+      }
     }
-    const order = readFirstRow("SELECT square_order_id AS squareOrderId, CAST(ROUND(total * 100) AS INTEGER) AS amountCents FROM orders WHERE order_number = " + q(payload.id));
-    if (!order?.squareOrderId || Number(order.amountCents) <= 0) throw new Error("Missing Square order for bookstore checkout " + n);
-    wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", "UPDATE orders SET notes = " + q("[TEST DATA " + runId + "] Square QA order") + " WHERE order_number = " + q(payload.id)]);
-    const payment = await completeSandboxPayment(order.squareOrderId, Number(order.amountCents), "book-" + n);
-    await waitForSql("SELECT payment_status AS status FROM orders WHERE order_number = " + q(payload.id), "Paid", "book order " + payload.id);
-    links.push(payload.url + " (Square payment " + payment.id + ")");
   }
-  return links;
+  return { results, errors, stoppedForWebhook: false };
 }
+
+async function seedAndPayBookOrder(n) {
+  const sequence = pad(n);
+  const prefix = "TEST-" + runId + "-";
+  const orderNumber = prefix + "ORDER-" + sequence;
+  const bookId = prefix + "BOOK-" + sequence;
+  const sku = prefix + "SKU-" + sequence;
+  const title = "Sandbox QA Book " + sequence;
+  const unitPrice = 12 + n;
+  const shipping = 5;
+  const subtotalCents = Math.round(unitPrice * 100);
+  const totalCents = subtotalCents + shipping * 100;
+  const cart = [{
+    bookId,
+    sku,
+    title,
+    quantity: 1,
+    unitPrice,
+    lineTotal: unitPrice,
+    preorder: false,
+  }];
+  const order = await createSquareSandboxOrder(orderNumber, [
+    {
+      name: title,
+      quantity: "1",
+      base_price_money: { amount: subtotalCents, currency: "USD" },
+      metadata: { sku, bookId },
+    },
+    {
+      name: "U.S. Shipping & Handling",
+      quantity: "1",
+      base_price_money: { amount: shipping * 100, currency: "USD" },
+      metadata: { type: "shipping", perBookCents: "500" },
+    },
+  ], "book-" + sequence);
+  if (order.amountCents !== totalCents) {
+    throw new Error("Square Sandbox order total did not match the seeded book and shipping for " + sequence + ".");
+  }
+
+  const customerName = "Sandbox QA Buyer " + sequence;
+  const customerEmail = sampleEmail("paid-book-order." + sequence);
+  const notes = "[TEST DATA " + runId + "] Square Sandbox QA bookstore order " + sequence;
+  wranglerOutput([
+    "d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox",
+    "--command",
+    "INSERT OR IGNORE INTO orders (order_number, provider, square_order_id, created_at, customer_name, customer_email, subtotal, shipping, tax, total, payment_status, fulfillment_status, notes) VALUES (" +
+      [orderNumber, "square", order.id, "datetime('now')", customerName, customerEmail, unitPrice, shipping, 0, unitPrice + shipping, "Pending", "Unfulfilled", notes].map((value, index) => index === 3 ? value : q(value)).join(", ") +
+    ")",
+  ]);
+  wranglerOutput([
+    "d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox",
+    "--command",
+    "INSERT OR IGNORE INTO checkout_sessions (session_id, cart_json, created_at) VALUES (" +
+      [orderNumber, JSON.stringify(cart), "datetime('now')"].map((value, index) => index === 2 ? value : q(value)).join(", ") +
+    ")",
+  ]);
+
+  const prior = readFirstRow("SELECT payment_status AS status, square_payment_id AS paymentId FROM orders WHERE order_number = " + q(orderNumber));
+  let payment = null;
+  if (prior?.status !== "Paid") {
+    payment = await completeSandboxPayment(order.id, totalCents, "book-" + sequence);
+    await waitForSql("SELECT payment_status AS status FROM orders WHERE order_number = " + q(orderNumber), "Paid", "book order " + orderNumber);
+  }
+  return { orderNumber, paymentId: payment?.id || prior?.paymentId || "", amountCents: totalCents };
+}
+
+async function createSquareSandboxBookOrders() {
+  const results = [];
+  const errors = [];
+  for (let n = 1; n <= COUNT; n += 1) {
+    try {
+      results.push(await seedAndPayBookOrder(n));
+    } catch (error) {
+      const message = error?.message || String(error);
+      errors.push("Book order " + pad(n) + ": " + message);
+      console.error("Book order sample failed: " + message);
+      if (message.includes("Timed out waiting for Square webhook")) return { results, errors, stoppedForWebhook: true };
+    }
+  }
+  return { results, errors, stoppedForWebhook: false };
+}
+
 async function main() {
   if (cleanupId) {
     const sql = makeCleanupSql(cleanupId);
@@ -464,12 +591,21 @@ async function main() {
     try { unlinkSync(file); } catch {}
   }
 
-  const checkoutLinks = await createSquareSandboxCheckouts();
-  const sponsorResults = await createSquareSponsorPayments();
-  console.log("Created sandbox review records and completed Square Sandbox payments. Run ID: " + runId);
+  // Create sponsors first so the public wall is populated before the bookstore
+  // phase can encounter an unrelated payment problem.
+  const sponsorRun = await createSquareSponsorPayments();
+  const bookRun = sponsorRun.stoppedForWebhook
+    ? { results: [], errors: ["Book orders skipped because Square webhook reconciliation did not complete."], stoppedForWebhook: true }
+    : await createSquareSandboxBookOrders();
+  const failures = [...sponsorRun.errors, ...bookRun.errors];
+
+  console.log("Review data run " + runId + ": " + forms.length + " form submissions, " +
+    sponsorRun.results.length + " paid/published sponsors, and " + bookRun.results.length + " paid book orders.");
   console.log(JSON.stringify(counts, null, 2));
-  console.log("Square Sandbox checkout links:\n" + checkoutLinks.join("\n"));
-  await sendReviewDigest(forms, checkoutLinks, sponsorResults);
+  await sendReviewDigest(forms, bookRun.results, sponsorRun.results, failures);
+  if (failures.length) {
+    throw new Error(failures.length + " sample item(s) need attention. See the review digest sent to " + REVIEWER + ".");
+  }
 }
 
 main().catch((error) => {
