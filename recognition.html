@@ -86,25 +86,53 @@
                 </p>
               </div>
               <figure class="recognition-certificate">
-                <a
-                  href="assets/S2CEO.png"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="View the Service2CEO Certificate of Completion full size"
+                <button
+                  class="recognition-certificate-view-button"
+                  type="button"
+                  data-document-viewer="assets/S2CEO.png"
+                  data-document-title="Service2CEO Certificate of Completion"
+                  data-document-viewer-view-only
+                  aria-label="View the Service2CEO Certificate of Completion"
                 >
                   <img
                     src="assets/S2CEO.png"
                     alt="Service2CEO Certificate of Completion awarded to Barbara J. Ratliff"
                     loading="lazy"
                   />
-                </a>
-                <figcaption>Click the certificate to view it full size.</figcaption>
+                </button>
+                <figcaption>View the certificate in the page viewer.</figcaption>
               </figure>
             </article>
           </div>
         </div>
       </section>
     </main>
+    <div
+      class="document-viewer"
+      data-document-viewer-modal
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="document-viewer-title"
+    >
+      <div class="document-viewer-card">
+        <div class="document-viewer-header">
+          <div>
+            <p class="eyebrow">Document viewer</p>
+            <h2 id="document-viewer-title">Service2CEO Certificate of Completion</h2>
+          </div>
+          <button class="document-viewer-close" type="button" data-document-viewer-close aria-label="Close document viewer">×</button>
+        </div>
+        <div class="document-viewer-frame">
+          <iframe data-document-viewer-frame title="Document viewer" loading="lazy"></iframe>
+          <img data-document-viewer-image alt="" hidden />
+        </div>
+        <div class="document-viewer-actions">
+          <a class="button ghost" data-document-viewer-new-tab target="_blank" rel="noopener noreferrer" hidden>Open in new tab</a>
+          <button class="button ink" type="button" data-document-viewer-close>Done</button>
+        </div>
+      </div>
+    </div>
     <div data-footer></div>
   </body>
 </html>
