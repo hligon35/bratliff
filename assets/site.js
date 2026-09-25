@@ -659,6 +659,8 @@ function openDocumentViewer(button) {
   const frame = documentViewer.querySelector("[data-document-viewer-frame]");
   const image = documentViewer.querySelector("[data-document-viewer-image]");
   const newTab = documentViewer.querySelector("[data-document-viewer-new-tab]");
+  const viewOnly = button.hasAttribute("data-document-viewer-view-only");
+  if (newTab) newTab.hidden = viewOnly;
   if (heading) heading.textContent = title;
   const isImage = /\.(?:png|jpe?g|gif|webp|svg)(?:[?#]|$)/i.test(source);
   if (frame) {
