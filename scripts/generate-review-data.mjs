@@ -261,6 +261,17 @@ async function sendReviewDigest(forms, checkoutLinks, sponsorResults) {
 }
 const SPONSOR_PACKAGES = ["pagePal", "chapterChampion", "bookshelfBuilder", "literacyTrailblazer"];
 const SQUARE_SANDBOX_API = "https://connect.squareupsandbox.com/v2";
+async function assertSandboxTarget() {
+  const response = await fetch(SITE_URL + "/healthz", { cache: "no-store" });
+  const health = await response.json().catch(() => ({}));
+  if (!response.ok || health.environment !== "sandbox") {
+    throw new Error(
+      "Refusing to generate review data: " + SITE_URL +
+      " did not identify itself as the sandbox Worker (environment: " +
+      String(health.environment || "unknown") + "). Resolve the jrpp domain route before retrying.",
+    );
+  }
+}
 function wranglerOutput(args) {
   const result = spawnSync("npx", wranglerArgs(args), { cwd: process.cwd(), encoding: "utf8", shell: process.platform === "win32" });
   if (result.error) throw result.error;
@@ -343,6 +354,10 @@ async function createSquareSponsorPayments() {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.sponsorId || !payload.url) throw new Error("Sponsor checkout failed for " + suffix + ": " + JSON.stringify(payload));
+    const sponsorCheckoutUrl = new URL(payload.url);
+    if (sponsorCheckoutUrl.protocol !== "https:" || sponsorCheckoutUrl.hostname !== "sandbox.square.link") {
+      throw new Error("Square returned a non-sandbox sponsor checkout URL for " + suffix + ".");
+    }
     const row = readFirstRow("SELECT square_order_id AS squareOrderId, amount_cents AS amountCents FROM sponsor_payments WHERE sponsor_id = " + q(payload.sponsorId));
     if (!row?.squareOrderId || Number(row.amountCents) <= 0) throw new Error("Missing Square order for sponsor " + payload.sponsorId);
     wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", "UPDATE sponsors SET admin_notes = " + q("[TEST DATA " + runId + "] Square Sandbox QA sponsor") + " WHERE id = " + q(payload.sponsorId)]);
@@ -367,7 +382,9 @@ async function createSquareSandboxCheckouts() {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.url) throw new Error("Square Sandbox checkout " + n + " failed (" + response.status + "): " + JSON.stringify(payload));
     const checkoutUrl = new URL(payload.url);
-    if (checkoutUrl.protocol !== "https:") throw new Error("Square returned a non-HTTPS checkout URL.");
+    if (checkoutUrl.protocol !== "https:" || checkoutUrl.hostname !== "sandbox.square.link") {
+      throw new Error("Square returned a non-sandbox bookstore checkout URL.");
+    }
     const order = readFirstRow("SELECT square_order_id AS squareOrderId, CAST(ROUND(total * 100) AS INTEGER) AS amountCents FROM orders WHERE order_number = " + q(payload.id));
     if (!order?.squareOrderId || Number(order.amountCents) <= 0) throw new Error("Missing Square order for bookstore checkout " + n);
     wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", "UPDATE orders SET notes = " + q("[TEST DATA " + runId + "] Square QA order") + " WHERE order_number = " + q(payload.id)]);
@@ -434,6 +451,7 @@ async function main() {
   if (!process.env.RESEND_API_KEY) throw new Error("Set RESEND_API_KEY before applying.");
   if (!process.env.SQUARE_ACCESS_TOKEN || !process.env.SQUARE_LOCATION_ID) throw new Error("Set Square Sandbox SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID in .env.local before applying.");
   if (process.env.SQUARE_ENVIRONMENT && process.env.SQUARE_ENVIRONMENT !== "sandbox") throw new Error("SQUARE_ENVIRONMENT must be sandbox.");
+  await assertSandboxTarget();
 
   console.log("Starting review data generation; run ID: " + runId);
   const sql = makeSeedSql(forms);
