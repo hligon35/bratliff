@@ -786,7 +786,7 @@ async function handleStoreCheckout(
           name: "U.S. Shipping & Handling",
           quantity: "1",
           base_price_money: { amount: Math.round(shipping * 100), currency: "USD" },
-          metadata: { type: "shipping", perBookCents: STORE_SHIPPING_PER_BOOK_CENTS },
+          metadata: { type: "shipping", perBookCents: String(STORE_SHIPPING_PER_BOOK_CENTS) },
         },
       ],
     },
