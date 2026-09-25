@@ -1553,7 +1553,10 @@ async function serveAdminAvatar(request: Request, url: URL, env: Env): Promise<R
 }
 
 async function authorizeAdmin(request: Request, env: Env): Promise<AuthenticatedAdmin> {
-  if (hasCloudflareAccessConfig(env)) {
+  // Access remains the default whenever it is configured. The isolated sandbox
+  // can opt into the Google session flow used by its login page.
+  const authMode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
+  if (authMode !== "google" && hasCloudflareAccessConfig(env)) {
     const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion");
     if (!accessJwt) {
       throw new HttpError(401, "Cloudflare Access did not present a verified identity for this request.");
