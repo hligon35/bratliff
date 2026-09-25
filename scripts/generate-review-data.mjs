@@ -391,6 +391,7 @@ async function main() {
   if (!process.env.SQUARE_ACCESS_TOKEN || !process.env.SQUARE_LOCATION_ID) throw new Error("Set Square Sandbox SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID in .env.local before applying.");
   if (process.env.SQUARE_ENVIRONMENT && process.env.SQUARE_ENVIRONMENT !== "sandbox") throw new Error("SQUARE_ENVIRONMENT must be sandbox.");
 
+  console.log("Starting review data generation; run ID: " + runId);
   const sql = makeSeedSql(forms);
   const file = ".review-data-seed-" + runId + ".sql";
   try {
@@ -410,6 +411,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Review data generation failed: " + (error?.message || String(error)));
+  console.error("Review data generation failed for run " + runId + ": " + (error?.message || String(error)));
   process.exitCode = 1;
 });
