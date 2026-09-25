@@ -2852,11 +2852,13 @@ async function sendSponsorCertificateIfEligible(
   paymentTimestamp: string,
 ): Promise<void> {
   const sponsor = await env.DB.prepare(
-    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, mailing_address AS mailingAddress, certificate_status AS certificateStatus FROM sponsors WHERE id = ?1",
+    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, mailing_address AS mailingAddress, certificate_status AS certificateStatus, admin_notes AS adminNotes FROM sponsors WHERE id = ?1",
   )
     .bind(sponsorId)
-    .first<{ package: string; payerName: string; payerEmail: string; mailingAddress: string; certificateStatus: string }>();
+    .first<{ package: string; payerName: string; payerEmail: string; mailingAddress: string; certificateStatus: string; adminNotes: string }>();
   if (!sponsor || !SPONSOR_CERTIFICATE_PACKAGES.has(sponsor.package as SponsorPackageKey)) return;
+  // QA sponsor payments are settled in Square Sandbox but must never trigger certificate emails.
+  if (sponsor.adminNotes?.startsWith("[TEST DATA ")) return;
   if (sponsor.certificateStatus === "sent") return;
 
   await env.DB.prepare(
