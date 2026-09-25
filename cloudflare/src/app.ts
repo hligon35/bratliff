@@ -86,7 +86,7 @@ const app: AppHandler = {
       }
 
       if (url.pathname === "/healthz") {
-        return json(request, env, { ok: true, service: "bratliff-platform" });
+        return json(request, env, { ok: true, service: "bratliff-platform", environment: env.SQUARE_ENVIRONMENT || "unset" });
       }
 
       if (url.pathname.startsWith("/media/books/")) {
