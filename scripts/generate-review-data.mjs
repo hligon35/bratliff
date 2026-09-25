@@ -189,7 +189,7 @@ function makeSeedSql(forms) {
     const sponsorId = prefix + "SPONSOR-" + pad(n);
     statements.push(sqlInsert("sponsors",
       ["id", "package", "books_sponsored", "amount_paid_cents", "payer_name", "payer_email", "display_name", "entity_type", "anonymous", "publish_permission", "website_url", "recognition_status", "admin_notes", "paid_at"],
-      [sponsorId, packageName, bookCount, amountCents, "Sandbox Sponsor " + pad(n), sampleEmail("sponsor." + pad(n)), "QA Sponsor " + pad(n), n % 2 ? "individual" : "organization", n % 3 === 0 ? 1 : 0, 0, "", "Pending Review", "[TEST DATA " + runId + "] Synthetic payment record. No Square transaction occurred.", "2026-09-25 12:" + pad(n) + ":00"]));
+      [sponsorId, packageName, bookCount, 0, "Sandbox Sponsor " + pad(n), sampleEmail("sponsor." + pad(n)), "QA Sponsor " + pad(n), n % 2 ? "individual" : "organization", n % 3 === 0 ? 1 : 0, 0, "", "Awaiting Payment", "[TEST DATA " + runId + "] Synthetic unpaid sandbox review record. No Square transaction occurred.", """]));
   }
 
   for (let i = 0; i < forms.length; i += 1) {
