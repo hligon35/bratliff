@@ -321,7 +321,7 @@ function readFirstRow(sql) {
   return walk(parsed);
 }
 function deterministicKey(label) {
-  return createHash("sha256").update(runId + "|" + label).digest("hex");
+  return createHash("sha256").update(runId + "|" + label).digest("hex").slice(0, 40);
 }
 
 // CreateOrder defaults to OPEN. Payment Links instead create DRAFT orders until
@@ -338,7 +338,7 @@ async function createSquareSandboxOrder(referenceId, lineItems, label) {
       idempotency_key: deterministicKey("order:" + label),
       order: {
         location_id: process.env.SQUARE_LOCATION_ID,
-        reference_id: referenceId,
+        reference_id: deterministicKey("reference:" + referenceId + ":" + label),
         line_items: lineItems,
       },
     }),
@@ -628,7 +628,7 @@ async function main() {
   console.log(JSON.stringify(counts, null, 2));
   await sendReviewDigest(forms, bookRun.results, sponsorRun.results, failures);
   if (failures.length) {
-    throw new Error(failures.length + " sample item(s) need attention. See the review digest sent to " + REVIEWER + ".");
+    throw new Error(failures.length + " sample item(s) need attention. See the review digest delivery message above (email or local files).");
   }
 }
 
