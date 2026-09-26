@@ -238,6 +238,61 @@ ensureFavicon();
 wireArtwork();
 hydrateConfiguredLinks();
 
+const siteIconMap = Object.freeze({
+  "shop books": "books",
+  "browse our books": "books",
+  "book store": "books",
+  "meet the author": "featured-author",
+  "featured author": "featured-author",
+  "become a sponsor": "contacts",
+  "sponsor 5 books": "contacts",
+  "sponsor 12 books": "contacts",
+  "sponsor 25 books": "contacts",
+  "sponsor 50+ books": "contacts",
+  "subscribe": "newsletter",
+  "view": "view",
+  "view document": "view",
+  "download": "open",
+  "open document": "open",
+  "read more": "view",
+  "learn more": "view",
+});
+
+function createSiteIcon(name) {
+  if (!name) return null;
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.classList.add("jrpp-icon");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("focusable", "false");
+  icon.innerHTML = '<use href="assets/icons.svg#' + name + '"></use>';
+  return icon;
+}
+
+function normalizeIconLabel(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function initSiteIcons() {
+  const targets = [...document.querySelectorAll("[data-icon], button, a.button, .button-row a")];
+  targets.forEach((element) => {
+    if (element.matches(".menu-toggle") || element.querySelector(".jrpp-icon")) return;
+    const explicit = element.getAttribute("data-icon");
+    const label = normalizeIconLabel(element.textContent);
+    const iconName = explicit || siteIconMap[label] ||
+      (/^sponsor\s+\d+\+?\s+books$/.test(label) ? "contacts" : null) ||
+      (/^download\b/.test(label) ? "open" : null) ||
+      (/^view\b/.test(label) ? "view" : null);
+    if (!iconName) return;
+    const icon = createSiteIcon(iconName);
+    if (!icon) return;
+    element.prepend(icon);
+    element.classList.add("has-jrpp-icon");
+  });
+}
+
+initSiteIcons();
+
+
 function initPolicySections() {
   const nav = document.querySelector(".legal-nav");
   const content = document.querySelector(".legal-content");
