@@ -1669,10 +1669,10 @@ body {
   margin-top: auto;
 }
 body.admin-drawer-collapsed {
-  padding-left: 78px;
+  padding-left: 100px;
 }
 .admin-drawer-collapsed .jrpp-admin-switcher {
-  width: 78px;
+  width: 100px;
   padding-inline: 10px;
 }
 .admin-drawer-collapsed .jrpp-admin-brandcopy,
@@ -1959,8 +1959,8 @@ body.admin-drawer-collapsed {
 /* Recolored symbol icons extracted from the JPP icon library. */
 .jrpp-icon {
   display: inline-block;
-  width: 1.15em;
-  height: 1.15em;
+  width: 3.45em;
+  height: 3.45em;
   flex: 0 0 auto;
   color: currentColor;
   fill: none;
@@ -1985,6 +1985,6 @@ body.admin-drawer-collapsed {
 }
 .admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
 .admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-  width: 22px;
-  height: 22px;
+  width: 66px;
+  height: 66px;
 }
