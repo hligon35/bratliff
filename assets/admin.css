@@ -1988,3 +1988,71 @@ body.admin-drawer-collapsed {
   width: 66px;
   height: 66px;
 }
+
+
+/* Keep drawer icons large enough to read without crowding the navigation. */
+.jrpp-icon {
+  width: 4.3125em;
+  height: 4.3125em;
+}
+.jrpp-admin-nav,
+.jrpp-admin-actions {
+  gap: 10px;
+}
+.jrpp-admin-nav a,
+.jrpp-admin-action {
+  min-width: 0;
+  min-height: 70px;
+  padding: 8px 10px;
+  gap: 8px;
+  line-height: 1.25;
+}
+.jrpp-admin-nav a .jrpp-icon,
+.jrpp-admin-action .jrpp-icon {
+  width: 4.3125em;
+  height: 4.3125em;
+}
+body.admin-drawer-collapsed {
+  padding-left: 112px;
+}
+.admin-drawer-collapsed .jrpp-admin-switcher {
+  width: 112px;
+  padding-inline: 10px;
+}
+.admin-drawer-collapsed .jrpp-admin-nav a,
+.admin-drawer-collapsed .jrpp-admin-action {
+  min-height: 84px;
+  padding: 0;
+  gap: 0;
+}
+.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
+.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
+  width: 82px;
+  height: 82px;
+}
+@media (max-width: 720px) {
+  body.admin-drawer-collapsed {
+    padding-left: 0;
+  }
+  .admin-drawer-collapsed .jrpp-admin-switcher {
+    width: auto;
+    padding-inline: 10px;
+  }
+  .jrpp-admin-nav,
+  .jrpp-admin-actions {
+    gap: 8px;
+  }
+  .jrpp-admin-nav a,
+  .jrpp-admin-action,
+  .admin-drawer-collapsed .jrpp-admin-nav a,
+  .admin-drawer-collapsed .jrpp-admin-action {
+    min-height: 52px;
+    padding: 7px 10px;
+    gap: 6px;
+  }
+  .admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
+  .admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
+    width: 4.3125em;
+    height: 4.3125em;
+  }
+}
