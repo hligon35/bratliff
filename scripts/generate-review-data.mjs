@@ -386,6 +386,16 @@ async function waitForSql(sql, expected, label) {
   }
   throw new Error("Timed out waiting for Square webhook to reconcile " + label + " at " + SITE_URL + "/square/webhook.");
 }
+// Trailblazer demo sponsors rotate through every badge tier. The amount stays
+// proportional to the $20-per-sponsored-book demo rate used by the 50-book tier.
+const TRAILBLAZER_LEVELS = [
+  { badge: "Bronze", books: 75, amountCents: 150000 },
+  { badge: "Silver", books: 125, amountCents: 250000 },
+  { badge: "Gold", books: 175, amountCents: 350000 },
+  { badge: "Platinum", books: 225, amountCents: 450000 },
+  { badge: "Diamond", books: 275, amountCents: 550000 },
+];
+
 const SPONSOR_DEFINITIONS = [
   { key: "pagePal", label: "Page Pal", books: 5, amountCents: 10000 },
   { key: "chapterChampion", label: "Chapter Champion", books: 12, amountCents: 25000 },
@@ -393,56 +403,63 @@ const SPONSOR_DEFINITIONS = [
   { key: "literacyTrailblazer", label: "Literacy Trailblazer", books: 50, amountCents: 100000 },
 ];
 
+function resolveSponsorDefinition(definition, n) {
+  if (definition.key !== "literacyTrailblazer") return definition;
+  const level = TRAILBLAZER_LEVELS[(n - 1) % TRAILBLAZER_LEVELS.length];
+  return { ...definition, ...level };
+}
+
 async function seedAndPaySponsor(definition, n) {
+  const sponsor = resolveSponsorDefinition(definition, n);
   const sequence = pad(n);
-  const suffix = definition.key + "." + sequence;
-  const sponsorId = "TEST-" + runId + "-SPONSOR-" + definition.key + "-" + sequence;
-  const localPaymentId = "TEST-" + runId + "-SPAY-" + definition.key + "-" + sequence;
+  const suffix = sponsor.key + "." + sequence;
+  const sponsorId = "TEST-" + runId + "-SPONSOR-" + sponsor.key + "-" + sequence;
+  const localPaymentId = "TEST-" + runId + "-SPAY-" + sponsor.key + "-" + sequence;
   const payerName = "SPONSOR NAME";
   const displayName = "SPONSOR NAME";
   const payerEmail = sampleEmail("paid-sponsor." + suffix);
-  const mailingAddress = definition.key === "literacyTrailblazer"
+  const mailingAddress = sponsor.key === "literacyTrailblazer"
     ? "123 Sandbox Test Lane, QA City, IN 00000"
     : "";
   const order = await createSquareSandboxOrder(sponsorId, [{
-    name: "Read It Forward sponsorship - " + definition.label + " (" + definition.books + " books)",
+    name: "Read It Forward sponsorship - " + sponsor.label + " (" + sponsor.books + " books)",
     quantity: "1",
-    base_price_money: { amount: definition.amountCents, currency: "USD" },
+    base_price_money: { amount: sponsor.amountCents, currency: "USD" },
   }], "sponsor-" + suffix);
-  if (order.amountCents !== definition.amountCents) {
-    throw new Error("Square Sandbox order total did not match " + definition.label + " for " + sequence + ".");
+  if (order.amountCents !== sponsor.amountCents) {
+    throw new Error("Square Sandbox order total did not match " + sponsor.label + " for " + sequence + ".");
   }
 
   wranglerOutput([
     "d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox",
     "--command",
     "INSERT OR IGNORE INTO sponsors (id, package, books_sponsored, amount_paid_cents, payer_name, payer_email, display_name, entity_type, anonymous, publish_permission, mailing_address, recognition_status, admin_notes, created_at, updated_at) VALUES (" +
-      [sponsorId, definition.key, definition.books, definition.amountCents, payerName, payerEmail, displayName, "organization", 0, 1, mailingAddress, "Awaiting Payment", "[TEST DATA " + runId + "] Square Sandbox QA sponsor", "datetime('now')", "datetime('now')"].map((value, index) => index >= 13 ? value : q(value)).join(", ") +
+      [sponsorId, sponsor.key, sponsor.books, sponsor.amountCents, payerName, payerEmail, displayName, "organization", 0, 1, mailingAddress, "Awaiting Payment", "[TEST DATA " + runId + "] Square Sandbox QA sponsor", "datetime('now')", "datetime('now')"].map((value, index) => index >= 13 ? value : q(value)).join(", ") +
     ")",
   ]);
   wranglerOutput([
     "d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox",
     "--command",
     "INSERT OR IGNORE INTO sponsor_payments (id, sponsor_id, square_order_id, amount_cents, status, created_at, updated_at) VALUES (" +
-      [localPaymentId, sponsorId, order.id, definition.amountCents, "pending", "datetime('now')", "datetime('now')"].map((value, index) => index >= 5 ? value : q(value)).join(", ") +
+      [localPaymentId, sponsorId, order.id, sponsor.amountCents, "pending", "datetime('now')", "datetime('now')"].map((value, index) => index >= 5 ? value : q(value)).join(", ") +
     ")",
   ]);
 
   const prior = readFirstRow("SELECT status, square_payment_id AS paymentId FROM sponsor_payments WHERE id = " + q(localPaymentId));
   let payment = null;
   if (prior?.status !== "paid") {
-    payment = await completeSandboxPayment(order.id, definition.amountCents, "sponsor-" + suffix);
+    payment = await completeSandboxPayment(order.id, sponsor.amountCents, "sponsor-" + suffix);
     await waitForSql("SELECT status FROM sponsor_payments WHERE id = " + q(localPaymentId), "paid", "sponsor " + sponsorId);
   }
   const publishSql = "UPDATE sponsors SET recognition_status = 'Published', updated_at = datetime('now') WHERE id = " + q(sponsorId) +
     " AND EXISTS (SELECT 1 FROM sponsor_payments WHERE id = " + q(localPaymentId) + " AND status = 'paid')";
   wranglerOutput(["d1", "execute", DATABASE, "--remote", "--config", WRANGLER_CONFIG, "--env", "sandbox", "--command", publishSql]);
   return {
-    package: definition.key,
+    package: sponsor.key,
     displayName,
     sponsorId,
     paymentId: payment?.id || prior?.paymentId || "",
-    amountCents: definition.amountCents,
+    amountCents: sponsor.amountCents,
   };
 }
 
