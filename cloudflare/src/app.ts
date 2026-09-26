@@ -2456,8 +2456,10 @@ async function getPublicFeaturedAuthor(env: Env): Promise<Record<string, unknown
  * sponsors are returned individually since they may show a logo.
  */
 async function listPublicSponsors(env: Env, params: URLSearchParams) {
+  const lowerPage = clampInt(params.get("lowerPage"), 1, 1000, 1);
+  const lowerPageSize = clampInt(params.get("lowerPageSize"), 1, 50, 50);
   const page = clampInt(params.get("page"), 1, 1000, 1);
-  const pageSize = clampInt(params.get("pageSize"), 1, 48, 12);
+  const pageSize = clampInt(params.get("pageSize"), 1, 21, 21);
 
   const namedGroups: Record<string, { names: string[]; anonymousCount: number }> = {
     pagePal: { names: [], anonymousCount: 0 },
@@ -2465,7 +2467,7 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
     bookshelfBuilder: { names: [], anonymousCount: 0 },
   };
   const groupRows = await env.DB.prepare(
-    `${SPONSOR_SELECT} WHERE recognition_status = 'Published' AND package IN ('pagePal','chapterChampion','bookshelfBuilder') ORDER BY display_order ASC, datetime(created_at) ASC`,
+    SPONSOR_SELECT + " WHERE recognition_status = 'Published' AND package IN ('pagePal','chapterChampion','bookshelfBuilder') ORDER BY display_order ASC, datetime(created_at) ASC",
   ).all<Record<string, unknown>>();
   for (const row of groupRows.results || []) {
     const sponsor = mapSponsorRecord(row);
@@ -2475,22 +2477,48 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
     else group.names.push(sponsor.displayName);
   }
 
+  const lowerTotalRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM sponsors WHERE recognition_status = 'Published' AND package IN ('pagePal','chapterChampion','bookshelfBuilder')",
+  ).first<{ count: number }>();
+  const lowerRows = await env.DB.prepare(
+    SPONSOR_SELECT + " WHERE recognition_status = 'Published' AND package IN ('pagePal','chapterChampion','bookshelfBuilder') ORDER BY CASE WHEN paid_at != '' THEN datetime(paid_at) ELSE datetime(created_at) END DESC, datetime(created_at) DESC, id DESC LIMIT ?1 OFFSET ?2",
+  )
+    .bind(lowerPageSize, (lowerPage - 1) * lowerPageSize)
+    .all<Record<string, unknown>>();
+
   const totalRow = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM sponsors WHERE recognition_status = 'Published' AND package = 'literacyTrailblazer'",
   ).first<{ count: number }>();
   const trailblazerRows = await env.DB.prepare(
-    `${SPONSOR_SELECT} WHERE recognition_status = 'Published' AND package = 'literacyTrailblazer' ORDER BY display_order ASC, datetime(created_at) DESC LIMIT ?1 OFFSET ?2`,
+    SPONSOR_SELECT + " WHERE recognition_status = 'Published' AND package = 'literacyTrailblazer' ORDER BY CASE WHEN paid_at != '' THEN datetime(paid_at) ELSE datetime(created_at) END DESC, datetime(created_at) DESC, id DESC LIMIT ?1 OFFSET ?2",
   )
     .bind(pageSize, (page - 1) * pageSize)
     .all<Record<string, unknown>>();
 
+  const packageLabel = (packageKey: SponsorPackageKey | string) =>
+    SPONSOR_PACKAGES[packageKey as SponsorPackageKey]?.label || packageKey;
+
   return {
+    // Kept for compatibility with older clients.
     groups: Object.entries(namedGroups).map(([packageKey, group]) => ({
       package: packageKey,
-      label: SPONSOR_PACKAGES[packageKey as SponsorPackageKey]?.label || packageKey,
+      label: packageLabel(packageKey),
       names: group.names,
       anonymousCount: group.anonymousCount,
     })),
+    lowerSponsors: (lowerRows.results || []).map((row) => {
+      const sponsor = mapSponsorRecord(row);
+      return {
+        id: sponsor.id,
+        package: sponsor.package,
+        packageLabel: packageLabel(sponsor.package),
+        displayName: sponsor.anonymous ? "" : sponsor.displayName,
+        anonymous: sponsor.anonymous,
+      };
+    }),
+    lowerTotal: Number(lowerTotalRow?.count || 0),
+    lowerPage,
+    lowerPageSize,
     trailblazers: (trailblazerRows.results || []).map((row) => {
       const sponsor = mapSponsorRecord(row);
       return {
@@ -2503,12 +2531,12 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
         websiteUrl: sponsor.anonymous ? "" : sponsor.websiteUrl,
       };
     }),
+    trailblazerTotal: Number(totalRow?.count || 0),
     total: Number(totalRow?.count || 0),
     page,
     pageSize,
   };
 }
-
 async function getInventorySummary(env: Env) {
   const rows = await env.DB.prepare(
     "SELECT id AS bookId, sku, title, stock, low_stock_threshold AS lowStockThreshold, status, CASE WHEN status = 'Published' AND stock <= low_stock_threshold THEN 1 ELSE 0 END AS lowStock FROM books ORDER BY title COLLATE NOCASE",
