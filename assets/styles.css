@@ -2129,22 +2129,18 @@ body.document-viewer-open {
 .sponsor-wall-section { margin-top: 2.5rem; }
 .sponsor-wall-section h3 { margin-bottom: 1rem; color: var(--navy); }
 .sponsor-lower-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-flow: row; gap: 0.85rem; }
-.sponsor-name-card { min-height: 76px; display: flex; align-items: center; gap: 0.65rem; padding: 0.7rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
-.sponsor-name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; line-height: 1.2; }
-.sponsor-package-icon { width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; color: var(--purple); background: var(--gold-soft); border-radius: 8px; }
-.sponsor-package-icon svg { width: 36px; height: 36px; }
-.sponsor-name-card[data-package="chapterChampion"] .sponsor-package-icon { color: var(--navy); }
-.sponsor-name-card[data-package="bookshelfBuilder"] .sponsor-package-icon { color: var(--purple-deep); }
+.sponsor-name-card { position: relative; min-height: 76px; display: block; padding: 0.7rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.sponsor-name { display: block; min-width: 0; padding-right: 78px; overflow-wrap: anywhere; font-weight: 700; line-height: 1.2; }
+.sponsor-package-art { position: absolute; top: 0.35rem; right: 0.35rem; width: 70px; height: 42px; object-fit: contain; object-position: right top; pointer-events: none; }
 .sponsor-trailblazer-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-flow: row; gap: 0.8rem; }
-.sponsor-trailblazer-card { min-width: 0; min-height: 190px; display: grid; grid-template-rows: 88px auto auto; justify-items: center; align-items: center; gap: 0.45rem; padding: 0.65rem 0.5rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); text-align: center; }
-.sponsor-trailblazer-logo { width: 100%; height: 82px; display: grid; place-items: center; overflow: hidden; }
+.sponsor-trailblazer-card { position: relative; min-width: 0; min-height: 190px; display: grid; grid-template-rows: 88px auto auto; justify-items: center; align-items: center; gap: 0.45rem; padding: 0.65rem 0.5rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); text-align: center; }
+.sponsor-trailblazer-logo { width: 100%; height: 82px; display: grid; place-items: center; overflow: hidden; padding-right: 58px; }
 .sponsor-trailblazer-logo img { width: 100%; height: 100%; object-fit: contain; }
 .sponsor-logo-placeholder { width: 76px; height: 58px; display: grid; place-items: center; border: 2px solid var(--ink); color: var(--ink); font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; }
-.sponsor-trailblazer-identity { min-width: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.35rem; }
-.sponsor-trailblazer-identity .sponsor-package-icon { width: 34px; height: 34px; flex-basis: 34px; border-radius: 6px; }
-.sponsor-trailblazer-identity .sponsor-package-icon svg { width: 26px; height: 26px; }
-.sponsor-trailblazer-card .sponsor-name { font-size: 0.86rem; }
+.sponsor-trailblazer-card > .sponsor-package-art { width: 70px; height: 42px; }
+.sponsor-trailblazer-identity { min-width: 0; width: 100%; display: flex; align-items: center; justify-content: flex-start; text-align: left; }
+.sponsor-trailblazer-card .sponsor-name { padding-right: 0; font-size: 0.86rem; text-align: center; width: 100%; }
 .sponsor-trailblazer-card small { color: var(--muted); font-size: 0.72rem; line-height: 1.2; }
 @media (max-width: 1080px) { .sponsor-trailblazer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 820px) { .sponsor-lower-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sponsor-trailblazer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .sponsor-lower-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sponsor-trailblazer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sponsor-name-card { min-height: 68px; padding: 0.55rem; } .sponsor-package-icon { width: 40px; height: 40px; flex-basis: 40px; } .sponsor-package-icon svg { width: 30px; height: 30px; } }
+@media (max-width: 560px) { .sponsor-lower-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sponsor-trailblazer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sponsor-name-card { min-height: 68px; padding: 0.55rem; } .sponsor-name { padding-right: 60px; } .sponsor-package-art, .sponsor-trailblazer-card > .sponsor-package-art { width: 56px; height: 34px; } }
