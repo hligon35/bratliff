@@ -1003,9 +1003,15 @@ body[data-page="books"] .future-title-grid .button {
   border: 1px solid var(--line);
   background: white;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto auto minmax(3.75rem, auto) minmax(0, 1fr) auto;
   align-items: start;
 }
+.price-card > h3 { grid-row: 1; }
+.price-card > .price { grid-row: 2; }
+.price-card > p:not(.tier-includes) { grid-row: 3; }
+.price-card > .tier-includes { grid-row: 4; }
+.price-card > .sponsor-tier-benefits { grid-row: 5; }
+.price-card > button { grid-row: 6; width: 100%; }
 .price-card h3 {
   margin-top: 0.75rem;
   min-height: 2.16em;
@@ -1038,12 +1044,27 @@ body[data-page="books"] .future-title-grid .button {
 .price-card p {
   margin-bottom: 1.25rem;
 }
+.price-card .tier-includes {
+  min-height: 3.75rem;
+}
+.price-card .tier-includes-placeholder {
+  visibility: hidden;
+  user-select: none;
+}
 .sponsor-tier-benefits {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   margin: 0 0 1.25rem;
   padding-left: 1.2rem;
 }
 .sponsor-tier-benefits li {
   margin-top: 0.45rem;
+}
+.sponsor-tier-benefits li:last-child {
+  margin-top: auto;
+  min-height: 8rem;
 }
 .store-checkout-note {
   margin: 0.35rem 0 0;
@@ -1062,8 +1083,17 @@ body[data-page="books"] .future-title-grid .button {
   margin: 0;
   max-width: 520px;
 }
-.recognition-certificate a {
+.recognition-certificate-view-button {
   display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.recognition-certificate-view-button:focus-visible {
+  outline: 3px solid var(--accent, #6b4eff);
+  outline-offset: 4px;
 }
 .recognition-certificate img {
   display: block;
@@ -1301,6 +1331,13 @@ body[data-page="books"] .future-title-grid .button {
 
 .download-menu-list a:hover {
   background: var(--cream);
+}
+
+.download-menu-list .download-menu-coming-soon {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  color: var(--muted);
+  white-space: normal;
 }
 .empty-state {
   padding: 2rem;
@@ -1690,14 +1727,36 @@ body.document-viewer-open {
 .document-viewer-frame {
   min-height: 0;
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 1rem;
   background: #e9e5dc;
 }
 
 .document-viewer-frame iframe {
   display: block;
+  flex: 1 1 auto;
   width: 100%;
   height: 100%;
+  min-height: 0;
   border: 0;
+}
+
+.document-viewer-frame img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.document-viewer-frame iframe[hidden],
+.document-viewer-frame img[hidden] {
+  display: none;
 }
 
 .document-viewer-actions {
@@ -1890,6 +1949,9 @@ body.document-viewer-open {
 }
 
 @media (max-width: 600px) {
+  .sponsor-tier-benefits li:last-child {
+    min-height: 0;
+  }
   [data-header] {
     min-height: 72px;
   }

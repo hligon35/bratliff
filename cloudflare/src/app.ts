@@ -50,7 +50,7 @@ import {
 
 
 const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
-const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
+const ADMIN_SESSION_TTL_SECONDS = 60 * 60;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
@@ -86,7 +86,7 @@ const app: AppHandler = {
       }
 
       if (url.pathname === "/healthz") {
-        return json(request, env, { ok: true, service: "bratliff-platform" });
+        return json(request, env, { ok: true, service: "bratliff-platform", environment: env.SQUARE_ENVIRONMENT || "unset" });
       }
 
       if (url.pathname.startsWith("/media/books/")) {
@@ -786,7 +786,7 @@ async function handleStoreCheckout(
           name: "U.S. Shipping & Handling",
           quantity: "1",
           base_price_money: { amount: Math.round(shipping * 100), currency: "USD" },
-          metadata: { type: "shipping", perBookCents: STORE_SHIPPING_PER_BOOK_CENTS },
+          metadata: { type: "shipping", perBookCents: String(STORE_SHIPPING_PER_BOOK_CENTS) },
         },
       ],
     },
@@ -1553,7 +1553,10 @@ async function serveAdminAvatar(request: Request, url: URL, env: Env): Promise<R
 }
 
 async function authorizeAdmin(request: Request, env: Env): Promise<AuthenticatedAdmin> {
-  if (hasCloudflareAccessConfig(env)) {
+  // Access remains the default whenever it is configured. The isolated sandbox
+  // can opt into the Google session flow used by its login page.
+  const authMode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
+  if (authMode !== "google" && hasCloudflareAccessConfig(env)) {
     const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion");
     if (!accessJwt) {
       throw new HttpError(401, "Cloudflare Access did not present a verified identity for this request.");
@@ -2880,11 +2883,13 @@ async function sendSponsorCertificateIfEligible(
   paymentTimestamp: string,
 ): Promise<void> {
   const sponsor = await env.DB.prepare(
-    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, mailing_address AS mailingAddress, certificate_status AS certificateStatus FROM sponsors WHERE id = ?1",
+    "SELECT package, payer_name AS payerName, payer_email AS payerEmail, mailing_address AS mailingAddress, certificate_status AS certificateStatus, admin_notes AS adminNotes FROM sponsors WHERE id = ?1",
   )
     .bind(sponsorId)
-    .first<{ package: string; payerName: string; payerEmail: string; mailingAddress: string; certificateStatus: string }>();
+    .first<{ package: string; payerName: string; payerEmail: string; mailingAddress: string; certificateStatus: string; adminNotes: string }>();
   if (!sponsor || !SPONSOR_CERTIFICATE_PACKAGES.has(sponsor.package as SponsorPackageKey)) return;
+  // QA sponsor payments are settled in Square Sandbox but must never trigger certificate emails.
+  if (sponsor.adminNotes?.startsWith("[TEST DATA ")) return;
   if (sponsor.certificateStatus === "sent") return;
 
   await env.DB.prepare(

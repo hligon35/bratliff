@@ -90,6 +90,26 @@ npx wrangler d1 migrations apply bratliff-platform-sandbox --remote --config clo
 
 Set the sandbox values for `SQUARE_ACCESS_TOKEN`, `SQUARE_WEBHOOK_SIGNATURE_KEY`, `SQUARE_LOCATION_ID`, and the other required secrets with `--env sandbox`. Keep the production secrets on the default environment. The `jrpp.alphazonelabs.com` DNS record must be proxied through the `alphazonelabs.com` Cloudflare zone for the route to receive traffic. The legacy `/square/sandbox` path redirects to the sandbox host; the production root and production checkout remain unchanged.
 
+## Sandbox review data generator
+
+Generate clearly labeled sample records for review on the isolated sandbox site. The default run is a dry run; it does not write to D1 or send email.
+
+Before applying, put the Resend API key in `.env` or `.env.local` as `RESEND_API_KEY`, and put the Square Sandbox access token and location ID in `.env.local` as `SQUARE_ACCESS_TOKEN` and `SQUARE_LOCATION_ID`. Set `SQUARE_ENVIRONMENT=sandbox` there. Wrangler must be authenticated for the Cloudflare sandbox account. Deploy the updated sandbox Worker first so tagged test sponsors do not trigger certificate emails. Then run:
+
+```sh
+npm run review-data:generate -- --apply
+```
+
+The script applies pending sandbox migrations, then creates at least 10 records of each public form type (contact, newsletter, speaking, book club, and book notification) and 10 examples of each admin data type: books, inventory events, authors, sponsors, newsletter campaigns, contacts, inactive subscribers, book interests, completed Square Sandbox bookstore purchases, and 10 completed Square Sandbox purchases for each of the four sponsorship packages, plus analytics events and audit entries. The webhook reconciles payments, then the script publishes the test sponsors so they appear on the sponsor wall. It attempts to email one review digest containing all generated form submissions and transaction details to `hligon@getsparqd.com`. Resend must accept the API key and the configured sender domain; if email delivery is rejected, the script saves `review-data-digest-RUN_ID.txt` and `.html` in the repository root. Generated user addresses use `example.invalid`; user confirmation emails are not sent.
+
+The script pins its health check to `https://jrpp.alphazonelabs.com` and writes only to `bratliff-platform-sandbox` with Wrangler's `sandbox` environment. It creates OPEN orders through Square's Sandbox Orders API, writes matching pending order/payment records to sandbox D1, then completes each payment with Square's Sandbox test token at `connect.squareupsandbox.com`. The Square webhook remains responsible for reconciling payment status and bookstore inventory; the script waits for reconciliation before publishing each test sponsor. The script loads `.env`, then `.env.local`, then `.secrets.sandbox` (later files override earlier ones). Payments use test credentials and do not move real funds. Test sponsors are marked in admin notes so the certificate handler suppresses certificate email for them. The Literacy Trailblazer examples use a fictional mailing address. The script never calls IngramSpark or Amazon purchase paths. Newsletter campaigns are drafts, synthetic subscribers are inactive and have no consent, and author profiles are drafts. It does not seed administrator accounts.
+
+Use `--count 15` to create more than 10 of each type (allowed range 10–100). Each run prints a run ID. To remove only that run's synthetic data:
+
+```sh
+npm run review-data:generate -- --apply --cleanup=RUN_ID
+```
+
 ## Temporary launch page
 
 The public homepage temporarily redirects visitors to `coming-soon.html`, while the admin, login, API, and completed site files remain intact. Remove the temporary redirect block marked in `index.html` when the full website is ready to launch.

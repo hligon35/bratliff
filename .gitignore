@@ -3,4 +3,5 @@ node_modules/
 .env.local
 cloudflare/public/
 .wrangler/
-
+.secrets.sandbox
+.env.local2

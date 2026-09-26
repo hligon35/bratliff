@@ -42,7 +42,7 @@
 		{
 			"binding": "DB",
 			"database_name": "bratliff-platform-sandbox",
-			"database_id": "36927122-24a8-45c5-a284-3692a896dac6"
+			"database_id": "e725ecca-2a18-40a1-bc60-ff6fcea2e846"
 		}
 	],
 	"r2_buckets": [
@@ -83,14 +83,26 @@
 	"env": {
 		"sandbox": {
 			"name": "bratliff-platform-sandbox",
+			"account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
 			"routes": [
 				{
-					"pattern": "jrpp.alphazonelabs.com/*",
-					"zone_name": "alphazonelabs.com"
+					"pattern": "jrpp.alphazonelabs.com",
+					"custom_domain": true
 				}
 			],
 			"triggers": {
 				"crons": []
+			},
+			"assets": {
+				"directory": "./public",
+				"binding": "ASSETS",
+				"html_handling": "auto-trailing-slash",
+				"not_found_handling": "404-page",
+				"run_worker_first": [
+					"/api/*",
+					"/square/*",
+					"/healthz"
+				]
 			},
 			"d1_databases": [
 				{
@@ -109,9 +121,10 @@
 				"ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
 				"CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
 				"CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
+				"ADMIN_AUTH_MODE": "google",
 				"CORS_ORIGIN": "https://jrpp.alphazonelabs.com",
 				"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
-				"MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
+				"MAIL_FROM_EMAIL": "website@notifications.jackrabbitpunkinpublishing.com",
 				"ORDER_CANCEL_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=cancelled",
 				"ORDER_SUCCESS_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=success",
 				"PUBLIC_ADMIN_URL": "https://jrpp.alphazonelabs.com/admin/",
@@ -138,5 +151,22 @@
 	"dev": {
 		"port": 8787,
 		"ip": "127.0.0.1"
+	},
+	"observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
 	}
+	
 }

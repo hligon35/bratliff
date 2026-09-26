@@ -637,7 +637,15 @@ function closeDocumentViewer() {
   documentViewer.setAttribute("aria-hidden", "true");
   document.body.classList.remove("document-viewer-open");
   const frame = documentViewer.querySelector("[data-document-viewer-frame]");
-  if (frame) frame.removeAttribute("src");
+  const image = documentViewer.querySelector("[data-document-viewer-image]");
+  if (frame) {
+    frame.removeAttribute("src");
+    frame.hidden = false;
+  }
+  if (image) {
+    image.removeAttribute("src");
+    image.hidden = true;
+  }
   documentViewerTrigger?.focus();
   documentViewerTrigger = null;
 }
@@ -649,11 +657,31 @@ function openDocumentViewer(button) {
   const title = button.dataset.documentTitle || "Document viewer";
   const heading = documentViewer.querySelector("#document-viewer-title");
   const frame = documentViewer.querySelector("[data-document-viewer-frame]");
+  const image = documentViewer.querySelector("[data-document-viewer-image]");
   const newTab = documentViewer.querySelector("[data-document-viewer-new-tab]");
+  const viewOnly = button.hasAttribute("data-document-viewer-view-only");
+  if (newTab) newTab.hidden = viewOnly;
   if (heading) heading.textContent = title;
+  const isImage = /\.(?:png|jpe?g|gif|webp|svg)(?:[?#]|$)/i.test(source);
   if (frame) {
     frame.title = title + " document viewer";
-    frame.src = source;
+    if (isImage) {
+      frame.removeAttribute("src");
+      frame.hidden = true;
+    } else {
+      frame.hidden = false;
+      frame.src = source;
+    }
+  }
+  if (image) {
+    if (isImage) {
+      image.src = source;
+      image.alt = title;
+      image.hidden = false;
+    } else {
+      image.removeAttribute("src");
+      image.hidden = true;
+    }
   }
   if (newTab) newTab.href = source;
   documentViewer.classList.add("open");
@@ -714,9 +742,43 @@ initFeaturedAuthor();
 function initFeaturedAuthor() {
   const section = document.querySelector("[data-featured-author]");
   if (!section) return;
-  const apiBase = resolvePublicApiBase();
-  if (!apiBase) return;
 
+  const portraits = [
+    { src: "assets/maleFeature.png", alt: "Featured male author" },
+    { src: "assets/femaleFeature.png", alt: "Featured female author" },
+  ];
+  const portraitEl = section.querySelector("[data-featured-author-portrait]");
+  const portraitCaptionEl = section.querySelector("[data-featured-author-portrait-caption]");
+  const bookCoverEl = section.querySelector("[data-featured-author-book-cover]");
+  const bookTitleEl = section.querySelector("[data-featured-author-book-title]");
+  let portraitIndex = 0;
+
+  function showPortrait() {
+    if (!portraitEl) return;
+    const portrait = portraits[portraitIndex];
+    portraitEl.src = portrait.src;
+    portraitEl.alt = portrait.alt;
+    portraitEl.hidden = false;
+    portraitEl.closest(".spotlight-visual")?.classList.add("has-image");
+    if (portraitCaptionEl) portraitCaptionEl.hidden = true;
+  }
+
+  showPortrait();
+  window.setInterval(() => {
+    portraitIndex = (portraitIndex + 1) % portraits.length;
+    showPortrait();
+  }, 3000);
+
+  if (bookCoverEl) {
+    bookCoverEl.src = "assets/bookFeature.png";
+    bookCoverEl.alt = "Featured book cover";
+    bookCoverEl.hidden = false;
+    bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
+  }
+  if (bookTitleEl) bookTitleEl.hidden = true;
+  section.hidden = false;
+
+  const apiBase = resolvePublicApiBase();
   fetch(`${apiBase}/api/authors/featured`, { cache: "no-store" })
     .then((response) => response.json())
     .then((data) => {
@@ -730,28 +792,13 @@ function initFeaturedAuthor() {
     const titleEl = root.querySelector("[data-featured-author-title]");
     const introEl = root.querySelector("[data-featured-author-intro]");
     const bioEl = root.querySelector("[data-featured-author-bio]");
-    const portraitEl = root.querySelector("[data-featured-author-portrait]");
-    const portraitCaptionEl = root.querySelector("[data-featured-author-portrait-caption]");
     const ctaEl = root.querySelector("[data-featured-author-cta]");
-    const bookCoverEl = root.querySelector("[data-featured-author-book-cover]");
-    const bookTitleEl = root.querySelector("[data-featured-author-book-title]");
     const socialsEl = root.querySelector("[data-featured-author-socials]");
 
     if (nameEl) nameEl.textContent = author.name || "";
     if (titleEl) titleEl.textContent = author.title || "Featured Author";
     if (introEl) introEl.textContent = author.shortIntro || "";
     if (bioEl) bioEl.textContent = author.biography || "";
-    if (portraitEl) {
-      if (author.portraitUrl) {
-        portraitEl.src = author.portraitUrl;
-        portraitEl.alt = author.portraitAlt || author.name || "";
-        portraitEl.style.objectPosition = `${author.portraitFocalX ?? 50}% ${author.portraitFocalY ?? 50}%`;
-        portraitEl.hidden = false;
-        portraitEl.closest(".spotlight-visual")?.classList.add("has-image");
-        if (portraitCaptionEl) portraitCaptionEl.hidden = true;
-        else portraitEl.closest(".featured-author-portrait")?.remove();
-      }
-    }
     if (socialsEl) {
       const icons = { facebook: "f", instagram: "◎", linkedin: "in", tiktok: "♪", youtube: "▶" };
       let links = author.socialLinks && typeof author.socialLinks === "object" ? author.socialLinks : {};
@@ -774,19 +821,6 @@ function initFeaturedAuthor() {
       if (author.ctaUrl) ctaEl.href = author.ctaUrl;
       if (author.ctaLabel || author.ctaUrl) ctaEl.hidden = false;
     }
-    const firstBook = author.bookImageUrl
-      ? { imageUrl: author.bookImageUrl, title: "Featured Book" }
-      : (Array.isArray(author.relatedBooks) ? author.relatedBooks.find((book) => book && book.imageUrl) : null);
-    if (firstBook) {
-      if (bookCoverEl) {
-        bookCoverEl.src = firstBook.imageUrl;
-        bookCoverEl.alt = author.bookImageAlt || firstBook.title || "";
-        bookCoverEl.hidden = false;
-        bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
-      }
-      if (bookTitleEl) bookTitleEl.textContent = firstBook.title || "Featured Book";
-    }
-    root.hidden = false;
   }
 }
 
