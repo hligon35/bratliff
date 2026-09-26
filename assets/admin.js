@@ -91,15 +91,15 @@
   };
 
   const adminNavItems = [
-    { key: "dashboard", href: "admin/index.html", label: "Dashboard", icon: "⌂" },
-    { key: "store", href: "admin/store.html", label: "Book Store", icon: "▣" },
-    { key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "✉" },
-    { key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "★" },
-    { key: "author", href: "admin/author.html", label: "Featured Author", icon: "✎" },
-    { key: "analytics", href: "admin/analytics.html", label: "Analytics", icon: "▥", roles: ["developer", "owner"] },
-    { key: "activity", href: "admin/activity.html", label: "Activity Log", icon: "◷", roles: ["developer", "owner"] },
-    { key: "profile", href: "admin/profile.html", label: "Access Management", icon: "⚿", roles: ["developer", "owner"] },
-    { key: "settings", href: "admin/settings.html", label: "Settings", icon: "⚙" },
+    { key: "dashboard", href: "admin/index.html", label: "Dashboard", icon: "overview" },
+    { key: "store", href: "admin/store.html", label: "Book Store", icon: "books" },
+    { key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "newsletter" },
+    { key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "contacts" },
+    { key: "author", href: "admin/author.html", label: "Featured Author", icon: "featured-author" },
+    { key: "analytics", href: "admin/analytics.html", label: "Analytics", icon: "analytics", roles: ["developer", "owner"] },
+    { key: "activity", href: "admin/activity.html", label: "Activity Log", icon: "activity-log", roles: ["developer", "owner"] },
+    { key: "profile", href: "admin/profile.html", label: "Access Management", icon: "access-management", roles: ["developer", "owner"] },
+    { key: "settings", href: "admin/settings.html", label: "Settings", icon: "settings" },
   ];
 
   function renderAdminNavigation() {
@@ -154,6 +154,74 @@
   function resolveApiRoot(configuredValue, defaultPath) {
     if (publicApiRoot) return publicApiRoot + defaultPath;
     return String(configuredValue || "").replace(/\/$/, "");
+  }
+
+
+  const adminButtonIcons = Object.freeze({
+    "refresh": "sync-square-stock",
+    "sign out": "sign-ins-outs",
+    "overview": "overview",
+    "books": "books",
+    "orders": "orders",
+    "inventory": "inventory",
+    "initialize / repair store": "initialize-repair",
+    "sync square stock": "sync-square-stock",
+    "add book": "add-book",
+    "save book": "save-book",
+    "cancel": "cancel",
+    "duplicate": "duplicate",
+    "publish": "publish",
+    "archive": "archive",
+    "remove image": "remove",
+    "save fulfillment": "save-fulfillment",
+    "apply adjustment": "apply-adjustment",
+    "publish sponsor": "publish",
+    "hide sponsor": "hide",
+    "new author": "new-author",
+    "save author": "save-author",
+    "publish to media page": "publish-media",
+    "unpublish": "unpublish",
+    "drafts": "drafts",
+    "scheduled": "scheduled",
+    "new newsletter": "new-newsletter",
+    "save draft": "save-draft",
+    "send test": "send-test",
+    "schedule / send": "schedule-send",
+    "desktop preview": "desktop-preview",
+    "mobile preview": "mobile-preview",
+    "open": "open",
+    "close": "close",
+    "view": "view",
+    "delete": "delete",
+    "hide": "hide",
+    "all activity": "all-activity",
+    "export to sheets": "export-sheets",
+    "save admin": "save-admin",
+    "settings": "settings",
+  });
+
+  function createAdminIcon(name) {
+    if (!name) return null;
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.classList.add("jrpp-icon");
+    icon.setAttribute("aria-hidden", "true");
+    icon.setAttribute("focusable", "false");
+    icon.innerHTML = '<use href="../assets/icons.svg#' + name + '"></use>';
+    return icon;
+  }
+
+  function initAdminIcons() {
+    qsa("[data-icon], button, .btn, .jrpp-admin-action").forEach(function (element) {
+      if (element.querySelector(".jrpp-icon")) return;
+      const explicit = element.getAttribute("data-icon");
+      const label = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+      const iconName = explicit || adminButtonIcons[label];
+      if (!iconName) return;
+      const icon = createAdminIcon(iconName);
+      if (!icon) return;
+      element.prepend(icon);
+      element.classList.add("has-jrpp-icon");
+    });
   }
 
   function qs(selector) {
@@ -2134,6 +2202,7 @@
         await loadSettings();
       }
       renderViewer();
+      initAdminIcons();
     } catch (error) {
       const dashboardEmail = qs("#dashboardViewerEmail");
       if (dashboardEmail) dashboardEmail.textContent = error.message || "Could not load the admin console.";
@@ -2453,6 +2522,7 @@
   });
 
   initAdminDrawer();
+  initAdminIcons();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", refreshCurrentPage);
