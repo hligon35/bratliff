@@ -1954,3 +1954,37 @@ body.admin-drawer-collapsed {
     padding-left: 78px;
   }
 }
+
+
+/* Recolored symbol icons extracted from the JPP icon library. */
+.jrpp-icon {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  flex: 0 0 auto;
+  color: currentColor;
+  fill: none;
+  vertical-align: -0.18em;
+}
+.jrpp-admin-nav a,
+.jrpp-admin-action,
+.btn,
+[data-store-tab] {
+  align-items: center;
+  gap: 0.5em;
+}
+.jrpp-admin-nav a,
+.jrpp-admin-action,
+.btn,
+[data-store-tab] {
+  display: inline-flex;
+}
+.jrpp-admin-nav a::before,
+.admin-drawer-collapsed .jrpp-admin-action::before {
+  content: none !important;
+}
+.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
+.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
+  width: 22px;
+  height: 22px;
+}
