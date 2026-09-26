@@ -878,9 +878,6 @@ function initSponsorProgram() {
     bookshelfBuilder: { label: "Bookshelf Builder", price: "$500", books: 25 },
     literacyTrailblazer: { label: "Literacy Trailblazer", pricePerBook: 20, minBooks: 50 },
   };
-  const pageSize = 12;
-  let trailblazerPage = 1;
-
   ensureSponsorModal();
   packageButtons.forEach((button) => {
     button.addEventListener("click", () => {
