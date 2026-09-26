@@ -398,8 +398,8 @@ async function seedAndPaySponsor(definition, n) {
   const suffix = definition.key + "." + sequence;
   const sponsorId = "TEST-" + runId + "-SPONSOR-" + definition.key + "-" + sequence;
   const localPaymentId = "TEST-" + runId + "-SPAY-" + definition.key + "-" + sequence;
-  const payerName = "Sandbox QA Sponsor " + definition.label + " " + sequence;
-  const displayName = "Sandbox QA " + definition.label + " " + sequence;
+  const payerName = "SPONSOR NAME";
+  const displayName = "SPONSOR NAME";
   const payerEmail = sampleEmail("paid-sponsor." + suffix);
   const mailingAddress = definition.key === "literacyTrailblazer"
     ? "123 Sandbox Test Lane, QA City, IN 00000"
@@ -446,19 +446,29 @@ async function seedAndPaySponsor(definition, n) {
   };
 }
 
+function shuffle(items) {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 async function createSquareSponsorPayments() {
   const results = [];
   const errors = [];
-  for (const definition of SPONSOR_DEFINITIONS) {
-    for (let n = 1; n <= COUNT; n += 1) {
-      try {
-        results.push(await seedAndPaySponsor(definition, n));
-      } catch (error) {
-        const message = error?.message || String(error);
-        errors.push("Sponsor " + definition.key + " " + pad(n) + ": " + message);
-        console.error("Sponsor sample failed: " + message);
-        if (message.includes("Timed out waiting for Square webhook")) return { results, errors, stoppedForWebhook: true };
-      }
+  const jobs = shuffle(SPONSOR_DEFINITIONS.flatMap((definition) =>
+    Array.from({ length: COUNT }, (_, index) => ({ definition, n: index + 1 })),
+  ));
+  for (const { definition, n } of jobs) {
+    try {
+      results.push(await seedAndPaySponsor(definition, n));
+    } catch (error) {
+      const message = error?.message || String(error);
+      errors.push("Sponsor " + definition.key + " " + pad(n) + ": " + message);
+      console.error("Sponsor sample failed: " + message);
+      if (message.includes("Timed out waiting for Square webhook")) return { results, errors, stoppedForWebhook: true };
     }
   }
   return { results, errors, stoppedForWebhook: false };
