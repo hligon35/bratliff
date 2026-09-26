@@ -1140,4 +1140,3 @@ function initSponsorProgram() {
     recognitionMount.innerHTML = lowerBlock + trailblazerBlock || '<p class="asset-note">Sponsor recognition will appear here as sponsorships are approved.</p>';
   }
 }
-}
