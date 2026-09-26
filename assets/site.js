@@ -1121,25 +1121,7 @@ function initSponsorProgram() {
     const assets = { pagePal: "pagePal.png", chapterChampion: "chapterChampion.png", bookshelfBuilder: "bookshelfBuilder.png", literacyTrailblazer: "literacyTrailblazer.png" };
     const asset = assets[packageKey] || assets.pagePal;
     return "<img class=\"sponsor-package-art sponsor-package-art--" + packageKey + "\" src=\"assets/" + asset + "\" alt=\"" + escapeHtmlSponsor(label || "Sponsor package") + "\" loading=\"lazy\">";
-  }function renderSponsorRecognition(data) {
-    const lowerCards = (data.lowerSponsors || [])
-      .map((sponsor) => {
-        const packageKey = ["pagePal", "chapterChampion", "bookshelfBuilder"].includes(sponsor.package)
-          ? sponsor.package
-          : "pagePal";
-        const name = sponsor.anonymous
-          ? "Anonymous"
-          : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
-        return "<div class=\"sponsor-name-card\" data-package=\"" + packageKey + "\">" +
-          "<span class=\"sponsor-package-icon sponsor-package-icon--" + packageKey + "\" title=\"" + escapeHtmlSponsor(sponsor.packageLabel || "") + "\">" +
-          packageIcon(packageKey) +
-          "</span><span class=\"sponsor-name\">" + name + "</span></div>";
-      })
-      .join("");
-
-    const trailblazerCards = (data.trailblazers || [])
-      .map((sponsor) => {
-        const name = sponsor  function renderSponsorRecognition(data) {
+  }  function renderSponsorRecognition(data) {
     const lowerCards = (data.lowerSponsors || []).map((sponsor) => {
       const packageKey = ["pagePal", "chapterChampion", "bookshelfBuilder"].includes(sponsor.package) ? sponsor.package : "pagePal";
       const packageLabel = sponsor.packageLabel || "Sponsor package";
