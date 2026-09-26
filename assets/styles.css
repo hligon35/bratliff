@@ -2149,8 +2149,8 @@ body.document-viewer-open {
 /* Recolored symbol icons extracted from the JPP icon library. */
 .jrpp-icon {
   display: inline-block;
-  width: 1.15em;
-  height: 1.15em;
+  width: 3.45em;
+  height: 3.45em;
   flex: 0 0 auto;
   color: currentColor;
   fill: none;
