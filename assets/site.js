@@ -1040,71 +1040,103 @@ function initSponsorProgram() {
     }
   }
 
-  async function loadSponsorRecognition(append) {
+  let recognitionTimer = null;
+  let lowerPage = 1;
+  let trailblazerPage = 1;
+
+  async function loadSponsorRecognition() {
     try {
-      const response = await fetch(`${apiBase}/api/sponsors?page=${trailblazerPage}&pageSize=${pageSize}`, {
-        cache: "no-store",
-      });
+      const response = await fetch(
+        apiBase + "/api/sponsors?lowerPage=" + lowerPage + "&lowerPageSize=50&page=" + trailblazerPage + "&pageSize=21",
+        { cache: "no-store" },
+      );
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || "Could not load sponsor recognition.");
-      renderSponsorRecognition(data, append);
+      renderSponsorRecognition(data);
+      scheduleSponsorRecognition(data);
     } catch {
-      if (!append) {
-        recognitionMount.innerHTML = '<p class="asset-note">Sponsor recognition is temporarily unavailable.</p>';
-      }
+      recognitionMount.innerHTML = '<p class="asset-note">Sponsor recognition is temporarily unavailable.</p>';
+      stopSponsorRecognitionPagination();
     }
   }
 
-  function renderSponsorRecognition(data, append) {
-    const groupsHtml = (data.groups || [])
-      .filter((group) => (group.names && group.names.length) || group.anonymousCount)
-      .map((group) => {
-        const names = group.names.map(escapeHtmlSponsor);
-        if (group.anonymousCount) {
-          names.push(`${group.anonymousCount} anonymous sponsor${group.anonymousCount === 1 ? "" : "s"}`);
-        }
-        return `<p><strong>${escapeHtmlSponsor(group.label)}:</strong> ${names.join(", ")}</p>`;
+  function stopSponsorRecognitionPagination() {
+    if (recognitionTimer) {
+      window.clearInterval(recognitionTimer);
+      recognitionTimer = null;
+    }
+  }
+
+  function scheduleSponsorRecognition(data) {
+    const lowerPages = Math.max(1, Math.ceil(Number(data.lowerTotal || 0) / 50));
+    const trailblazerPages = Math.max(
+      1,
+      Math.ceil(Number(data.trailblazerTotal ?? data.total ?? 0) / 21),
+    );
+    if (lowerPages === 1 && trailblazerPages === 1) {
+      stopSponsorRecognitionPagination();
+      return;
+    }
+    stopSponsorRecognitionPagination();
+    recognitionTimer = window.setInterval(() => {
+      if (lowerPages > 1) lowerPage = lowerPage >= lowerPages ? 1 : lowerPage + 1;
+      if (trailblazerPages > 1) {
+        trailblazerPage = trailblazerPage >= trailblazerPages ? 1 : trailblazerPage + 1;
+      }
+      loadSponsorRecognition();
+    }, 5000);
+  }
+
+  function packageIcon(packageKey) {
+    const icons = {
+      pagePal: '<svg viewBox="0 0 64 64" focusable="false" aria-hidden="true"><path d="M7 19 32 8l25 11v9H7zM10 29h44v7H10zM13 38h38v5H13zM17 47h30v5H17z" fill="currentColor"/><path d="m32 11 2.2 4.6 5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7z" fill="var(--gold)"/></svg>',
+      chapterChampion: '<svg viewBox="0 0 64 64" focusable="false" aria-hidden="true"><path d="M10 8h44v48H10z" fill="currentColor"/><path d="M15 14h34v7H15zm0 12h34v7H15zm0 12h34v7H15zm0 12h34v3H15z" fill="var(--gold-soft)"/><path d="M44 8v48" stroke="var(--purple)" stroke-width="2"/></svg>',
+      bookshelfBuilder: '<svg viewBox="0 0 64 64" focusable="false" aria-hidden="true"><path d="M8 49 15 18l12 3-7 31zm18 3 1-38h12l-1 38zm15 0 7-34 9 2-7 34z" fill="currentColor"/><path d="m31 12 2.2 4.6 5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7z" fill="var(--gold)"/></svg>',
+      literacyTrailblazer: '<svg viewBox="0 0 64 64" focusable="false" aria-hidden="true"><path d="M6 24c9-10 18-10 26 0 8-10 17-10 26 0v28c-9-10-18-10-26 0C24 42 15 42 6 52z" fill="currentColor"/><path d="M32 24v28" stroke="var(--gold)" stroke-width="2"/><path d="m32 8 2.2 4.6 5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7z" fill="var(--gold)"/></svg>',
+    };
+    return icons[packageKey] || icons.literacyTrailblazer;
+  }
+
+  function renderSponsorRecognition(data) {
+    const lowerCards = (data.lowerSponsors || [])
+      .map((sponsor) => {
+        const packageKey = ["pagePal", "chapterChampion", "bookshelfBuilder"].includes(sponsor.package)
+          ? sponsor.package
+          : "pagePal";
+        const name = sponsor.anonymous
+          ? "Anonymous"
+          : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
+        return "<div class=\"sponsor-name-card\" data-package=\"" + packageKey + "\">" +
+          "<span class=\"sponsor-package-icon sponsor-package-icon--" + packageKey + "\" title=\"" + escapeHtmlSponsor(sponsor.packageLabel || "") + "\">" +
+          packageIcon(packageKey) +
+          "</span><span class=\"sponsor-name\">" + name + "</span></div>";
       })
       .join("");
 
     const trailblazerCards = (data.trailblazers || [])
       .map((sponsor) => {
-        const name = sponsor.anonymous ? "Anonymous sponsor" : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
+        const name = sponsor.anonymous
+          ? "Anonymous"
+          : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
         const logo = sponsor.logoUrl
-          ? `<img src="${escapeHtmlSponsor(sponsor.logoUrl)}" alt="${escapeHtmlSponsor(sponsor.logoAlt || name)}" loading="lazy">`
-          : "";
-        return `<div class="sponsor-card">${logo}<span>${name}</span><small>${sponsor.booksSponsored} books</small></div>`;
+          ? "<img src=\"" + escapeHtmlSponsor(sponsor.logoUrl) + "\" alt=\"" + escapeHtmlSponsor(sponsor.logoAlt || name) + "\" loading=\"lazy\">"
+          : '<span class="sponsor-logo-placeholder" aria-hidden="true">LOGO</span>';
+        return "<div class=\"sponsor-trailblazer-card\">" +
+          "<div class=\"sponsor-trailblazer-logo\">" + logo + "</div>" +
+          "<div class=\"sponsor-trailblazer-identity\"><span class=\"sponsor-package-icon sponsor-package-icon--literacyTrailblazer\">" +
+          packageIcon("literacyTrailblazer") + "</span><span class=\"sponsor-name\">" + name + "</span></div>" +
+          "<small>" + Number(sponsor.booksSponsored || 0) + " books sponsored</small></div>";
       })
       .join("");
 
-    const groupsBlock = groupsHtml ? `<div class="sponsor-groups">${groupsHtml}</div>` : "";
-    const trailblazerBlock = trailblazerCards ? `<div class="sponsor-grid" data-sponsor-grid>${trailblazerCards}</div>` : "";
+    const lowerBlock = lowerCards
+      ? '<section class="sponsor-wall-section" aria-labelledby="sponsor-wall-names-title"><h3 id="sponsor-wall-names-title">Read It Forward Sponsors</h3><div class="sponsor-lower-grid">' + lowerCards + '</div></section>'
+      : "";
+    const trailblazerBlock = trailblazerCards
+      ? '<section class="sponsor-wall-section" aria-labelledby="trailblazer-title"><h3 id="trailblazer-title">Literacy Trailblazers</h3><div class="sponsor-trailblazer-grid">' + trailblazerCards + '</div></section>'
+      : "";
 
-    if (append) {
-      const grid = recognitionMount.querySelector("[data-sponsor-grid]");
-      if (grid) grid.insertAdjacentHTML("beforeend", trailblazerCards);
-    } else {
-      recognitionMount.innerHTML =
-        groupsBlock || trailblazerBlock
-          ? groupsBlock + trailblazerBlock
-          : '<p class="asset-note">Sponsor recognition will appear here as sponsorships are approved.</p>';
-    }
-
-    const existingMore = document.querySelector("[data-sponsor-more]");
-    existingMore?.remove();
-    const loadedCount = trailblazerPage * pageSize;
-    if (data.trailblazers && data.trailblazers.length === pageSize && loadedCount < data.total) {
-      const moreButton = document.createElement("button");
-      moreButton.type = "button";
-      moreButton.className = "button ghost";
-      moreButton.dataset.sponsorMore = "true";
-      moreButton.style.marginTop = "1rem";
-      moreButton.textContent = "Show more sponsors";
-      moreButton.addEventListener("click", () => {
-        trailblazerPage += 1;
-        loadSponsorRecognition(true);
-      });
-      recognitionMount.insertAdjacentElement("afterend", moreButton);
-    }
+    recognitionMount.innerHTML = lowerBlock + trailblazerBlock ||
+      '<p class="asset-note">Sponsor recognition will appear here as sponsorships are approved.</p>';
   }
 }
