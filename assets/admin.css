@@ -2056,3 +2056,98 @@ body.admin-drawer-collapsed {
     height: 4.3125em;
   }
 }
+
+
+/* Compact drawer rows: preserve the larger icons without wasting vertical space. */
+.jrpp-admin-switcher {
+  padding: 10px 12px;
+  gap: 6px;
+}
+.jrpp-admin-home {
+  gap: 8px;
+}
+.jrpp-admin-logo {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+}
+.jrpp-admin-drawer-toggle {
+  min-height: 30px;
+  padding: 3px 8px;
+}
+.jrpp-admin-nav,
+.jrpp-admin-actions {
+  gap: 4px;
+}
+.jrpp-admin-nav a {
+  height: 58px;
+  min-height: 58px;
+  padding: 1px 8px;
+  gap: 5px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.jrpp-admin-nav a .jrpp-icon {
+  width: 54px;
+  height: 54px;
+}
+.jrpp-admin-actions {
+  margin-top: 4px;
+}
+.jrpp-admin-action {
+  height: 42px;
+  min-height: 42px;
+  padding: 2px 8px;
+  gap: 5px;
+  line-height: 1.1;
+}
+.jrpp-admin-action .jrpp-icon {
+  width: 36px;
+  height: 36px;
+}
+body.admin-drawer-collapsed {
+  padding-left: 80px;
+}
+.admin-drawer-collapsed .jrpp-admin-switcher {
+  width: 80px;
+  padding-inline: 8px;
+}
+.admin-drawer-collapsed .jrpp-admin-nav a,
+.admin-drawer-collapsed .jrpp-admin-action {
+  width: 100%;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  gap: 0;
+}
+.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon {
+  width: 52px;
+  height: 52px;
+}
+.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
+  width: 38px;
+  height: 38px;
+}
+@media (max-width: 720px) {
+  body.admin-drawer-collapsed {
+    padding-left: 0;
+  }
+  .admin-drawer-collapsed .jrpp-admin-switcher {
+    width: auto;
+    padding-inline: 10px;
+  }
+  .jrpp-admin-nav a,
+  .jrpp-admin-action,
+  .admin-drawer-collapsed .jrpp-admin-nav a,
+  .admin-drawer-collapsed .jrpp-admin-action {
+    height: auto;
+    min-height: 52px;
+    padding: 7px 10px;
+    gap: 6px;
+  }
+  .admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
+  .admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
+    width: 4.3125em;
+    height: 4.3125em;
+  }
+}
