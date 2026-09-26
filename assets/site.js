@@ -878,6 +878,9 @@ function initSponsorProgram() {
     bookshelfBuilder: { label: "Bookshelf Builder", price: "$500", books: 25 },
     literacyTrailblazer: { label: "Literacy Trailblazer", pricePerBook: 20, minBooks: 50 },
   };
+  let recognitionTimer = null;
+  let lowerPage = 1;
+  let trailblazerPage = 1;
   ensureSponsorModal();
   packageButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -1070,10 +1073,6 @@ function initSponsorProgram() {
       submitButton.textContent = "Continue to payment";
     }
   }
-
-  let recognitionTimer = null;
-  let lowerPage = 1;
-  let trailblazerPage = 1;
 
   async function loadSponsorRecognition() {
     try {
