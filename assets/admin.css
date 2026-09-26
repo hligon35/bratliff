@@ -1685,9 +1685,9 @@ body.admin-drawer-collapsed {
   justify-content: center;
 }
 .admin-drawer-collapsed .jrpp-admin-logo {
-  width: 46px;
-  height: 46px;
-  flex-basis: 46px;
+  width: 64px;
+  height: 64px;
+  flex-basis: 64px;
 }
 .admin-drawer-collapsed .jrpp-admin-nav a,
 .admin-drawer-collapsed .jrpp-admin-action {
