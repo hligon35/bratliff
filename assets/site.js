@@ -244,11 +244,6 @@ const siteIconMap = Object.freeze({
   "book store": "books",
   "meet the author": "featured-author",
   "featured author": "featured-author",
-  "become a sponsor": "contacts",
-  "sponsor 5 books": "contacts",
-  "sponsor 12 books": "contacts",
-  "sponsor 25 books": "contacts",
-  "sponsor 50+ books": "contacts",
   "subscribe": "newsletter",
   "view": "view",
   "view document": "view",
@@ -279,7 +274,6 @@ function initSiteIcons() {
     const explicit = element.getAttribute("data-icon");
     const label = normalizeIconLabel(element.textContent);
     const iconName = explicit || siteIconMap[label] ||
-      (/^sponsor\s+\d+\+?\s+books$/.test(label) ? "contacts" : null) ||
       (/^download\b/.test(label) ? "open" : null) ||
       (/^view\b/.test(label) ? "view" : null);
     if (!iconName) return;
@@ -1173,21 +1167,49 @@ function initSponsorProgram() {
   }
 
     function packageArt(packageKey, label) {
-    const assets = { pagePal: "pagePal.png", chapterChampion: "chapterChampion.png", bookshelfBuilder: "bookshelfBuilder.png", literacyTrailblazer: "literacyTrailblazer.png" };
+    const assets = {
+      pagePal: "pagePal.png",
+      chapterChampion: "chapterChampion.png",
+      bookshelfBuilder: "bookshelfBuilder.png",
+      literacyTrailblazer: "literacyTrailblazer.png",
+    };
     const asset = assets[packageKey] || assets.pagePal;
     return "<img class=\"sponsor-package-art sponsor-package-art--" + packageKey + "\" src=\"assets/" + asset + "\" alt=\"" + escapeHtmlSponsor(label || "Sponsor package") + "\" loading=\"lazy\">";
-  }  function renderSponsorRecognition(data) {
+  }
+
+  function sponsorWallName(sponsor) {
+    if (sponsor.anonymous) return "Anonymous";
+    const value = String(sponsor.displayName || "").trim();
+    if (!value || /^sandbox\s+qa\b/i.test(value)) return "SPONSOR NAME";
+    return escapeHtmlSponsor(value);
+  }
+
+  function literacyMedal(books) {
+    const count = Math.max(0, Math.floor(Number(books) || 0));
+    if (count >= 250) return { file: "LTDiamond.png", label: "Diamond" };
+    if (count >= 200) return { file: "LTPlatinum.png", label: "Platinum" };
+    if (count >= 150) return { file: "LTGold.png", label: "Gold" };
+    if (count >= 100) return { file: "LTSilver.png", label: "Silver" };
+    return { file: "LTBronze.png", label: "Bronze" };
+  }
+
+  function renderSponsorRecognition(data) {
     const lowerCards = (data.lowerSponsors || []).map((sponsor) => {
       const packageKey = ["pagePal", "chapterChampion", "bookshelfBuilder"].includes(sponsor.package) ? sponsor.package : "pagePal";
       const packageLabel = sponsor.packageLabel || "Sponsor package";
-      const name = sponsor.anonymous ? "Anonymous" : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
-      return "<div class=\"sponsor-name-card\" data-package=\"" + packageKey + "\"><span class=\"sponsor-name\">" + name + "</span>" + packageArt(packageKey, packageLabel) + "</div>";
+      const name = sponsorWallName(sponsor);
+      return "<div class=\"sponsor-name-card\" data-package=\"" + packageKey + "\"><div class=\"sponsor-lower-identity\">" + packageArt(packageKey, packageLabel) + "<span class=\"sponsor-name\">" + name + "</span></div></div>";
     }).join("");
 
     const trailblazerCards = (data.trailblazers || []).map((sponsor) => {
-      const name = sponsor.anonymous ? "Anonymous" : escapeHtmlSponsor(sponsor.displayName || "Sponsor");
-      const logo = sponsor.logoUrl ? "<img src=\"" + escapeHtmlSponsor(sponsor.logoUrl) + "\" alt=\"" + escapeHtmlSponsor(sponsor.logoAlt || name) + "\" loading=\"lazy\">" : '<span class="sponsor-logo-placeholder" aria-hidden="true">LOGO</span>';
-      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div>" + packageArt("literacyTrailblazer", "Literacy Trailblazer") + "<div class=\"sponsor-trailblazer-identity\"><span class=\"sponsor-name\">" + name + "</span></div><small>" + Number(sponsor.booksSponsored || 0) + " books sponsored</small></div>";
+      const name = sponsorWallName(sponsor);
+      const logo = sponsor.logoUrl
+        ? "<img src=\"" + escapeHtmlSponsor(sponsor.logoUrl) + "\" alt=\"" + escapeHtmlSponsor(sponsor.logoAlt || name) + "\" loading=\"lazy\">"
+        : '<span class="sponsor-logo-placeholder" aria-hidden="true">LOGO</span>';
+      const books = Math.max(0, Math.floor(Number(sponsor.booksSponsored) || 0));
+      const medal = literacyMedal(books);
+      const packageIcon = packageArt("literacyTrailblazer", "Literacy Trailblazer");
+      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div></div>";
     }).join("");
 
     const lowerBlock = lowerCards ? '<section class="sponsor-wall-section" aria-labelledby="sponsor-wall-names-title"><h3 id="sponsor-wall-names-title">Read It Forward Sponsors</h3><div class="sponsor-lower-grid">' + lowerCards + '</div></section>' : "";
