@@ -200,13 +200,61 @@
     "settings": "settings",
   });
 
+  const adminMaterialIconMap = Object.freeze({
+    "refresh": "refresh",
+    "sync-square-stock": "sync",
+    "sign-ins-outs": "logout",
+    "overview": "dashboard",
+    "books": "menu_book",
+    "orders": "receipt_long",
+    "inventory": "inventory_2",
+    "initialize-repair": "build",
+    "add-book": "add_circle",
+    "save-book": "save",
+    "cancel": "cancel",
+    "duplicate": "content_copy",
+    "publish": "publish",
+    "archive": "archive",
+    "remove": "remove_circle",
+    "save-fulfillment": "local_shipping",
+    "apply-adjustment": "tune",
+    "hide": "visibility_off",
+    "new-author": "person_add",
+    "save-author": "save",
+    "publish-media": "publish",
+    "unpublish": "unpublished",
+    "drafts": "drafts",
+    "scheduled": "event",
+    "new-newsletter": "post_add",
+    "save-draft": "save",
+    "send-test": "send",
+    "schedule-send": "schedule_send",
+    "desktop-preview": "desktop_windows",
+    "mobile-preview": "phone_iphone",
+    "open": "open_in_new",
+    "close": "close",
+    "view": "visibility",
+    "delete": "delete",
+    "all-activity": "list_alt",
+    "export-sheets": "file_download",
+    "save-admin": "save",
+    "settings": "settings",
+    "newsletter": "mail",
+    "contacts": "contacts",
+    "featured-author": "person",
+    "analytics": "analytics",
+    "activity-log": "history",
+    "access-management": "manage_accounts",
+    "newsletter-saves": "save",
+  });
+
   function createAdminIcon(name) {
     if (!name) return null;
-    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    icon.classList.add("jrpp-icon");
+    const icon = document.createElement("span");
+    icon.classList.add("jrpp-icon", "material-icons-round");
     icon.setAttribute("aria-hidden", "true");
     icon.setAttribute("focusable", "false");
-    icon.innerHTML = '<use href="../assets/icons.svg#' + name + '"></use>';
+    icon.textContent = adminMaterialIconMap[name] || name.replace(/-/g, "_");
     return icon;
   }
 
