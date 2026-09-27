@@ -2620,3 +2620,16 @@ button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon 
   white-space: normal;
   width: max-content;
 }
+
+
+/* Keep the Sign Out label visible in the expanded drawer; collapsed mode remains icon-only. */
+.jrpp-admin-actions .jrpp-admin-action.admin-icon-only {
+  font-size: 13px !important;
+  white-space: nowrap;
+  justify-content: flex-start;
+}
+
+.admin-drawer-collapsed .jrpp-admin-actions .jrpp-admin-action.admin-icon-only {
+  font-size: 0 !important;
+  justify-content: center;
+}
