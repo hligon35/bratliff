@@ -2607,3 +2607,16 @@ button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon 
   flex: 0 0 24px;
   font-size: 24px !important;
 }
+
+
+/* Keep the Books table actions visible in a compact 2-by-1 grid. */
+.book-table-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 43px);
+  grid-auto-rows: 43px;
+  align-items: start;
+  justify-content: start;
+  gap: 6px;
+  white-space: normal;
+  width: max-content;
+}
