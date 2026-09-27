@@ -2393,3 +2393,24 @@ button.activity-filter-chip.admin-icon-only {
     font-size: 42px !important;
   }
 }
+
+
+/* Material Icons Round for submission expand/collapse controls. */
+.dashboard-detail summary::after {
+  content: "add";
+  font-family: "Material Icons Round";
+  font-style: normal;
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  transform: none;
+}
+
+.dashboard-detail[open] summary::after {
+  content: "remove";
+  transform: none;
+}
