@@ -273,7 +273,7 @@
       const isButton = element.tagName && element.tagName.toLowerCase() === "button";
       const explicit = element.getAttribute("data-icon");
       const existingAriaLabel = element.getAttribute("aria-label") || "";
-      const visibleLabel = String(element.textContent || "").replace(/\\s+/g, " ").trim();
+      const visibleLabel = String(element.textContent || "").replace(/\s+/g, " ").trim();
       const label = (existingAriaLabel || visibleLabel).toLowerCase();
       const iconName = explicit
         || (element.matches("[data-admin-drawer-toggle]") ? "menu" : adminButtonIcons[label]);
