@@ -2312,3 +2312,33 @@ body.document-viewer-open {
     flex-basis: 48px;
   }
 }
+
+
+/* Material Icons Round for explicitly approved public controls. */
+@font-face {
+  font-family: "Material Icons Round";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: local("Material Icons Round"),
+       local("Material Icons Round Regular"),
+       url("./MaterialIconsRound-Regular.otf") format("opentype");
+}
+
+.jrpp-public-icon {
+  font-family: "Material Icons Round";
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  display: inline-block;
+  font-size: 2rem;
+  vertical-align: middle;
+}
