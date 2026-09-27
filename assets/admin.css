@@ -2573,3 +2573,37 @@ button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
 button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
   font-size: 24px !important;
 }
+
+
+/* Final icon and label alignment corrections from admin review. */
+.jrpp-admin-nav a .material-icons-round.jrpp-icon {
+  width: 43px !important;
+  height: 43px !important;
+  font-size: 24px !important;
+  vertical-align: middle;
+}
+
+.admin-drawer-collapsed .jrpp-admin-nav a .material-icons-round.jrpp-icon {
+  width: 43px !important;
+  height: 43px !important;
+  font-size: 24px !important;
+}
+
+.settings-avatar-button.admin-icon-only {
+  width: auto;
+  min-width: 145px;
+  height: 43px;
+  min-height: 43px;
+  padding: 0 12px;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.settings-avatar-button.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 24px;
+  font-size: 24px !important;
+}
