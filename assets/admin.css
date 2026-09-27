@@ -2095,15 +2095,15 @@ body.admin-drawer-collapsed {
   margin-top: 4px;
 }
 .jrpp-admin-action {
-  height: 54px;
-  min-height: 54px;
+  height: 58px;
+  min-height: 58px;
   padding: 0 8px;
   gap: 5px;
   line-height: 1.1;
 }
 .jrpp-admin-action .jrpp-icon {
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
 }
 body.admin-drawer-collapsed {
   padding-left: 80px;
@@ -2122,8 +2122,8 @@ body.admin-drawer-collapsed {
 }
 .admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
 .admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
 }
 @media (max-width: 720px) {
   body.admin-drawer-collapsed {
