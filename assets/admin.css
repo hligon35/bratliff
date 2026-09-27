@@ -2557,3 +2557,19 @@ button.nl-preview-pill.admin-icon-only.active {
   color: #fff;
   outline: none;
 }
+
+
+/* Additional 25% reduction to the admin icon glyphs; preserve hit areas. */
+button.admin-icon-only .material-icons-round.jrpp-icon,
+.settings-avatar-button.admin-icon-only .material-icons-round.jrpp-icon,
+.nl-preview-pill.admin-icon-only .material-icons-round.jrpp-icon {
+  font-size: 24px !important;
+}
+
+button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
+  font-size: 26px !important;
+}
+
+button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
+  font-size: 24px !important;
+}
