@@ -2200,3 +2200,52 @@ body.admin-drawer-collapsed {
     justify-content: flex-start;
   }
 }
+
+
+/* Material Icons Round: use the installed font locally, with a deployable asset fallback. */
+@font-face {
+  font-family: "Material Icons Round";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: local("Material Icons Round"),
+       local("Material Icons Round Regular"),
+       url("./MaterialIconsRound-Regular.otf") format("opentype");
+}
+.material-icons-round.jrpp-icon {
+  font-family: "Material Icons Round";
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  fill: initial;
+  vertical-align: middle;
+}
+.jrpp-admin-nav a .material-icons-round.jrpp-icon {
+  font-size: 40px;
+}
+.jrpp-admin-action .material-icons-round.jrpp-icon {
+  font-size: 42px;
+}
+.admin-drawer-collapsed .jrpp-admin-nav a .material-icons-round.jrpp-icon,
+.admin-drawer-collapsed .jrpp-admin-action .material-icons-round.jrpp-icon {
+  font-size: 40px;
+}
+.icon-only .material-icons-round.jrpp-icon {
+  font-size: 24px;
+}
+@media (max-width: 720px) {
+  .admin-drawer-collapsed .jrpp-admin-action .material-icons-round.jrpp-icon {
+    font-size: 42px;
+  }
+}
