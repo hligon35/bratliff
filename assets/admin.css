@@ -2080,9 +2080,9 @@ body.admin-drawer-collapsed {
   gap: 4px;
 }
 .jrpp-admin-nav a {
-  height: 58px;
-  min-height: 58px;
-  padding: 1px 8px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0 8px;
   gap: 5px;
   line-height: 1.1;
   white-space: nowrap;
@@ -2095,15 +2095,15 @@ body.admin-drawer-collapsed {
   margin-top: 4px;
 }
 .jrpp-admin-action {
-  height: 42px;
-  min-height: 42px;
-  padding: 2px 8px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0 8px;
   gap: 5px;
   line-height: 1.1;
 }
 .jrpp-admin-action .jrpp-icon {
-  width: 36px;
-  height: 36px;
+  width: 54px;
+  height: 54px;
 }
 body.admin-drawer-collapsed {
   padding-left: 80px;
@@ -2120,13 +2120,10 @@ body.admin-drawer-collapsed {
   padding: 0;
   gap: 0;
 }
-.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon {
+.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
+.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
   width: 52px;
   height: 52px;
-}
-.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-  width: 38px;
-  height: 38px;
 }
 @media (max-width: 720px) {
   body.admin-drawer-collapsed {
