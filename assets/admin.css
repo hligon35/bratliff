@@ -2330,3 +2330,66 @@ body.admin-drawer-collapsed {
     scrollbar-width: thin;
   }
 }
+
+
+/* All admin buttons use icon-only controls with native tooltips and ARIA labels. */
+button.admin-icon-only {
+  font-size: 0 !important;
+  line-height: 1 !important;
+}
+
+button.admin-icon-only .drawer-toggle-label {
+  display: none !important;
+}
+
+button.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 54px !important;
+  height: 54px !important;
+  margin: 0 !important;
+  font-size: 40px !important;
+  line-height: 1 !important;
+}
+
+button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 58px !important;
+  height: 58px !important;
+  font-size: 42px !important;
+}
+
+button.jrpp-admin-drawer-toggle.admin-icon-only {
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 48px !important;
+  height: 48px !important;
+  font-size: 40px !important;
+}
+
+button.btn.admin-icon-only,
+button.activity-filter-chip.admin-icon-only {
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 720px) {
+  button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
+    width: 58px !important;
+    height: 58px !important;
+    font-size: 42px !important;
+  }
+}
