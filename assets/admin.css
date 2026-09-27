@@ -2469,3 +2469,91 @@ button.activity-filter-chip.admin-icon-only {
     flex: 0 0 auto;
   }
 }
+
+
+/* Consistent table action alignment and 20% smaller admin icon visuals. */
+.table-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.table-action-buttons .admin-icon-only,
+.table-action-buttons .btn.admin-icon-only {
+  width: 43px;
+  min-width: 43px;
+  height: 43px;
+  min-height: 43px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+button.admin-icon-only .material-icons-round.jrpp-icon,
+.settings-avatar-button.admin-icon-only .material-icons-round.jrpp-icon,
+.nl-preview-pill.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 43px !important;
+  height: 43px !important;
+  font-size: 32px !important;
+}
+
+button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 46px !important;
+  height: 46px !important;
+  font-size: 34px !important;
+}
+
+button.jrpp-admin-drawer-toggle.admin-icon-only {
+  width: 43px;
+  min-width: 43px;
+  height: 43px;
+  min-height: 43px;
+}
+
+button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
+  width: 38px !important;
+  height: 38px !important;
+  font-size: 32px !important;
+}
+
+button.btn.admin-icon-only,
+button.activity-filter-chip.admin-icon-only,
+button.nl-preview-pill.admin-icon-only,
+.settings-avatar-button.admin-icon-only {
+  width: 43px;
+  min-width: 43px;
+  height: 43px;
+  min-height: 43px;
+  padding: 0;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.nl-preview-pill.admin-icon-only {
+  border: 1px solid #e7dfcf;
+  background: #fff;
+  color: #542476;
+}
+
+button.nl-preview-pill.admin-icon-only.active {
+  background: #542476;
+  border-color: #542476;
+  color: #fff;
+}
+
+.settings-avatar-button.admin-icon-only {
+  background: #fff;
+  border-color: var(--purple);
+  color: var(--purple);
+  cursor: pointer;
+}
+
+.settings-avatar-button.admin-icon-only:hover,
+.settings-avatar-button.admin-icon-only:focus-visible {
+  background: var(--purple);
+  color: #fff;
+  outline: none;
+}
