@@ -321,7 +321,8 @@
       '<table class="' + className + '"><thead><tr>' +
       columns
         .map(function (column) {
-          return "<th>" + escapeHtml(column.label) + "</th>";
+          const heading = column.header ? column.header() : escapeHtml(column.label || "");
+          return "<th>" + heading + "</th>";
         })
         .join("") +
       "</tr></thead><tbody>" +
@@ -343,6 +344,55 @@
         .join("") +
       "</tbody></table>"
     );
+  }
+
+  function bulkSelectionColumn(kind, getId, getLabel, pluralLabel) {
+    return {
+      label: "",
+      header: function () {
+        return '<input class="bulk-select-all" type="checkbox" data-bulk-select-all="' + escapeHtml(kind) + '" aria-label="Select all ' + escapeHtml(pluralLabel) + '">';
+      },
+      render: function (row) {
+        const id = String(getId(row) || "");
+        const label = String(getLabel(row) || id);
+        return '<input class="bulk-row-select" type="checkbox" data-bulk-select="' + escapeHtml(kind) + '" data-bulk-id="' + escapeHtml(id) + '" aria-label="Select ' + escapeHtml(label) + '">';
+      },
+    };
+  }
+
+  function bulkActionBar(kind, pluralLabel, canDelete) {
+    if (!canDelete) return "";
+    return '<div class="bulk-action-bar" data-bulk-toolbar="' + escapeHtml(kind) + '" hidden>' +
+      '<span data-bulk-count="' + escapeHtml(kind) + '">0 selected</span>' +
+      '<button class="btn warn icon-only bulk-delete-button" type="button" data-bulk-delete="' + escapeHtml(kind) + '" data-icon="delete" aria-label="Delete selected ' + escapeHtml(pluralLabel) + '" title="Delete selected ' + escapeHtml(pluralLabel) + '"></button>' +
+      "</div>";
+  }
+
+  function selectableTableMarkup(kind, columns, rows, emptyMessage, getId, getLabel, pluralLabel, canDelete) {
+    if (!canDelete) return tableMarkup("table", columns, rows, emptyMessage);
+    const selection = bulkSelectionColumn(kind, getId, getLabel, pluralLabel);
+    return bulkActionBar(kind, pluralLabel, true) +
+      tableMarkup("table bulk-select-table", [selection].concat(columns), rows, emptyMessage);
+  }
+
+  function selectedBulkIds(kind) {
+    return qsa('[data-bulk-select="' + kind + '"]:checked')
+      .map(function (input) { return input.getAttribute("data-bulk-id") || ""; })
+      .filter(Boolean);
+  }
+
+  function syncBulkSelection(kind) {
+    const boxes = qsa('[data-bulk-select="' + kind + '"]');
+    const selected = boxes.filter(function (box) { return box.checked; });
+    const toolbar = qs('[data-bulk-toolbar="' + kind + '"]');
+    const count = toolbar ? toolbar.querySelector('[data-bulk-count="' + kind + '"]') : null;
+    if (toolbar) toolbar.hidden = selected.length === 0;
+    if (count) count.textContent = selected.length + " selected";
+    const master = qs('[data-bulk-select-all="' + kind + '"]');
+    if (master) {
+      master.checked = boxes.length > 0 && selected.length === boxes.length;
+      master.indeterminate = selected.length > 0 && selected.length < boxes.length;
+    }
   }
 
   function setStatus(id, message, ok) {
@@ -590,11 +640,12 @@
 
   function renderAdmins() {
     const form = qs("#adminForm");
-    if (form) form.hidden = !state.viewer || state.viewer.role !== "owner";
+    const canDelete = Boolean(state.viewer && state.viewer.role === "owner");
+    if (form) form.hidden = !canDelete;
     const root = qs("#adminList");
     if (!root) return;
-    root.innerHTML = tableMarkup(
-      "table",
+    root.innerHTML = selectableTableMarkup(
+      "admins",
       [
         { label: "Email", key: "email" },
         { label: "Role", render: function (row) { return '<span class="badge">' + escapeHtml(row.role || "") + "</span>"; } },
@@ -602,12 +653,18 @@
         {
           label: "",
           render: function (row) {
-            return state.viewer && state.viewer.role === "owner" ? '<button class="btn alt" type="button" data-remove-admin="' + escapeHtml(row.email) + '">Remove</button>' : "<span class=\"asset-note\">View only</span>";
+            return canDelete
+              ? '<button class="btn alt icon-only" type="button" data-remove-admin="' + escapeHtml(row.email) + '" data-icon="delete" aria-label="Remove admin access for ' + escapeHtml(row.email) + '" title="Remove admin access for ' + escapeHtml(row.email) + '"></button>'
+              : "<span class=\"asset-note\">View only</span>";
           },
         },
       ],
       state.admins,
       "Only owners can view and manage the admin allow list.",
+      function (row) { return row.email; },
+      function (row) { return row.email; },
+      "admins",
+      canDelete,
     );
   }
 
@@ -837,8 +894,8 @@
     const root = qs("#bookList");
     if (!root) return;
     const rows = filteredBooks();
-    root.innerHTML = tableMarkup(
-      "table",
+    root.innerHTML = selectableTableMarkup(
+      "books",
       [
         { label: "Cover", render: function (book) { return book.imageUrl ? '<img class="cover" src="' + escapeHtml(book.imageUrl) + '" alt="">' : ""; } },
         { label: "Title", render: function (book) { return "<b>" + escapeHtml(book.title || "") + "</b><br><small>" + escapeHtml(book.author || "") + "</small>"; } },
@@ -846,10 +903,21 @@
         { label: "Price", render: function (book) { return escapeHtml(formatMoney(book.price)); } },
         { label: "Stock", key: "stock" },
         { label: "Status", render: function (book) { return '<span class="badge">' + escapeHtml(book.status || "") + "</span>"; } },
-        { label: "", render: function (book) { return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button> <button class="btn alt" type="button" data-duplicate-book="' + escapeHtml(book.bookId) + '">Duplicate</button> <button class="btn warn" type="button" data-delete-book="' + escapeHtml(book.bookId) + '">Remove</button>'; } },
+        {
+          label: "",
+          render: function (book) {
+            return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button> ' +
+              '<button class="btn alt" type="button" data-duplicate-book="' + escapeHtml(book.bookId) + '">Duplicate</button> ' +
+              '<button class="btn warn icon-only" type="button" data-delete-book="' + escapeHtml(book.bookId) + '" data-icon="delete" aria-label="Remove ' + escapeHtml(book.title || "book") + '" title="Remove ' + escapeHtml(book.title || "book") + '"></button>';
+          },
+        },
       ],
       rows,
       "No books match the current filters.",
+      function (book) { return book.bookId; },
+      function (book) { return book.title || book.bookId; },
+      "books",
+      true,
     );
     const summary = qs("#bookFilterSummary");
     if (summary) summary.textContent = rows.length + " of " + state.books.length + " books shown";
@@ -1608,8 +1676,8 @@
       bookshelfBuilder: "Bookshelf Builder",
       literacyTrailblazer: "Literacy Trailblazer",
     };
-    const markup = tableMarkup(
-      "table",
+    const markup = selectableTableMarkup(
+      "sponsors",
       [
         { label: "Sponsor", render: function (row) { return sponsorAvatarMarkup(row) + '<span class="sponsor-list-name">' + escapeHtml(row.anonymous ? "Anonymous" : (row.displayName || row.payerName || row.id)) + "</span>"; } },
         { label: "Package", render: function (row) { return escapeHtml(packageLabels[row.package] || row.package); } },
@@ -1618,12 +1686,18 @@
         {
           label: "",
           render: function (row) {
-            return '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">View</button> <button class="btn warn" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '">Delete</button>';
+            const label = row.anonymous ? "Anonymous sponsor" : (row.displayName || row.payerName || row.id);
+            return '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">View</button> ' +
+              '<button class="btn warn icon-only" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '" data-icon="delete" aria-label="Delete ' + escapeHtml(label) + '" title="Delete ' + escapeHtml(label) + '"></button>';
           },
         },
       ],
       state.sponsors,
       "No sponsors match these filters.",
+      function (row) { return row.id; },
+      function (row) { return row.anonymous ? "Anonymous sponsor" : (row.displayName || row.payerName || row.id); },
+      "sponsors",
+      true,
     );
     const list = qs("#sponsorList");
     if (list) list.innerHTML = markup;
@@ -1744,8 +1818,8 @@
   }
 
   function renderAuthorList() {
-    const markup = tableMarkup(
-      "table",
+    const markup = selectableTableMarkup(
+      "authors",
       [
         { label: "Author", render: function (row) { return escapeHtml(row.name || row.id); } },
         { label: "Title", render: function (row) { return escapeHtml(row.title || "—"); } },
@@ -1753,12 +1827,18 @@
         {
           label: "",
           render: function (row) {
-            return '<button class="btn alt" type="button" data-edit-author="' + escapeHtml(row.id) + '">Edit</button> <button class="btn warn" type="button" data-delete-author="' + escapeHtml(row.id) + '">Delete</button>';
+            const label = row.name || row.id;
+            return '<button class="btn alt" type="button" data-edit-author="' + escapeHtml(row.id) + '">Edit</button> ' +
+              '<button class="btn warn icon-only" type="button" data-delete-author="' + escapeHtml(row.id) + '" data-icon="delete" aria-label="Delete ' + escapeHtml(label) + '" title="Delete ' + escapeHtml(label) + '"></button>';
           },
         },
       ],
       state.authors,
       "No authors yet. Create one below.",
+      function (row) { return row.id; },
+      function (row) { return row.name || row.id; },
+      "authors",
+      true,
     );
     const list = qs("#authorList");
     if (list) list.innerHTML = markup;
@@ -1791,6 +1871,67 @@
     } catch (error) {
       setStatus("#authorStatus", error.message || "Author could not be deleted.", false);
     }
+  }
+
+  async function deleteSelectedRows(kind) {
+    const ids = selectedBulkIds(kind);
+    if (!ids.length) return;
+    const configs = {
+      books: {
+        singular: "book",
+        plural: "books",
+        endpoint: function (id) { return "books/" + encodeURIComponent(id); },
+        load: loadBooks,
+        status: "#bookStatus",
+        note: "Books with order or inventory history will be archived instead of permanently deleted.",
+      },
+      sponsors: {
+        singular: "sponsor",
+        plural: "sponsors",
+        endpoint: function (id) { return "sponsors/" + encodeURIComponent(id); },
+        load: loadSponsors,
+        status: "#sponsorStatus",
+        note: "This cannot be undone.",
+      },
+      authors: {
+        singular: "author",
+        plural: "authors",
+        endpoint: function (id) { return "authors/" + encodeURIComponent(id); },
+        load: loadAuthors,
+        status: "#authorStatus",
+        note: "This cannot be undone.",
+      },
+      admins: {
+        singular: "admin account",
+        plural: "admin accounts",
+        endpoint: function (id) { return "admins/" + encodeURIComponent(id); },
+        load: loadAdmins,
+        status: "#adminStatus",
+        note: "This cannot be undone.",
+      },
+    };
+    const config = configs[kind];
+    if (!config) return;
+    const itemLabel = ids.length === 1 ? config.singular : config.plural;
+    if (!window.confirm("Delete " + ids.length + " selected " + itemLabel + "? " + config.note)) return;
+    let completed = 0;
+    const errors = [];
+    for (const id of ids) {
+      try {
+        await api(config.endpoint(id), { method: "DELETE" });
+        completed += 1;
+      } catch (error) {
+        errors.push(error.message || "Delete failed");
+      }
+    }
+    await config.load();
+    setStatus(
+      config.status,
+      errors.length
+        ? completed + " of " + ids.length + " selected " + itemLabel + " processed. " + errors.length + " failed."
+        : completed + " selected " + itemLabel + " deleted.",
+      errors.length ? completed > 0 : true,
+    );
   }
 
   function populateAuthorForm(author) {
@@ -2212,7 +2353,28 @@
     }
   }
 
+  document.addEventListener("change", function (event) {
+    const master = event.target.closest("[data-bulk-select-all]");
+    if (master) {
+      const kind = master.getAttribute("data-bulk-select-all") || "";
+      qsa('[data-bulk-select="' + kind + '"]').forEach(function (checkbox) {
+        checkbox.checked = master.checked;
+      });
+      syncBulkSelection(kind);
+      return;
+    }
+    const checkbox = event.target.closest("[data-bulk-select]");
+    if (checkbox) syncBulkSelection(checkbox.getAttribute("data-bulk-select") || "");
+  });
+
   document.addEventListener("click", function (event) {
+    const bulkDeleteButton = event.target.closest("[data-bulk-delete]");
+    if (bulkDeleteButton) {
+      deleteSelectedRows(bulkDeleteButton.getAttribute("data-bulk-delete") || "");
+      return;
+    }
+
+
     const activityFilterButton = event.target.closest("[data-activity-filter]");
     if (activityFilterButton) {
       state.activityFilter = activityFilterButton.getAttribute("data-activity-filter") || "";
