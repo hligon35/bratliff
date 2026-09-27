@@ -681,12 +681,18 @@
   function renderDashboardSections() {
     const root = qs("#dashboardSections");
     if (!root) return;
+    const openSections = new Set(
+      qsa(".dashboard-detail[data-dashboard-section]")
+        .filter(function (detail) { return detail.open; })
+        .map(function (detail) { return detail.getAttribute("data-dashboard-section"); }),
+    );
     root.innerHTML = dashboardForms
       .map(function (section) {
         const count = dashboardFormCount(section.key);
         const visibleCount = dashboardRowsLoaded(section.key) ? Math.min((state.dashboardRows[section.key] || []).length, 10) : 10;
+        const openAttribute = openSections.has(section.key) ? " open" : "";
         return (
-          '<details class="dashboard-detail" data-dashboard-section="' + escapeHtml(section.key) + '">' +
+          '<details class="dashboard-detail" data-dashboard-section="' + escapeHtml(section.key) + '"' + openAttribute + '>' +
           '<summary><div class="dashboard-detail-head"><div><div class="label">' +
           escapeHtml(section.label.toUpperCase()) +
           "</div><h2>" +
@@ -991,7 +997,7 @@
         {
           label: "",
           render: function (book) {
-            return '<span class="table-action-buttons">' +
+            return '<span class="table-action-buttons book-table-actions">' +
               '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button>' +
               '<button class="btn alt" type="button" data-duplicate-book="' + escapeHtml(book.bookId) + '">Duplicate</button>' +
               '<button class="btn warn icon-only" type="button" data-delete-book="' + escapeHtml(book.bookId) + '" data-icon="delete" aria-label="Remove ' + escapeHtml(book.title || "book") + '" title="Remove ' + escapeHtml(book.title || "book") + '"></button>' +
