@@ -2414,3 +2414,58 @@ button.activity-filter-chip.admin-icon-only {
   content: "remove";
   transform: none;
 }
+
+
+/* Keep Store maintenance controls in the sub-navigation row, right-aligned. */
+.store-tabs-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.store-tabs-tools button.admin-icon-only {
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.store-tabs-tools .btn.admin-icon-only {
+  background: var(--purple);
+  border-color: var(--purple);
+  color: #fff;
+}
+
+.store-tabs-tools .jrpp-admin-action.admin-icon-only {
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+}
+
+.store-tabs-tools button.admin-icon-only:hover,
+.store-tabs-tools button.admin-icon-only:focus-visible {
+  background: rgba(84, 36, 118, 0.12);
+  border-color: transparent;
+  color: var(--purple);
+  outline: none;
+}
+
+.store-tabs-tools .btn.admin-icon-only:hover,
+.store-tabs-tools .btn.admin-icon-only:focus-visible {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--navy);
+}
+
+@media (max-width: 720px) {
+  .store-tabs-tools {
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+}
