@@ -1299,9 +1299,19 @@ body[data-page="books"] .future-title-grid .button {
 }
 
 .download-menu summary::after {
-  content: "⌄";
+  content: "expand_more";
   display: inline-block;
   margin-left: 0.35rem;
+  font-family: "Material Icons Round";
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1;
+  letter-spacing: normal;
+  font-feature-settings: "liga";
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
   transition: transform 0.2s;
 }
 
