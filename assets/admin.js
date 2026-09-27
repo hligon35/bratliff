@@ -136,7 +136,9 @@
     }
     const syncToggleLabel = function (isCollapsed) {
       toggle.setAttribute("aria-expanded", String(!isCollapsed));
-      toggle.setAttribute("aria-label", isCollapsed ? "Expand admin navigation" : "Collapse admin navigation");
+      const navigationLabel = isCollapsed ? "Expand admin navigation" : "Collapse admin navigation";
+      toggle.setAttribute("aria-label", navigationLabel);
+      toggle.setAttribute("title", navigationLabel);
       const label = toggle.querySelector(".drawer-toggle-label");
       if (label) label.textContent = isCollapsed ? "Expand menu" : "Collapse menu";
     };
@@ -167,9 +169,11 @@
     "initialize / repair store": "initialize-repair",
     "sync square stock": "sync-square-stock",
     "add book": "add-book",
+    "+ add book": "add-book",
     "save book": "save-book",
     "cancel": "cancel",
     "duplicate": "duplicate",
+    "edit": "edit",
     "publish": "publish",
     "archive": "archive",
     "remove image": "remove",
@@ -185,6 +189,7 @@
     "scheduled": "scheduled",
     "new newsletter": "new-newsletter",
     "save draft": "save-draft",
+    "save settings": "save-book",
     "send test": "send-test",
     "schedule / send": "schedule-send",
     "desktop preview": "desktop-preview",
@@ -195,6 +200,9 @@
     "delete": "delete",
     "hide": "hide",
     "all activity": "all-activity",
+    "sign-ins & outs": "sign-ins-outs",
+    "newsletter saves": "newsletter-saves",
+    "newsletter sends": "send-test",
     "export to sheets": "export-sheets",
     "save admin": "save-admin",
     "settings": "settings",
@@ -213,6 +221,7 @@
     "save-book": "save",
     "cancel": "cancel",
     "duplicate": "content_copy",
+    "edit": "edit",
     "publish": "publish",
     "archive": "archive",
     "remove": "remove_circle",
@@ -239,6 +248,7 @@
     "export-sheets": "file_download",
     "save-admin": "save",
     "settings": "settings",
+    "menu": "menu",
     "newsletter": "mail",
     "contacts": "contacts",
     "featured-author": "person",
@@ -260,19 +270,36 @@
 
   function initAdminIcons() {
     qsa("[data-icon], button, .btn, .jrpp-admin-action").forEach(function (element) {
-      if (element.querySelector(".jrpp-icon")) return;
+      const isButton = element.tagName && element.tagName.toLowerCase() === "button";
       const explicit = element.getAttribute("data-icon");
-      const label = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-      const iconName = explicit || adminButtonIcons[label];
-      if (!iconName) return;
-      const icon = createAdminIcon(iconName);
-      if (!icon) return;
-      element.prepend(icon);
-      element.classList.add("has-jrpp-icon");
+      const existingAriaLabel = element.getAttribute("aria-label") || "";
+      const visibleLabel = String(element.textContent || "").replace(/\\s+/g, " ").trim();
+      const label = (existingAriaLabel || visibleLabel).toLowerCase();
+      const iconName = explicit
+        || (element.matches("[data-admin-drawer-toggle]") ? "menu" : adminButtonIcons[label]);
+
+      if (!element.querySelector(".jrpp-icon") && iconName) {
+        const icon = createAdminIcon(iconName);
+        if (icon) {
+          element.prepend(icon);
+          element.classList.add("has-jrpp-icon");
+        }
+      }
+
+      if (isButton) {
+        const accessibleLabel = existingAriaLabel || visibleLabel;
+        if (accessibleLabel && !element.getAttribute("aria-label")) {
+          element.setAttribute("aria-label", accessibleLabel);
+        }
+        if (accessibleLabel && !element.getAttribute("title")) {
+          element.setAttribute("title", accessibleLabel);
+        }
+        element.classList.add("admin-icon-only");
+      }
     });
   }
 
-  function qs(selector) {
+    function qs(selector) {
     return document.querySelector(selector);
   }
 
@@ -2733,6 +2760,13 @@
 
   initAdminDrawer();
   initAdminIcons();
+
+  if (window.MutationObserver && document.body) {
+    const adminIconObserver = new MutationObserver(function () {
+      initAdminIcons();
+    });
+    adminIconObserver.observe(document.body, { childList: true, subtree: true });
+  }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", refreshCurrentPage);
