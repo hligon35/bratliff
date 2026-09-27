@@ -153,6 +153,16 @@
     renderAdminNavigation();
   }
 
+  function initStoreActionRow() {
+    if (state.page !== "store") return;
+    const tools = qs("[data-store-tools]");
+    const setupButton = qs("#setupBtn");
+    const refreshButton = qs("#globalRefreshBtn");
+    if (!tools) return;
+    if (setupButton && setupButton.parentElement !== tools) tools.appendChild(setupButton);
+    if (refreshButton && refreshButton.parentElement !== tools) tools.appendChild(refreshButton);
+  }
+
   function resolveApiRoot(configuredValue, defaultPath) {
     if (publicApiRoot) return publicApiRoot + defaultPath;
     return String(configuredValue || "").replace(/\/$/, "");
@@ -2759,6 +2769,7 @@
   });
 
   initAdminDrawer();
+  initStoreActionRow();
   initAdminIcons();
 
   if (window.MutationObserver && document.body) {
