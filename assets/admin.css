@@ -2249,3 +2249,84 @@ body.admin-drawer-collapsed {
     font-size: 42px;
   }
 }
+
+
+/* Icon-only tabular controls for Store sections and Newsletter actions. */
+.store-tabs.nav,
+.nl-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  margin-left: 0;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.store-tabs.nav button,
+.nl-actions .nl-btn {
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--navy);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+  line-height: 1;
+}
+
+.store-tabs.nav button:hover,
+.store-tabs.nav button:focus-visible,
+.nl-actions .nl-btn:hover,
+.nl-actions .nl-btn:focus-visible {
+  background: rgba(84, 36, 118, 0.12);
+  color: var(--purple);
+  outline: none;
+}
+
+.store-tabs.nav button.active {
+  background: var(--purple);
+  color: #fff;
+}
+
+.nl-actions .nl-btn.gold {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--navy);
+}
+
+.nl-actions .nl-btn.gold:hover,
+.nl-actions .nl-btn.gold:focus-visible {
+  background: #e0bd69;
+  color: var(--navy);
+}
+
+.store-tabs.nav .material-icons-round.jrpp-icon,
+.nl-actions .material-icons-round.jrpp-icon {
+  width: 54px;
+  height: 54px;
+  margin: 0;
+  font-size: 40px;
+  line-height: 1;
+}
+
+.store-tabs.nav button[aria-current="page"],
+.store-tabs.nav button.active {
+  cursor: default;
+}
+
+@media (max-width: 720px) {
+  .store-tabs.nav,
+  .nl-actions {
+    width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: thin;
+  }
+}
