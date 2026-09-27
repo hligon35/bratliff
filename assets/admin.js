@@ -280,7 +280,7 @@
 
   function initAdminIcons() {
     qsa("[data-icon], button, .btn, .jrpp-admin-action").forEach(function (element) {
-      const isButton = element.tagName && element.tagName.toLowerCase() === "button";
+      const isControl = (element.tagName && element.tagName.toLowerCase() === "button") || element.matches(".settings-avatar-button");
       const explicit = element.getAttribute("data-icon");
       const existingAriaLabel = element.getAttribute("aria-label") || "";
       const visibleLabel = String(element.textContent || "").replace(/\s+/g, " ").trim();
@@ -296,7 +296,7 @@
         }
       }
 
-      if (isButton) {
+      if (isControl) {
         const accessibleLabel = existingAriaLabel || visibleLabel;
         if (accessibleLabel && !element.getAttribute("aria-label")) {
           element.setAttribute("aria-label", accessibleLabel);
@@ -991,9 +991,11 @@
         {
           label: "",
           render: function (book) {
-            return '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button> ' +
-              '<button class="btn alt" type="button" data-duplicate-book="' + escapeHtml(book.bookId) + '">Duplicate</button> ' +
-              '<button class="btn warn icon-only" type="button" data-delete-book="' + escapeHtml(book.bookId) + '" data-icon="delete" aria-label="Remove ' + escapeHtml(book.title || "book") + '" title="Remove ' + escapeHtml(book.title || "book") + '"></button>';
+            return '<span class="table-action-buttons">' +
+              '<button class="btn alt" type="button" data-edit-book="' + escapeHtml(book.bookId) + '">Edit</button>' +
+              '<button class="btn alt" type="button" data-duplicate-book="' + escapeHtml(book.bookId) + '">Duplicate</button>' +
+              '<button class="btn warn icon-only" type="button" data-delete-book="' + escapeHtml(book.bookId) + '" data-icon="delete" aria-label="Remove ' + escapeHtml(book.title || "book") + '" title="Remove ' + escapeHtml(book.title || "book") + '"></button>' +
+              '</span>';
           },
         },
       ],
@@ -1772,8 +1774,10 @@
           label: "",
           render: function (row) {
             const label = row.anonymous ? "Anonymous sponsor" : (row.displayName || row.payerName || row.id);
-            return '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">View</button> ' +
-              '<button class="btn warn icon-only" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '" data-icon="delete" aria-label="Delete ' + escapeHtml(label) + '" title="Delete ' + escapeHtml(label) + '"></button>';
+            return '<span class="table-action-buttons">' +
+              '<button class="btn alt" type="button" data-edit-sponsor="' + escapeHtml(row.id) + '">View</button>' +
+              '<button class="btn warn icon-only" type="button" data-delete-sponsor="' + escapeHtml(row.id) + '" data-icon="delete" aria-label="Delete ' + escapeHtml(label) + '" title="Delete ' + escapeHtml(label) + '"></button>' +
+              '</span>';
           },
         },
       ],
@@ -1913,8 +1917,10 @@
           label: "",
           render: function (row) {
             const label = row.name || row.id;
-            return '<button class="btn alt" type="button" data-edit-author="' + escapeHtml(row.id) + '">Edit</button> ' +
-              '<button class="btn warn icon-only" type="button" data-delete-author="' + escapeHtml(row.id) + '" data-icon="delete" aria-label="Delete ' + escapeHtml(label) + '" title="Delete ' + escapeHtml(label) + '"></button>';
+            return '<span class="table-action-buttons">' +
+              '<button class="btn alt" type="button" data-edit-author="' + escapeHtml(row.id) + '">Edit</button>' +
+              '<button class="btn warn icon-only" type="button" data-delete-author="' + escapeHtml(row.id) + '" data-icon="delete" aria-label="Delete ' + escapeHtml(label) + '" title="Delete ' + escapeHtml(label) + '"></button>' +
+              '</span>';
           },
         },
       ],
