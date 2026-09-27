@@ -2148,3 +2148,55 @@ body.admin-drawer-collapsed {
     height: 4.3125em;
   }
 }
+
+
+/* Bulk deletion controls and icon-only delete actions. */
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0 0 10px;
+}
+.bulk-action-bar[hidden] {
+  display: none;
+}
+.bulk-action-bar [data-bulk-count] {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.bulk-select-table th:first-child,
+.bulk-select-table td:first-child {
+  width: 42px;
+  padding-left: 10px;
+  padding-right: 6px;
+  text-align: center;
+}
+.bulk-row-select,
+.bulk-select-all {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--purple);
+}
+.icon-only {
+  display: inline-grid !important;
+  width: 42px;
+  height: 42px;
+  padding: 0 !important;
+  place-items: center;
+  vertical-align: middle;
+}
+.icon-only .jrpp-icon {
+  width: 26px !important;
+  height: 26px !important;
+  margin: 0;
+}
+@media (max-width: 720px) {
+  .bulk-action-bar {
+    justify-content: flex-start;
+  }
+}
