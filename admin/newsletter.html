@@ -60,11 +60,11 @@
             </p>
           </div>
           <div class="nl-actions">
-            <button class="nl-btn secondary" id="draftsBtn" type="button">Drafts</button>
-            <button class="nl-btn secondary" id="scheduledBtn" type="button">Scheduled</button>
-            <button class="nl-btn secondary" id="saveBtn" type="button">Save Draft</button>
-            <button class="nl-btn secondary" id="testBtn" type="button">Send Test</button>
-            <button class="nl-btn gold" id="scheduleBtn" type="button">Schedule / Send</button>
+            <button class="nl-btn secondary" id="draftsBtn" type="button" data-icon="drafts" aria-label="Drafts" title="Drafts">Drafts</button>
+            <button class="nl-btn secondary" id="scheduledBtn" type="button" data-icon="scheduled" aria-label="Scheduled" title="Scheduled">Scheduled</button>
+            <button class="nl-btn secondary" id="saveBtn" type="button" data-icon="save-draft" aria-label="Save Draft" title="Save Draft">Save Draft</button>
+            <button class="nl-btn secondary" id="testBtn" type="button" data-icon="send-test" aria-label="Send Test" title="Send Test">Send Test</button>
+            <button class="nl-btn gold" id="scheduleBtn" type="button" data-icon="schedule-send" aria-label="Schedule / Send" title="Schedule / Send">Schedule / Send</button>
           </div>
         </div>
         <div class="nl-workspace">
@@ -212,7 +212,7 @@
         <section class="nl-panel nl-campaigns">
           <div class="nl-panel-head">
             <h2>Recent Campaigns</h2>
-            <button class="nl-btn secondary" id="newBtn" type="button">New Newsletter</button>
+            <button class="nl-btn secondary" id="newBtn" type="button" data-icon="new-newsletter" aria-label="New Newsletter" title="New Newsletter">New Newsletter</button>
           </div>
           <div class="nl-panel-body" id="campaignList">
             <div class="nl-muted">Loading campaigns...</div>
@@ -229,7 +229,7 @@
         <div class="campaign-library-dialog" role="dialog" aria-modal="true" aria-labelledby="campaignLibraryTitle">
           <div class="campaign-library-head">
             <h2 id="campaignLibraryTitle">Drafts</h2>
-            <button class="nl-btn secondary" id="closeCampaignLibraryBtn" type="button">Close</button>
+            <button class="nl-btn secondary" id="closeCampaignLibraryBtn" type="button" data-icon="close" aria-label="Close" title="Close">Close</button>
           </div>
           <div class="campaign-library-body" id="campaignLibraryBody"></div>
         </div>
