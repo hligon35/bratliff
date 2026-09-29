@@ -45,6 +45,158 @@ textarea {
   font: inherit;
 }
 button,
+.account-page,
+.resources-page {
+  padding: 3rem 0 5rem;
+}
+
+.account-page .container,
+.resources-page .container {
+  max-width: 1050px;
+}
+
+.account-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.account-card,
+.resource-card {
+  padding: 1.35rem;
+  border: 1px solid rgba(10, 22, 40, 0.13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.account-card form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.account-card label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.account-card input,
+.account-card textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(10, 22, 40, 0.22);
+  border-radius: 9px;
+  font: inherit;
+}
+
+.account-card textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.account-card .button {
+  justify-self: start;
+}
+
+.account-section {
+  margin-top: 2rem;
+}
+
+.account-section h2 {
+  margin-bottom: 0.75rem;
+}
+
+.account-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem 1rem;
+}
+
+.account-form-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.account-form-message {
+  min-height: 1.4rem;
+  color: var(--purple);
+}
+
+.account-form-message.error {
+  color: #a51d2d;
+}
+
+.purchase-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.purchase-card {
+  padding: 1rem;
+  border: 1px solid rgba(10, 22, 40, 0.12);
+  border-radius: 14px;
+  background: white;
+}
+
+.purchase-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.purchase-card ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.resource-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.resource-card {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.resource-card h2,
+.resource-card p {
+  margin: 0;
+}
+
+.resource-card .resource-status {
+  color: var(--purple);
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+
+.resource-card .button[aria-disabled="true"] {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.resource-login-note {
+  margin-top: 1.5rem;
+  padding: 1rem 1.2rem;
+  border-left: 4px solid var(--gold);
+  background: rgba(214, 170, 75, 0.14);
+}
+
+@media (max-width: 768px) {
+  .account-layout,
+  .resource-grid,
+  .account-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-form-grid .span-2 {
+    grid-column: auto;
+  }
+}
+
 .button {
   cursor: pointer;
 }
@@ -303,6 +455,195 @@ p {
   padding: 0 5px;
   font-size: 0.64rem;
 }
+.mobile-login-link {
+  display: none;
+}
+
+.site-account {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  max-width: 180px;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid rgba(10, 22, 40, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--navy);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.account-trigger svg {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.account-trigger:hover,
+.account-trigger:focus-visible {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.account-popover {
+  position: absolute;
+  top: calc(100% + 0.7rem);
+  right: 0;
+  z-index: 120;
+  width: min(330px, calc(100vw - 2rem));
+  padding: 1rem;
+  background: var(--cream);
+  border: 1px solid rgba(10, 22, 40, 0.16);
+  border-radius: 18px;
+  box-shadow: 0 18px 45px rgba(10, 22, 40, 0.18);
+}
+
+.account-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.account-panel h3,
+.account-panel p {
+  margin: 0;
+}
+
+.account-panel-kicker {
+  color: var(--purple);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-panel form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-panel label {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--navy);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.account-panel input,
+.account-panel textarea {
+  width: 100%;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgba(10, 22, 40, 0.2);
+  border-radius: 9px;
+  background: white;
+  color: var(--navy);
+  font: inherit;
+}
+
+.account-panel .button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 0.15rem;
+}
+
+.account-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.account-links a,
+.account-panel-user a {
+  color: var(--purple);
+  font-weight: 750;
+}
+
+.account-message {
+  min-height: 1.1rem;
+  color: var(--purple);
+  font-size: 0.78rem;
+}
+
+.account-message.error {
+  color: #a51d2d;
+}
+
+.account-message.show {
+  min-height: 1.1rem;
+}
+
+.account-signout {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--purple);
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.account-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(10, 22, 40, 0.62);
+}
+
+.account-overlay[hidden],
+.account-popover[hidden] {
+  display: none;
+}
+
+.account-overlay-card {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(700px, calc(100vh - 2rem));
+  overflow: auto;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: var(--cream);
+  box-shadow: 0 24px 70px rgba(10, 22, 40, 0.3);
+}
+
+.account-overlay-card h2 {
+  margin-top: 0;
+}
+
+.account-overlay-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.85rem;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(10, 22, 40, 0.16);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--navy);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+body.account-overlay-open {
+  overflow: hidden;
+}
+
 .site-nav a:hover,
 .site-nav a[aria-current="page"] {
   color: var(--navy);
@@ -1884,6 +2225,14 @@ body.document-viewer-open {
   }
   .site-nav a {
     padding: 0.85rem 1rem;
+  }
+  .site-account {
+    display: none;
+  }
+  .mobile-login-link {
+    display: block;
+    margin-top: 0.25rem;
+    border-top: 1px solid rgba(10, 22, 40, 0.1);
   }
   .site-cart-button {
     align-self: flex-start;
