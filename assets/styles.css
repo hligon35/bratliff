@@ -129,6 +129,31 @@ p { margin: 0 0 1rem; }
 
 .check-list { padding: 0; margin: 1.5rem 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .65rem 1.5rem; }
 .check-list li::before { content: '◆'; color: var(--gold); margin-right: .7rem; font-size: .7rem; }
+.resources-page { padding: 3rem 0 5rem; }
+.resources-page h1 { max-width: 18ch; }
+.resource-gate { min-height: min(58vh, 620px); display: grid; place-items: center; }
+.resource-gate[hidden], [data-resource-content][hidden] { display: none; }
+.resource-gate-card {
+  width: min(720px, 100%);
+  padding: clamp(2rem, 6vw, 4rem);
+  border: 1px solid rgba(212, 173, 85, .5);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(84, 36, 118, .98), rgba(53, 21, 77, .98));
+  color: var(--white);
+  box-shadow: 0 24px 70px rgba(10, 22, 40, .2);
+}
+.resource-gate-card .eyebrow { color: var(--gold); }
+.resource-gate-card h1 { max-width: 14ch; color: var(--white); }
+.resource-gate-card .lede,
+.resource-gate-card p:not(.eyebrow) { max-width: 58ch; color: rgba(255,255,255,.88); }
+.resource-gate-card .button-row { margin-top: 1.5rem; }
+.resource-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 2rem; }
+.resource-card { display: grid; gap: .8rem; padding: 1.35rem; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
+.resource-card h2, .resource-card p { margin: 0; }
+.resource-card p { color: var(--muted); }
+.resource-status { color: var(--purple); font-size: .85rem; font-weight: 750; }
+.resource-card .button[aria-disabled="true"] { opacity: .58; pointer-events: none; }
+
 .resource-list { display: grid; gap: 1rem; }
 .resource { display: grid; grid-template-columns: 54px 1fr auto; gap: 1.2rem; align-items: center; padding: 1.3rem; border-bottom: 1px solid var(--line); background: white; }
 .resource-index { font: 700 1.5rem var(--serif); color: var(--gold); }
@@ -224,6 +249,9 @@ textarea { min-height: 145px; resize: vertical; }
   .steps { grid-template-columns: 1fr 1fr; }
 }
 
+@media (max-width: 768px) {
+  .resource-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 600px) {
   .brand-copy small { display: none; }
   .hero-art { min-height: 410px; }
