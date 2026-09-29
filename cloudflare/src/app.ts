@@ -3239,9 +3239,10 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
     const email = normalizeCustomerEmail(body.email);
     const token = text(body.token, 500);
     const password = customerPassword(body.password);
-    const account = await findCustomerByEmail(env, email);
-    const expiry = text(account?.resetExpiresAt, 80);
-    if (!account || !token || !expiry || new Date(expiry).getTime() <= Date.now()) throw new HttpError(400, "That password reset link is invalid or expired.");
+    const account = await env.DB.prepare(
+      "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE lower(email) = ?1 AND reset_expires_at > datetime('now')",
+    ).bind(email).first<Record<string, unknown>>();
+    if (!account || !token) throw new HttpError(400, "That password reset link is invalid or expired.");
     const tokenHash = await signValue(token, customerSessionSecret(env));
     if (!constantTimeEqual(tokenHash, text(account.resetTokenHash, 300))) throw new HttpError(400, "That password reset link is invalid or expired.");
     const passwordData = await deriveCustomerPassword(password);
