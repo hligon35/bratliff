@@ -1,21 +1,14 @@
 const pages = [
   ["Home", "index.html", "home"],
   ["Books", "books.html", "books"],
-<<<<<<< Updated upstream
   ["About Us", "about.html", "about"],
-=======
-  ["About Barbara", "about.html", "about"],
->>>>>>> Stashed changes
   ["Read It Forward", "read-it-forward.html", "forward"],
   ["Speaking & Events", "speaking.html", "speaking"],
   ["Book Club", "book-club.html", "club"],
   ["Awards", "recognition.html", "awards"],
   ["Media", "media.html", "media"],
   ["Contact", "contact.html", "contact"],
-<<<<<<< Updated upstream
   ["Resources", "resources.html", "resources"],
-=======
->>>>>>> Stashed changes
 ];
 
 const siteConfig = window.siteConfig || {};
@@ -183,7 +176,6 @@ async function wireArtwork() {
 
 function header() {
   const current = document.body.dataset.page;
-<<<<<<< Updated upstream
   const navLinks = pages
     .map(([label, href, key]) => "<a href=\"" + href + "\"" + (key === current ? " aria-current=\"page\"" : "") + ">" + label + "</a>")
     .join("");
@@ -194,13 +186,6 @@ function header() {
     "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"3.5\"></circle><path d=\"M4.5 20c.8-3.4 3.4-5.2 7.5-5.2s6.7 1.8 7.5 5.2\"></path></svg><span data-account-trigger-label>Sign in</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
     "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\">×</button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
     "</div></header>";
-=======
-  return `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap">
-    <a class="brand" href="index.html" aria-label="Jackrabbit Punkin Publishing home"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>
-    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation">☰</button>
-    <nav class="site-nav" id="site-nav" aria-label="Primary">${pages.map(([label, href, key]) => `<a href="${href}"${key === current ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>
-  </div></header>`;
->>>>>>> Stashed changes
 }
 function socialLinks() {
   return `<div class="socials" aria-label="Social media">
@@ -237,20 +222,10 @@ function socialLinks() {
 }
 
 function footer() {
-<<<<<<< Updated upstream
   return `<footer class="site-footer"><div class="container footer-grid">
     <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
     <div><h3>Explore</h3><div class="footer-links">${pages
       .slice(0, 10)
-=======
-  const adminLinks = isConfiguredUrl(adminUrl)
-    ? `<div><h3>Admin</h3><div class="footer-links"><a href="login/">Publisher Login</a></div></div>`
-    : "";
-  return `<footer class="site-footer"><div class="container footer-grid">
-    <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
-    <div><h3>Explore</h3><div class="footer-links">${pages
-      .slice(0, 9)
->>>>>>> Stashed changes
       .map(([label, href]) => `<a href="${href}">${label}</a>`)
       .join("")}</div></div>
     <div><h3>Policies</h3><div class="footer-links"><a href="policies.html#privacy">Privacy Policy</a><a href="policies.html#terms">Terms & Conditions</a><a href="policies.html#refund">Refund Policy</a><a href="policies.html#shipping">Shipping Policy</a><a href="policies.html#accessibility">Accessibility</a><a href="policies.html#copyright">Copyright</a></div></div>
@@ -264,7 +239,6 @@ document
   .querySelector("[data-footer]")
   ?.insertAdjacentHTML("afterbegin", footer());
 
-<<<<<<< Updated upstream
 ensureFavicon();
 wireArtwork();
 hydrateConfiguredLinks();
@@ -429,6 +403,7 @@ function initCustomerAccount() {
   function closeAll() {
     popover.hidden = true;
     overlay.hidden = true;
+    document.body.classList.remove("account-overlay-open");
     trigger.setAttribute("aria-expanded", "false");
   }
 
@@ -483,8 +458,6 @@ function initCustomerAccount() {
   refresh();
 }
 
-=======
->>>>>>> Stashed changes
 const menu = document.querySelector(".menu-toggle");
 const nav = document.querySelector(".site-nav");
 menu?.addEventListener("click", () => {
@@ -556,11 +529,7 @@ async function submitLiveForm(form) {
   if (!isConfiguredUrl(formEndpoint)) {
     setFormMessage(
       form,
-<<<<<<< Updated upstream
       "Form submissions are not configured yet. Add PUBLIC_API_URL to .env and rerun npm run prepare:config.",
-=======
-      "Form submissions are not configured yet. Add GOOGLE_APPS_SCRIPT_WEB_APP_URL to .env and rerun npm run dev.",
->>>>>>> Stashed changes
       true,
     );
     return;
@@ -596,19 +565,12 @@ async function submitLiveForm(form) {
       submitButton.textContent = "Sending...";
     }
 
-<<<<<<< Updated upstream
     const requestInit = {
       method: "POST",
-=======
-    await fetch(formEndpoint, {
-      method: "POST",
-      mode: "no-cors",
->>>>>>> Stashed changes
       headers: {
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
       },
       body: payload.toString(),
-<<<<<<< Updated upstream
     };
 
     if (/script\.google\.com/i.test(formEndpoint)) {
@@ -622,18 +584,6 @@ async function submitLiveForm(form) {
       if (!response.ok || data.ok === false) {
         throw new Error(data.error || "We could not send your request just now.");
       }
-=======
-    });
-
-    setFormMessage(
-      form,
-      form.dataset.successMessage || "Thank you. Your request has been sent.",
-    );
-    form.reset();
-    if (form.dataset.formType === "bookNotification") {
-      syncNotificationTitle("");
-      modal?.classList.remove("open");
->>>>>>> Stashed changes
     }
 
     setFormMessage(
@@ -667,7 +617,6 @@ document.querySelectorAll("form[data-form-type]").forEach((form) => {
   });
 });
 
-<<<<<<< Updated upstream
 function renderTurnstileWidgets() {
   const sitekey = normalizeUrl(siteConfig.turnstileSiteKey);
   if (!sitekey || typeof window.turnstile === "undefined") return;
@@ -692,20 +641,6 @@ function initAdminEntryPages() {
       : entryUrl
         ? 'Publisher login is visible, but the live admin API is not configured yet. Finish PUBLIC_API_URL before using live tools.'
         : 'Admin access is not configured yet. Add PUBLIC_API_URL and regenerate the site config.';
-=======
-function initAdminEntryPages() {
-  const loginButton = document.querySelector("[data-login-continue]");
-  const loginStatus = document.querySelector("[data-login-status]");
-  const dashboardUrl = buildAdminDashboardUrl(adminUrl);
-
-  if (loginButton) {
-    loginButton.setAttribute('href', dashboardUrl || 'contact.html?subject=Admin%20Access');
-    if (loginStatus) {
-      loginStatus.textContent = dashboardUrl
-        ? 'Continue to Google sign-in for the secure publisher dashboard.'
-        : 'Admin access is not configured yet. Add the Apps Script admin URL and regenerate the site config.';
-    }
->>>>>>> Stashed changes
   }
 }
 
@@ -717,7 +652,6 @@ let slideInterval;
 let slideTransitionTimer;
 function showSlide(next) {
   if (!slides.length) return;
-<<<<<<< Updated upstream
   const nextIndex = (next + slides.length) % slides.length;
   const currentSlide = slides[slideIndex];
   const nextSlide = slides[nextIndex];
@@ -951,69 +885,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-=======
-  slideIndex = (next + slides.length) % slides.length;
-  slides.forEach((slide, index) => {
-    slide.hidden = index !== slideIndex;
-  });
-}
-document
-  .querySelector("[data-prev]")
-  ?.addEventListener("click", () => showSlide(slideIndex - 1));
-document
-  .querySelector("[data-next]")
-  ?.addEventListener("click", () => showSlide(slideIndex + 1));
-showSlide(0);
-
-const counters = document.querySelectorAll("[data-count]");
-const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-if (counters.length) {
-  const animate = (entries) =>
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      const el = entry.target;
-      const target = Number(el.dataset.count || 0);
-      if (reduced || target === 0) {
-        el.textContent = target;
-        return;
-      }
-      const start = performance.now();
-      const tick = (now) => {
-        const p = Math.min((now - start) / 1000, 1);
-        el.textContent = Math.round(target * p);
-        if (p < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-      observer.unobserve(el);
-    });
-  const observer = new IntersectionObserver(animate, { threshold: 0.5 });
-  counters.forEach((el) => observer.observe(el));
-}
-
-const modal = document.querySelector(".modal");
-document.querySelectorAll("[data-notify]").forEach((button) =>
-  button.addEventListener("click", () => {
-    const title = getNotifyTitle(button);
-    const form = document.querySelector(
-      'form[data-form-type="bookNotification"]',
-    );
-    if (form) form.dataset.bookTitle = title;
-    syncNotificationTitle(title);
-    modal?.classList.add("open");
-    modal?.querySelector('input[type="email"]')?.focus();
-  }),
-);
-document
-  .querySelector(".modal-close")
-  ?.addEventListener("click", () => modal.classList.remove("open"));
-modal?.addEventListener("click", (event) => {
-  if (event.target === modal) modal.classList.remove("open");
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") modal?.classList.remove("open");
-});
-
->>>>>>> Stashed changes
 const requestedSubject = new URLSearchParams(location.search).get("subject");
 if (requestedSubject) {
   const subject = document.querySelector('select[name="subject"]');
