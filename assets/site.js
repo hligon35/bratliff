@@ -8,6 +8,7 @@ const pages = [
   ["Awards", "recognition.html", "awards"],
   ["Media", "media.html", "media"],
   ["Contact", "contact.html", "contact"],
+  ["Resources", "resources.html", "resources"],
 ];
 
 const siteConfig = window.siteConfig || {};
@@ -175,13 +176,17 @@ async function wireArtwork() {
 
 function header() {
   const current = document.body.dataset.page;
-  return `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap">
-    <a class="brand" href="index.html" aria-label="Jackrabbit Punkin Publishing home"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>
-    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation">☰</button>
-    <nav class="site-nav" id="site-nav" aria-label="Primary">${pages.map(([label, href, key]) => `<a href="${href}"${key === current ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>
-  </div></header>`;
+  const navLinks = pages
+    .map(([label, href, key]) => "<a href=\"" + href + "\"" + (key === current ? " aria-current=\"page\"" : "") + ">" + label + "</a>")
+    .join("");
+  return "<a class=\"skip-link\" href=\"#main\">Skip to content</a><header class=\"site-header\"><div class=\"container nav-wrap\">" +
+    "<a class=\"brand\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\"><span class=\"brand-mark\" aria-hidden=\"true\"><span>JP</span></span><span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
+    "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\">☰</button>" +
+    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Sign in</a></nav>" +
+    "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"3.5\"></circle><path d=\"M4.5 20c.8-3.4 3.4-5.2 7.5-5.2s6.7 1.8 7.5 5.2\"></path></svg><span data-account-trigger-label>Sign in</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
+    "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\">×</button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
+    "</div></header>";
 }
-
 function socialLinks() {
   return `<div class="socials" aria-label="Social media">
   <span>
@@ -298,6 +303,153 @@ function initPolicySections() {
 
 initPolicySections();
 
+function customerAccountPanelMarkup() {
+  return [
+    "<div class=\"account-panel\">",
+    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Sign in</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"current-password\" required></label><button class=\"button ink\" type=\"submit\">Sign in</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
+    "<div data-account-mode-panel=\"signup\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Create an account</h3><form data-customer-auth-form data-auth-action=\"signup\"><label>Display name<input name=\"displayName\" autocomplete=\"name\" required></label><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"new-password\" minlength=\"8\" required></label><button class=\"button ink\" type=\"submit\">Create account</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
+    "<div data-account-mode-panel=\"forgot\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Reset your password</h3><form data-customer-auth-form data-auth-action=\"forgot\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><button class=\"button ink\" type=\"submit\">Email reset link</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
+    "</div>",
+  ].join("");
+}
+
+function initCustomerAccount() {
+  const shell = document.querySelector("[data-account-shell]");
+  const popover = document.querySelector("[data-account-popover]");
+  const overlay = document.querySelector("[data-account-overlay]");
+  const trigger = document.querySelector("[data-account-trigger]");
+  const triggerLabel = document.querySelector("[data-account-trigger-label]");
+  const mobileLink = document.querySelector("[data-account-mobile-login]");
+  if (!shell || !popover || !overlay || !trigger) return;
+  let currentUser = null;
+
+  function setMode(root, mode) {
+    root.querySelectorAll("[data-account-mode-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.accountModePanel !== mode;
+    });
+  }
+
+  function panelMarkup(root) {
+    root.innerHTML = customerAccountPanelMarkup();
+    root.querySelectorAll("[data-account-mode]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        setMode(root, link.dataset.accountMode || "login");
+      });
+    });
+    root.querySelectorAll("[data-customer-auth-form]").forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const action = form.dataset.authAction || "login";
+        const endpoint = {
+          login: "/api/customer/auth/login",
+          signup: "/api/customer/auth/signup",
+          forgot: "/api/customer/auth/forgot-password",
+        }[action];
+        const message = form.querySelector("[data-account-message]");
+        const submit = form.querySelector("button[type=submit]");
+        if (submit) submit.disabled = true;
+        if (message) { message.textContent = ""; message.classList.remove("error", "show"); }
+        try {
+          const response = await fetch(resolvePublicApiBase() + endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(Object.fromEntries(new FormData(form).entries())),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.ok === false) throw new Error(data.error || "We could not complete that request.");
+          if (action === "forgot") {
+            if (message) { message.textContent = data.message || "Check your email for a reset link."; message.classList.add("show"); }
+            setMode(root, "login");
+          } else {
+            currentUser = data.user || null;
+            renderState();
+            closeAll();
+          }
+        } catch (error) {
+          if (message) { message.textContent = error.message || "We could not complete that request."; message.classList.add("show", "error"); }
+        } finally {
+          if (submit) submit.disabled = false;
+        }
+      });
+    });
+  }
+
+  function renderState() {
+    triggerLabel.textContent = currentUser ? (currentUser.displayName || "Profile") : "Sign in";
+    trigger.setAttribute("aria-label", currentUser ? "Open your profile" : "Open reader sign in");
+    document.querySelectorAll("[data-account-panel]").forEach((root) => {
+      if (!currentUser) {
+        panelMarkup(root);
+        return;
+      }
+      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Signed in</p><h3>" + (currentUser.displayName || "Reader") + "</h3><p>" + currentUser.email + "</p><a class=\"button ink\" href=\"account.html\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Sign out</button></div>";
+      root.querySelector("[data-account-logout]")?.addEventListener("click", async () => {
+        await fetch(resolvePublicApiBase() + "/api/customer/auth/logout", { method: "POST", credentials: "include" });
+        currentUser = null;
+        renderState();
+        closeAll();
+      });
+    });
+  }
+
+  function closeAll() {
+    popover.hidden = true;
+    overlay.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  function openDesktop() {
+    popover.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+  }
+
+  function openOverlay() {
+    overlay.hidden = false;
+    document.body.classList.add("account-overlay-open");
+    overlay.querySelector("input")?.focus();
+  }
+
+  function closeOverlay() {
+    overlay.hidden = true;
+    document.body.classList.remove("account-overlay-open");
+  }
+
+  trigger.addEventListener("click", () => {
+    if (currentUser) {
+      window.location.href = "account.html";
+      return;
+    }
+    if (popover.hidden) openDesktop(); else closeAll();
+  });
+  mobileLink?.addEventListener("click", (event) => {
+    event.preventDefault();
+    nav?.classList.remove("open");
+    menu?.setAttribute("aria-expanded", "false");
+    openOverlay();
+  });
+  overlay.querySelector("[data-account-close]")?.addEventListener("click", closeOverlay);
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) closeOverlay(); });
+  document.addEventListener("click", (event) => {
+    if (!shell.contains(event.target) && !popover.hidden) closeAll();
+  });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeAll(); });
+
+  async function refresh() {
+    try {
+      const response = await fetch(resolvePublicApiBase() + "/api/customer/auth/session", { credentials: "include", cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      currentUser = data.authenticated ? data.user : null;
+    } catch { currentUser = null; }
+    renderState();
+  }
+
+  window.JRPPAccount = { refresh, openLoginOverlay: openOverlay };
+  renderState();
+  refresh();
+}
+
 const menu = document.querySelector(".menu-toggle");
 const nav = document.querySelector(".site-nav");
 menu?.addEventListener("click", () => {
@@ -308,6 +460,8 @@ menu?.addEventListener("click", () => {
     isOpen ? "Close navigation" : "Open navigation",
   );
 });
+
+initCustomerAccount();
 
 function setFormMessage(form, message, isError) {
   const panel = form.querySelector(".form-message");
