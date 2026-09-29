@@ -379,6 +379,10 @@ function initCustomerAccount() {
   function renderState() {
     triggerLabel.textContent = currentUser ? (currentUser.displayName || "Profile") : "Sign in";
     trigger.setAttribute("aria-label", currentUser ? "Open your profile" : "Open reader sign in");
+    if (mobileLink) {
+      mobileLink.textContent = currentUser ? "Profile" : "Sign in";
+      mobileLink.href = currentUser ? "account.html" : "#";
+    }
     document.querySelectorAll("[data-account-panel]").forEach((root) => {
       if (!currentUser) {
         panelMarkup(root);
@@ -429,7 +433,8 @@ function initCustomerAccount() {
     event.preventDefault();
     nav?.classList.remove("open");
     menu?.setAttribute("aria-expanded", "false");
-    openOverlay();
+    if (currentUser) window.location.href = "account.html";
+    else openOverlay();
   });
   overlay.querySelector("[data-account-close]")?.addEventListener("click", closeOverlay);
   overlay.addEventListener("click", (event) => { if (event.target === overlay) closeOverlay(); });
