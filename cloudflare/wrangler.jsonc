@@ -1,158 +1,24 @@
 {
-	"name": "bratliff-platform",
-	"main": "src/index.ts",
-	"account_id": "a66d8ad6d673f957cc07a4499662d694",
-	"compatibility_date": "2026-08-31",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
-	"workers_dev": false,
-	"preview_urls": false,
-	"routes": [
-		{
-			"pattern": "jackrabbitpunkinpublishing.com/*",
-			"zone_name": "jackrabbitpunkinpublishing.com"
-		},
-		{
-			"pattern": "www.jackrabbitpunkinpublishing.com/*",
-			"zone_name": "jackrabbitpunkinpublishing.com"
-		}
-	],
-	"observability": {
-		"enabled": true,
-		"head_sampling_rate": 1
-	},
-	"triggers": {
-		"crons": [
-			"*/15 * * * *"
-		]
-	},
-	"assets": {
-		"directory": "./public",
-		"binding": "ASSETS",
-		"html_handling": "auto-trailing-slash",
-		"not_found_handling": "404-page",
-		"run_worker_first": [
-			"/api/*",
-			"/square/*",
-			"/healthz"
-		]
-	},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "bratliff-platform-sandbox",
-			"database_id": "e725ecca-2a18-40a1-bc60-ff6fcea2e846"
-		}
-	],
-	"r2_buckets": [
-		{
-			"binding": "BOOK_ASSETS",
-			"bucket_name": "jppsubs-r2-sandbox"
-		}
-	],
-	"vars": {
-		"ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
-		"ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
-		"CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
-		"CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
-		"CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com",
-		"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
-		"MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
-		"ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
-		"ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=success",
-		"PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/",
-		"PUBLIC_API_URL": "https://jackrabbitpunkinpublishing.com",
-		"SITE_URL": "https://jackrabbitpunkinpublishing.com",
-		"SPONSOR_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/read-it-forward.html",
-		"SQUARE_API_VERSION": "2024-10-17",
-		"SQUARE_ENVIRONMENT": "production"
-	},
-	"secrets": {
-		"required": [
-			"UNSUBSCRIBE_SECRET",
-			"ADMIN_SESSION_SECRET",
-			"SQUARE_ACCESS_TOKEN",
-			"SQUARE_WEBHOOK_SIGNATURE_KEY",
-			"SQUARE_LOCATION_ID",
-			"RESEND_API_KEY",
-			"TURNSTILE_SECRET_KEY",
-			"GOOGLE_CLIENT_SECRET"
-		]
-	},
-	"env": {
-		"sandbox": {
-			"name": "bratliff-platform-sandbox",
-			"account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
-			"routes": [
-				{
-					"pattern": "jrpp.alphazonelabs.com",
-					"custom_domain": true
-				}
-			],
-			"triggers": {
-				"crons": []
-			},
-			"assets": {
-				"directory": "./public",
-				"binding": "ASSETS",
-				"html_handling": "auto-trailing-slash",
-				"not_found_handling": "404-page",
-				"run_worker_first": [
-					"/api/*",
-					"/square/*",
-					"/healthz"
-				]
-			},
-			"d1_databases": [
-				{
-					"binding": "DB",
-					"database_name": "bratliff-platform-sandbox"
-				}
-			],
-			"r2_buckets": [
-				{
-					"binding": "BOOK_ASSETS",
-					"bucket_name": "jppsubs-r2-sandbox"
-				}
-			],
-			"vars": {
-				"ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
-				"ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
-				"CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
-				"CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
-				"ADMIN_AUTH_MODE": "google",
-				"CORS_ORIGIN": "https://jrpp.alphazonelabs.com",
-				"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
-				"MAIL_FROM_EMAIL": "website@notifications.jackrabbitpunkinpublishing.com",
-				"ORDER_CANCEL_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=cancelled",
-				"ORDER_SUCCESS_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=success",
-				"PUBLIC_ADMIN_URL": "https://jrpp.alphazonelabs.com/admin/",
-				"PUBLIC_API_URL": "https://jrpp.alphazonelabs.com",
-				"SITE_URL": "https://jrpp.alphazonelabs.com",
-				"SPONSOR_SUCCESS_URL": "https://jrpp.alphazonelabs.com/read-it-forward.html",
-				"SQUARE_API_VERSION": "2024-10-17",
-				"SQUARE_ENVIRONMENT": "sandbox"
-			},
-			"secrets": {
-				"required": [
-					"UNSUBSCRIBE_SECRET",
-					"ADMIN_SESSION_SECRET",
-					"SQUARE_ACCESS_TOKEN",
-					"SQUARE_WEBHOOK_SIGNATURE_KEY",
-					"SQUARE_LOCATION_ID",
-					"RESEND_API_KEY",
-					"TURNSTILE_SECRET_KEY",
-					"GOOGLE_CLIENT_SECRET"
-				]
-			}
-		}
-	},
-	"dev": {
-		"port": 8787,
-		"ip": "127.0.0.1"
-	},
-	"observability": {
+  "name": "bratliff-platform",
+  "main": "src/index.ts",
+  "account_id": "a66d8ad6d673f957cc07a4499662d694",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "jackrabbitpunkinpublishing.com/*",
+      "zone_name": "jackrabbitpunkinpublishing.com"
+    },
+    {
+      "pattern": "www.jackrabbitpunkinpublishing.com/*",
+      "zone_name": "jackrabbitpunkinpublishing.com"
+    }
+  ],
+  "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
     "redact_query_string": false,
@@ -167,6 +33,136 @@
       "head_sampling_rate": 1,
       "persist": true
     }
-	}
-	
+  },
+  "triggers": {
+    "crons": [
+      "*/15 * * * *"
+    ]
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": [
+      "/api/*",
+      "/square/*",
+      "/healthz"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bratliff-platform-db",
+      "database_id": "490e1480-46ca-4a06-88f7-994b7dc4acc4"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BOOK_ASSETS",
+      "bucket_name": "jppsubs-r2"
+    }
+  ],
+  "vars": {
+    "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
+    "ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
+    "CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
+    "CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
+    "CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com",
+    "GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
+    "MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
+    "ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
+    "ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=success",
+    "PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/",
+    "PUBLIC_API_URL": "https://jackrabbitpunkinpublishing.com",
+    "SITE_URL": "https://jackrabbitpunkinpublishing.com",
+    "SPONSOR_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/read-it-forward.html",
+    "SQUARE_API_VERSION": "2024-10-17",
+    "SQUARE_ENVIRONMENT": "production"
+  },
+  "secrets": {
+    "required": [
+      "UNSUBSCRIBE_SECRET",
+      "ADMIN_SESSION_SECRET",
+      "SQUARE_ACCESS_TOKEN",
+      "SQUARE_WEBHOOK_SIGNATURE_KEY",
+      "SQUARE_LOCATION_ID",
+      "RESEND_API_KEY",
+      "TURNSTILE_SECRET_KEY",
+      "GOOGLE_CLIENT_SECRET"
+    ]
+  },
+  "env": {
+    "sandbox": {
+      "name": "bratliff-platform-sandbox",
+      "account_id": "e02ea8e0b7fe319f04e2505df1138d4c",
+      "routes": [
+        {
+          "pattern": "jrpp.alphazonelabs.com",
+          "custom_domain": true
+        }
+      ],
+      "triggers": {
+        "crons": []
+      },
+      "assets": {
+        "directory": "./public",
+        "binding": "ASSETS",
+        "html_handling": "auto-trailing-slash",
+        "not_found_handling": "404-page",
+        "run_worker_first": [
+          "/api/*",
+          "/square/*",
+          "/healthz"
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "bratliff-platform-sandbox",
+          "database_id": "e725ecca-2a18-40a1-bc60-ff6fcea2e846"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BOOK_ASSETS",
+          "bucket_name": "jppsubs-r2-sandbox"
+        }
+      ],
+      "vars": {
+        "ADMIN_BOOTSTRAP_EMAILS": "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
+        "ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
+        "CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
+        "CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
+        "ADMIN_AUTH_MODE": "google",
+        "CORS_ORIGIN": "https://jrpp.alphazonelabs.com",
+        "GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
+        "MAIL_FROM_EMAIL": "website@notifications.jackrabbitpunkinpublishing.com",
+        "ORDER_CANCEL_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=cancelled",
+        "ORDER_SUCCESS_URL": "https://jrpp.alphazonelabs.com/books.html?checkout=success",
+        "PUBLIC_ADMIN_URL": "https://jrpp.alphazonelabs.com/admin/",
+        "PUBLIC_API_URL": "https://jrpp.alphazonelabs.com",
+        "SITE_URL": "https://jrpp.alphazonelabs.com",
+        "SPONSOR_SUCCESS_URL": "https://jrpp.alphazonelabs.com/read-it-forward.html",
+        "SQUARE_API_VERSION": "2024-10-17",
+        "SQUARE_ENVIRONMENT": "sandbox"
+      },
+      "secrets": {
+        "required": [
+          "UNSUBSCRIBE_SECRET",
+          "ADMIN_SESSION_SECRET",
+          "SQUARE_ACCESS_TOKEN",
+          "SQUARE_WEBHOOK_SIGNATURE_KEY",
+          "SQUARE_LOCATION_ID",
+          "RESEND_API_KEY",
+          "TURNSTILE_SECRET_KEY",
+          "GOOGLE_CLIENT_SECRET"
+        ]
+      }
+    }
+  },
+  "dev": {
+    "port": 8787,
+    "ip": "127.0.0.1"
+  }
 }
