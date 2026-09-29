@@ -5,6 +5,8 @@ import type {
   AdminUser,
   AppHandler,
   AuthenticatedAdmin,
+  AuthenticatedCustomer,
+  CustomerAccount,
   AuthorRecord,
   BookRecord,
   CartLineItem,
@@ -18,6 +20,7 @@ import type {
 } from "./types";
 import {
   base64UrlEncode,
+  base64UrlFromBytes,
   buildIdentityKey,
   buildPublicBookImageUrl,
   bytesToHex,
@@ -51,6 +54,9 @@ import {
 
 const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60;
+const CUSTOMER_SESSION_COOKIE = "__Host-jrpp_customer_session";
+const CUSTOMER_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const CUSTOMER_PASSWORD_ITERATIONS = 120000;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
@@ -59,6 +65,39 @@ const SPONSOR_CERTIFICATE_PACKAGES = new Set<SponsorPackageKey>([
   "literacyTrailblazer",
 ]);
 const SPEAKING_BUDGETS = new Set(["Budget Available", "Community or Nonprofit Request", "Not Yet Determined"]);
+
+const CUSTOMER_RESOURCES = [
+  {
+    slug: "copyright-registration",
+    title: "Copyright Registration",
+    description: "A practical discussion guide for understanding copyright registration, protecting original work, and preparing the information a publishing project may need.",
+    assetPath: "/assets/JPP_Copyright_Registration_Guide.pdf",
+  },
+  {
+    slug: "library-of-congress-lccn",
+    title: "Library of Congress / LCCN Process",
+    description: "A clear overview of the Library of Congress Control Number process and the steps that help a publishing project prepare for cataloging.",
+    assetPath: "/assets/JPP_Library_of_Congress_LCCN_Process_Guide.pdf",
+  },
+  {
+    slug: "trademark-registration",
+    title: "Trademark Registration",
+    description: "A starting-point guide to trademark registration, brand protection, and the questions to consider before filing.",
+    assetPath: "/assets/JPP_Trademark_Registration_Guide.pdf",
+  },
+  {
+    slug: "isbn-publisher-identification",
+    title: "ISBNs & Publisher Identification",
+    description: "A practical reference for ISBN planning, publisher identification, and organizing title information for future releases.",
+    assetPath: "/assets/JPP_ISBNs_Publisher_Identification_Guide.pdf",
+  },
+  {
+    slug: "building-your-publishing-business",
+    title: "Building Your Publishing Business",
+    description: "A planning guide for developing a sustainable publishing business, clarifying responsibilities, and building repeatable workflows.",
+    assetPath: "/assets/JPP_Building_Your_Publishing_Business_Guide.pdf",
+  },
+] as const;
 
 type VerifiedGoogleIdentity = {
   email: string;
@@ -138,6 +177,10 @@ const app: AppHandler = {
 
       if (url.pathname === "/api/auth/logout") {
         return await handleAdminLogoutRequest(request, env);
+      }
+
+      if (url.pathname.startsWith("/api/customer/")) {
+        return await handleCustomerApi(request, env, url);
       }
 
       if (url.pathname.startsWith("/api/admin/")) {
@@ -748,6 +791,7 @@ async function handleStoreCheckout(
     throw new HttpError(503, "Square is not configured yet.");
   }
 
+  const customer = await getOptionalCustomerSession(request, env);
   const orderNumber = createOrderNumber();
   const subtotal = money(items.reduce((sum, item) => sum + item.lineTotal, 0));
   const bookCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -756,11 +800,21 @@ async function handleStoreCheckout(
 
   await env.DB.prepare(
     `INSERT INTO orders (
-      order_number, provider, created_at, subtotal, shipping, tax, total,
-      payment_status, fulfillment_status, tracking_number, shipping_address, notes
-    ) VALUES (?1, 'square', datetime('now'), ?2, ?3, 0, ?4, 'Pending', 'Unfulfilled', '', '', '')`,
+      order_number, customer_id, provider, created_at, customer_name, customer_email,
+      subtotal, shipping, tax, total, payment_status, fulfillment_status,
+      tracking_number, shipping_address, notes
+    ) VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, 0, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
   )
-    .bind(orderNumber, subtotal, shipping, total)
+    .bind(
+      orderNumber,
+      customer?.id || "",
+      customer?.displayName || "",
+      customer?.email || "",
+      subtotal,
+      shipping,
+      total,
+      customer?.shippingAddress || "",
+    )
     .run();
 
   await env.DB.prepare(
@@ -2970,6 +3024,303 @@ async function sendSponsorCertificateIfEligible(
     throw error;
   }
 }
+type CustomerResource = (typeof CUSTOMER_RESOURCES)[number];
+
+function customerSessionSecret(env: Env): string {
+  return text(env.CUSTOMER_SESSION_SECRET || env.ADMIN_SESSION_SECRET, 300);
+}
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const binary = decodeBase64Url(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function deriveCustomerPassword(password: string, saltBytes = crypto.getRandomValues(new Uint8Array(16))) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), { name: "PBKDF2" }, false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: saltBytes, iterations: CUSTOMER_PASSWORD_ITERATIONS, hash: "SHA-256" },
+    key,
+    256,
+  );
+  return { salt: base64UrlFromBytes(saltBytes), hash: base64UrlFromBytes(new Uint8Array(bits)) };
+}
+
+async function verifyCustomerPassword(password: string, salt: string, expectedHash: string): Promise<boolean> {
+  const result = await deriveCustomerPassword(password, base64UrlToBytes(salt));
+  return constantTimeEqual(result.hash, expectedHash);
+}
+
+function customerAccountFromRow(row: Record<string, unknown>): CustomerAccount {
+  return {
+    id: text(row.id, 120),
+    email: text(row.email, 320).toLowerCase(),
+    displayName: text(row.displayName, 200),
+    shippingAddress: text(row.shippingAddress, 2000),
+    createdAt: text(row.createdAt, 80),
+    updatedAt: text(row.updatedAt, 80),
+    lastLoginAt: text(row.lastLoginAt, 80),
+  };
+}
+
+function authenticatedCustomer(account: CustomerAccount, tokenSubject = account.id): AuthenticatedCustomer {
+  return { ...account, tokenSubject };
+}
+
+async function findCustomerById(env: Env, id: string) {
+  return env.DB.prepare(
+    "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE id = ?1",
+  ).bind(id).first<Record<string, unknown>>();
+}
+
+async function findCustomerByEmail(env: Env, email: string) {
+  return env.DB.prepare(
+    "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE lower(email) = ?1",
+  ).bind(email.toLowerCase()).first<Record<string, unknown>>();
+}
+
+function issueCustomerSessionCookie(response: Response, env: Env, user: AuthenticatedCustomer) {
+  const payload = base64UrlEncode(JSON.stringify({ sub: user.id, email: user.email, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + CUSTOMER_SESSION_TTL_SECONDS }));
+  return signValue(payload, customerSessionSecret(env)).then((signature) => {
+    const headers = new Headers(response.headers);
+    headers.append("Set-Cookie", CUSTOMER_SESSION_COOKIE + "=" + payload + "." + signature + "; Max-Age=" + CUSTOMER_SESSION_TTL_SECONDS + "; Path=/; HttpOnly; Secure; SameSite=Lax");
+    return new Response(response.body, { status: response.status, headers });
+  });
+}
+
+function clearCustomerSessionCookie(response: Response) {
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", CUSTOMER_SESSION_COOKIE + "=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax");
+  return new Response(response.body, { status: response.status, headers });
+}
+
+async function getOptionalCustomerSession(request: Request, env: Env): Promise<AuthenticatedCustomer | null> {
+  const cookie = readCookie(request, CUSTOMER_SESSION_COOKIE);
+  if (!cookie) return null;
+  const [payload, signature] = cookie.split(".");
+  if (!payload || !signature) return null;
+  if (!constantTimeEqual(signature, await signValue(payload, customerSessionSecret(env)))) return null;
+  let claims: Record<string, unknown>;
+  try { claims = JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>; } catch { return null; }
+  if (Number(claims.exp || 0) <= Math.floor(Date.now() / 1000)) return null;
+  const id = text(claims.sub, 120);
+  if (!id) return null;
+  const row = await findCustomerById(env, id);
+  return row ? authenticatedCustomer(customerAccountFromRow(row), id) : null;
+}
+
+async function requireCustomerSession(request: Request, env: Env): Promise<AuthenticatedCustomer> {
+  const user = await getOptionalCustomerSession(request, env);
+  if (!user) throw new HttpError(401, "Please sign in to continue.");
+  return user;
+}
+
+async function requireCustomerOrAdmin(request: Request, env: Env): Promise<{ customer?: AuthenticatedCustomer; admin?: AuthenticatedAdmin }> {
+  const customer = await getOptionalCustomerSession(request, env);
+  if (customer) return { customer };
+  try { return { admin: await authorizeAdmin(request, env) }; } catch { throw new HttpError(401, "Please sign in to continue."); }
+}
+
+function customerPassword(value: unknown): string {
+  const password = text(value, 200);
+  if (password.length < 8) throw new HttpError(400, "Password must be at least 8 characters.");
+  return password;
+}
+
+function normalizeCustomerEmail(value: unknown): string {
+  const email = text(value, 320).toLowerCase();
+  if (!isValidEmail(email)) throw new HttpError(400, "Enter a valid email address.");
+  return email;
+}
+
+function customerResourceBySlug(slug: string): CustomerResource | null {
+  return CUSTOMER_RESOURCES.find((resource) => resource.slug === slug) || null;
+}
+
+async function resourceAssetAvailable(request: Request, env: Env, resource: CustomerResource): Promise<boolean> {
+  const assetUrl = new URL(resource.assetPath, request.url);
+  const response = await env.ASSETS.fetch(new Request(assetUrl.toString(), { method: "GET" }));
+  return response.ok;
+}
+
+async function buildCustomerResourceList(request: Request, env: Env) {
+  return Promise.all(CUSTOMER_RESOURCES.map(async (resource) => {
+    const available = await resourceAssetAvailable(request, env, resource);
+    return {
+      slug: resource.slug,
+      title: resource.title,
+      description: resource.description,
+      available,
+      downloadUrl: available ? "/api/customer/resources/" + resource.slug + "/download" : "",
+    };
+  }));
+}
+
+async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<Response> {
+  const path = url.pathname.replace(/^\/api\/customer\/?/, "");
+
+  if (request.method === "GET" && path === "auth/session") {
+    const user = await getOptionalCustomerSession(request, env);
+    return json(request, env, { ok: true, authenticated: Boolean(user), user: user || null });
+  }
+
+  if (request.method === "POST" && path === "auth/signup") {
+    const body = await parseBody(request);
+    const email = normalizeCustomerEmail(body.email);
+    const password = customerPassword(body.password);
+    const displayName = text(body.displayName, 200);
+    const shippingAddress = text(body.shippingAddress, 2000);
+    if (await findCustomerByEmail(env, email)) throw new HttpError(409, "An account already exists for that email.");
+    const passwordData = await deriveCustomerPassword(password);
+    const id = crypto.randomUUID();
+    try {
+      await env.DB.prepare("INSERT INTO customer_accounts (id, email, password_salt, password_hash, display_name, shipping_address) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+        .bind(id, email, passwordData.salt, passwordData.hash, displayName, shippingAddress).run();
+    } catch (error) {
+      if (/unique|constraint/i.test(getErrorMessage(error))) throw new HttpError(409, "An account already exists for that email.");
+      throw error;
+    }
+    const account = await findCustomerById(env, id);
+    if (!account) throw new HttpError(500, "The account could not be created.");
+    const user = authenticatedCustomer(customerAccountFromRow(account));
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user);
+  }
+
+  if (request.method === "POST" && path === "auth/login") {
+    const body = await parseBody(request);
+    const email = normalizeCustomerEmail(body.email);
+    const password = text(body.password, 200);
+    const account = await findCustomerByEmail(env, email);
+    if (!account || !(await verifyCustomerPassword(password, text(account.passwordSalt, 200), text(account.passwordHash, 300)))) {
+      throw new HttpError(401, "The email or password is incorrect.");
+    }
+    await env.DB.prepare("UPDATE customer_accounts SET last_login_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1").bind(account.id).run();
+    const refreshed = await findCustomerById(env, text(account.id, 120));
+    const user = authenticatedCustomer(customerAccountFromRow(refreshed || account));
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user);
+  }
+
+  if (request.method === "POST" && path === "auth/logout") {
+    return clearCustomerSessionCookie(json(request, env, { ok: true }));
+  }
+
+  if (request.method === "POST" && path === "auth/forgot-password") {
+    const body = await parseBody(request);
+    const email = normalizeCustomerEmail(body.email);
+    const account = await findCustomerByEmail(env, email);
+    if (account) {
+      const token = base64UrlFromBytes(crypto.getRandomValues(new Uint8Array(32)));
+      const tokenHash = await signValue(token, customerSessionSecret(env));
+      await env.DB.prepare("UPDATE customer_accounts SET reset_token_hash = ?1, reset_expires_at = datetime('now', '+1 hour'), updated_at = datetime('now') WHERE id = ?2").bind(tokenHash, account.id).run();
+      const origin = (() => { try { return new URL(firstUrlValue(env.SITE_URL) || request.url).origin; } catch { return new URL(request.url).origin; } })();
+      const resetUrl = new URL("/account.html", origin);
+      resetUrl.searchParams.set("reset", token);
+      resetUrl.searchParams.set("email", email);
+      try {
+        await sendEmail(env, {
+          to: email,
+          subject: "Reset your JPP reader account password",
+          text: "Use this link within one hour to choose a new password: " + resetUrl.toString(),
+          html: "<p>Use the link below within one hour to choose a new password:</p><p><a href="" + escapeHtml(resetUrl.toString()) + "">Reset your password</a></p>",
+          replyTo: env.ADMIN_NOTIFICATION_EMAIL,
+          fromName: "Jackrabbit Punkin Publishing",
+          idempotencyKey: "customer-password-reset-" + text(account.id, 120) + "-" + Math.floor(Date.now() / 3600000),
+        });
+      } catch (error) {
+        console.warn(JSON.stringify({ type: "customer_password_reset_email_failed", error: getErrorMessage(error) }));
+      }
+    }
+    return json(request, env, { ok: true, message: "If an account exists for that email, a password reset link is on its way." });
+  }
+
+  if (request.method === "POST" && path === "auth/reset-password") {
+    const body = await parseBody(request);
+    const email = normalizeCustomerEmail(body.email);
+    const token = text(body.token, 500);
+    const password = customerPassword(body.password);
+    const account = await findCustomerByEmail(env, email);
+    const expiry = text(account?.resetExpiresAt, 80);
+    if (!account || !token || !expiry || new Date(expiry).getTime() <= Date.now()) throw new HttpError(400, "That password reset link is invalid or expired.");
+    const tokenHash = await signValue(token, customerSessionSecret(env));
+    if (!constantTimeEqual(tokenHash, text(account.resetTokenHash, 300))) throw new HttpError(400, "That password reset link is invalid or expired.");
+    const passwordData = await deriveCustomerPassword(password);
+    await env.DB.prepare("UPDATE customer_accounts SET password_salt = ?1, password_hash = ?2, reset_token_hash = '', reset_expires_at = '', updated_at = datetime('now'), last_login_at = datetime('now') WHERE id = ?3")
+      .bind(passwordData.salt, passwordData.hash, account.id).run();
+    const refreshed = await findCustomerById(env, text(account.id, 120));
+    const user = authenticatedCustomer(customerAccountFromRow(refreshed || account));
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user);
+  }
+
+  if (request.method === "GET" && path === "profile") {
+    const user = await requireCustomerSession(request, env);
+    return json(request, env, { ok: true, user });
+  }
+
+  if (request.method === "PUT" && path === "profile") {
+    const user = await requireCustomerSession(request, env);
+    const body = await parseBody(request);
+    const email = normalizeCustomerEmail(body.email);
+    const displayName = text(body.displayName, 200);
+    const shippingAddress = text(body.shippingAddress, 2000);
+    const current = await findCustomerById(env, user.id);
+    if (!current) throw new HttpError(404, "Account not found.");
+    if (email !== user.email) {
+      const existing = await findCustomerByEmail(env, email);
+      if (existing && text(existing.id, 120) !== user.id) throw new HttpError(409, "That email is already in use.");
+    }
+    await env.DB.prepare("UPDATE customer_accounts SET email = ?1, display_name = ?2, shipping_address = ?3, updated_at = datetime('now') WHERE id = ?4")
+      .bind(email, displayName, shippingAddress, user.id).run();
+    const newPassword = text(body.newPassword, 200);
+    if (newPassword) {
+      const currentPassword = text(body.currentPassword, 200);
+      if (!currentPassword || !(await verifyCustomerPassword(currentPassword, text(current.passwordSalt, 200), text(current.passwordHash, 300)))) {
+        throw new HttpError(400, "Enter your current password to set a new password.");
+      }
+      const passwordData = await deriveCustomerPassword(customerPassword(newPassword));
+      await env.DB.prepare("UPDATE customer_accounts SET password_salt = ?1, password_hash = ?2, updated_at = datetime('now') WHERE id = ?3")
+        .bind(passwordData.salt, passwordData.hash, user.id).run();
+    }
+    const refreshed = await findCustomerById(env, user.id);
+    const updatedUser = authenticatedCustomer(customerAccountFromRow(refreshed || current));
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user: updatedUser }), env, updatedUser);
+  }
+
+  if (request.method === "GET" && path === "purchases") {
+    const user = await requireCustomerSession(request, env);
+    const orders = await env.DB.prepare("SELECT order_number AS orderNumber, created_at AS createdAt, customer_email AS customerEmail, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress FROM orders WHERE customer_id = ?1 OR (customer_id = '' AND lower(customer_email) = ?2) ORDER BY created_at DESC LIMIT 100")
+      .bind(user.id, user.email).all<Record<string, unknown>>();
+    const purchases = [];
+    for (const order of orders.results || []) {
+      const items = await env.DB.prepare("SELECT book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number = ?1 ORDER BY id ASC")
+        .bind(order.orderNumber).all<Record<string, unknown>>();
+      purchases.push({ ...order, items: items.results || [] });
+    }
+    return json(request, env, { ok: true, purchases });
+  }
+
+  if (request.method === "GET" && path === "resources") {
+    const access = await requireCustomerOrAdmin(request, env);
+    return json(request, env, { ok: true, access: access.admin ? "admin" : "customer", resources: await buildCustomerResourceList(request, env) });
+  }
+
+  const downloadMatch = path.match(/^resources\/([^/]+)\/download$/);
+  if (request.method === "GET" && downloadMatch) {
+    await requireCustomerOrAdmin(request, env);
+    const resource = customerResourceBySlug(downloadMatch[1]);
+    if (!resource) throw new HttpError(404, "Resource not found.");
+    const assetUrl = new URL(resource.assetPath, request.url);
+    const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), { method: "GET" }));
+    if (!assetResponse.ok) throw new HttpError(404, "This resource is not available yet.");
+    const headers = new Headers(assetResponse.headers);
+    headers.set("Content-Disposition", "attachment; filename="" + resource.slug + ".pdf"");
+    headers.set("Cache-Control", "private, no-store");
+    return new Response(assetResponse.body, { status: 200, headers });
+  }
+
+  return json(request, env, { ok: false, error: "Not found." }, 404);
+}
+
 async function sendEmail(
   env: Env,
   message: {
