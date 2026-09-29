@@ -3222,7 +3222,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
           to: email,
           subject: "Reset your JPP reader account password",
           text: "Use this link within one hour to choose a new password: " + resetUrl.toString(),
-          html: "<p>Use the link below within one hour to choose a new password:</p><p><a href="" + escapeHtml(resetUrl.toString()) + "">Reset your password</a></p>",
+          html: '<p>Use the link below within one hour to choose a new password:</p><p><a href="' + escapeHtml(resetUrl.toString()) + '">Reset your password</a></p>',
           replyTo: env.ADMIN_NOTIFICATION_EMAIL,
           fromName: "Jackrabbit Punkin Publishing",
           idempotencyKey: "customer-password-reset-" + text(account.id, 120) + "-" + Math.floor(Date.now() / 3600000),
@@ -3313,7 +3313,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
     const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), { method: "GET" }));
     if (!assetResponse.ok) throw new HttpError(404, "This resource is not available yet.");
     const headers = new Headers(assetResponse.headers);
-    headers.set("Content-Disposition", "attachment; filename="" + resource.slug + ".pdf"");
+    headers.set("Content-Disposition", 'attachment; filename="' + resource.slug + '.pdf"');
     headers.set("Cache-Control", "private, no-store");
     return new Response(assetResponse.body, { status: 200, headers });
   }
