@@ -78,6 +78,21 @@ export interface Env {
   MAIL_FROM_EMAIL: string;
   ADMIN_NOTIFICATION_EMAIL: string;
   TURNSTILE_SECRET_KEY: string;
+  CUSTOMER_SESSION_SECRET?: string;
+}
+
+export interface CustomerAccount {
+  id: string;
+  email: string;
+  displayName: string;
+  shippingAddress: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string;
+}
+
+export interface AuthenticatedCustomer extends CustomerAccount {
+  tokenSubject: string;
 }
 
 export type FormType =
