@@ -384,7 +384,9 @@ function initCustomerAccount() {
         panelMarkup(root);
         return;
       }
-      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Signed in</p><h3>" + (currentUser.displayName || "Reader") + "</h3><p>" + currentUser.email + "</p><a class=\"button ink\" href=\"account.html\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Sign out</button></div>";
+      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Signed in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class=\"button ink\" href=\"account.html\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Sign out</button></div>";
+      root.querySelector("[data-account-user-name]").textContent = currentUser.displayName || "Reader";
+      root.querySelector("[data-account-user-email]").textContent = currentUser.email;
       root.querySelector("[data-account-logout]")?.addEventListener("click", async () => {
         await fetch(resolvePublicApiBase() + "/api/customer/auth/logout", { method: "POST", credentials: "include" });
         currentUser = null;
