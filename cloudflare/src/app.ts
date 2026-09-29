@@ -249,6 +249,13 @@ const app: AppHandler = {
         return await handleCompatibilityRoot(request, env, url);
       }
 
+      if (request.method === "GET" && url.pathname === "/resources.html") {
+        if (!(await canAccessCustomerResources(request, env))) {
+          const blockedUrl = new URL("/resources-blocked.html", request.url);
+          return await env.ASSETS.fetch(new Request(blockedUrl.toString(), request));
+        }
+      }
+
       return await env.ASSETS.fetch(request);
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
@@ -3093,6 +3100,21 @@ function clearCustomerSessionCookie(response: Response) {
   const headers = new Headers(response.headers);
   headers.append("Set-Cookie", CUSTOMER_SESSION_COOKIE + "=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax");
   return new Response(response.body, { status: response.status, headers });
+}
+
+async function canAccessCustomerResources(request: Request, env: Env): Promise<boolean> {
+  try {
+    if (await getOptionalCustomerSession(request, env)) return true;
+  } catch {
+    // Fall through to the admin session check. A missing or unavailable
+    // customer table must never expose the protected resource route.
+  }
+  try {
+    await authorizeAdmin(request, env);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function getOptionalCustomerSession(request: Request, env: Env): Promise<AuthenticatedCustomer | null> {
