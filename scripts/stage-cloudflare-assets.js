@@ -7,6 +7,7 @@ const targetDir = path.join(rootDir, 'cloudflare', 'public');
 const staticEntries = [
   '.nojekyll',
   'about.html',
+  'account.html',
   'book-club.html',
   'books.html',
   'contact.html',
@@ -16,6 +17,8 @@ const staticEntries = [
   'policies.html',
   'read-it-forward.html',
   'recognition.html',
+  'resources.html',
+  'resources-blocked.html',
   'speaking.html',
   'robots.txt',
   'sitemap.xml',
