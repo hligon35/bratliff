@@ -136,7 +136,15 @@
         const card = document.createElement("article");
         card.className = "purchase-card";
         const date = purchase.createdAt ? new Date(purchase.createdAt).toLocaleDateString() : "Date unavailable";
-        card.innerHTML = "<header><strong>Order " + purchase.orderNumber + "</strong><span>" + date + "</span></header><p>Status: " + purchase.paymentStatus + " · Total: $" + Number(purchase.total || 0).toFixed(2) + "</p>";
+        const cardHeader = document.createElement("header");
+        const orderLabel = document.createElement("strong");
+        orderLabel.textContent = "Order " + String(purchase.orderNumber || "");
+        const dateLabel = document.createElement("span");
+        dateLabel.textContent = date;
+        cardHeader.append(orderLabel, dateLabel);
+        const summary = document.createElement("p");
+        summary.textContent = "Status: " + String(purchase.paymentStatus || "Pending") + " · Total: $" + Number(purchase.total || 0).toFixed(2);
+        card.append(cardHeader, summary);
         const items = document.createElement("ul");
         (purchase.items || []).forEach((item) => {
           const li = document.createElement("li");
@@ -147,7 +155,11 @@
         list.appendChild(card);
       });
     } catch (error) {
-      list.innerHTML = "<p class=\"account-form-message error\">" + (error.message || "Purchases could not be loaded.") + "</p>";
+      list.replaceChildren();
+      const errorMessage = document.createElement("p");
+      errorMessage.className = "account-form-message error";
+      errorMessage.textContent = error.message || "Purchases could not be loaded.";
+      list.appendChild(errorMessage);
     }
   }
 
