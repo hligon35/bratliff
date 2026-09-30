@@ -1637,23 +1637,23 @@ async function authorizeAdmin(request: Request, env: Env): Promise<Authenticated
 
 async function ensureBootstrapAdmins(env: Env) {
   const ownerEmails = splitEmails(env.ADMIN_BOOTSTRAP_EMAILS);
-  let ownerNames: Record<string, string> = {};
-  if (env.ADMIN_OWNER_NAMES) {
-    try { ownerNames = JSON.parse(env.ADMIN_OWNER_NAMES); }
-    catch { throw new HttpError(503, "Admin owner names configuration is invalid."); }
-    if (!ownerNames || typeof ownerNames !== "object" || Array.isArray(ownerNames)) {
-      throw new HttpError(503, "Admin owner names configuration is invalid.");
+  let bootstrapNames: Record<string, string> = {};
+  if (env.ADMIN_BOOTSTRAP_NAMES) {
+    try { bootstrapNames = JSON.parse(env.ADMIN_BOOTSTRAP_NAMES); }
+    catch { throw new HttpError(503, "Admin names configuration is invalid."); }
+    if (!bootstrapNames || typeof bootstrapNames !== "object" || Array.isArray(bootstrapNames)) {
+      throw new HttpError(503, "Admin names configuration is invalid.");
     }
   }
   for (const email of ownerEmails) {
-    const name = typeof ownerNames[email] === "string" ? text(ownerNames[email], 200) : "";
+    const name = typeof bootstrapNames[email] === "string" ? text(bootstrapNames[email], 200) : "";
     await env.DB.prepare(
       `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
        VALUES (?1, 'owner', ?2, ?2, datetime('now'), datetime('now'))
        ON CONFLICT(email) DO UPDATE SET
          role = 'owner',
-         display_name = CASE WHEN admins.display_name = '' THEN excluded.display_name ELSE admins.display_name END,
-         full_name = CASE WHEN coalesce(admins.full_name, '') = '' THEN excluded.full_name ELSE admins.full_name END,
+         display_name = CASE WHEN coalesce(admins.display_name, '') = '' OR lower(admins.display_name) = lower(admins.email) THEN excluded.display_name ELSE admins.display_name END,
+         full_name = CASE WHEN coalesce(admins.full_name, '') = '' OR lower(admins.full_name) = lower(admins.email) THEN excluded.full_name ELSE admins.full_name END,
          updated_at = datetime('now')`,
     )
       .bind(email, name)
@@ -1663,11 +1663,16 @@ async function ensureBootstrapAdmins(env: Env) {
   // Owner bootstrap entries take precedence if an email is listed in both.
   for (const email of splitEmails(env.ADMIN_DEVELOPER_EMAILS || "")) {
     if (ownerEmails.includes(email)) continue;
+    const name = typeof bootstrapNames[email] === "string" ? text(bootstrapNames[email], 200) : "";
     await env.DB.prepare(
-      `INSERT INTO admins (email, role, display_name, created_at, updated_at)
-       VALUES (?1, 'developer', '', datetime('now'), datetime('now'))
-       ON CONFLICT(email) DO UPDATE SET role = 'developer', updated_at = datetime('now')`,
-    ).bind(email).run();
+      `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
+       VALUES (?1, 'developer', ?2, ?2, datetime('now'), datetime('now'))
+       ON CONFLICT(email) DO UPDATE SET
+         role = 'developer',
+         display_name = CASE WHEN coalesce(admins.display_name, '') = '' OR lower(admins.display_name) = lower(admins.email) THEN excluded.display_name ELSE admins.display_name END,
+         full_name = CASE WHEN coalesce(admins.full_name, '') = '' OR lower(admins.full_name) = lower(admins.email) THEN excluded.full_name ELSE admins.full_name END,
+         updated_at = datetime('now')`,
+    ).bind(email, name).run();
   }
 }
 
