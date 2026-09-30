@@ -80,7 +80,7 @@
     "SQUARE_API_VERSION": "2024-10-17",
     "SQUARE_ENVIRONMENT": "production",
     "ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
-    "ADMIN_OWNER_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\"}"
+    "ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}"
   },
   "secrets": {
     "required": [
@@ -149,7 +149,7 @@
         "SQUARE_API_VERSION": "2024-10-17",
         "SQUARE_ENVIRONMENT": "sandbox",
         "ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
-        "ADMIN_OWNER_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\"}"
+        "ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}"
       },
       "secrets": {
         "required": [
