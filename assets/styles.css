@@ -2777,3 +2777,13 @@ body.document-viewer-open {
 .account-status:hover { color: var(--purple); }
 .account-trigger .jrpp-public-icon { font-size: 22px; }
 .mobile-login-link { overflow-wrap: anywhere; }
+
+/* Signed-in controls live inside the profile menu. */
+.site-account { margin-left: auto; }
+.site-account.is-authenticated > .account-trigger { width: 42px; height: 42px; padding: 0; justify-content: center; }
+.site-account.is-authenticated [data-account-trigger-label] { display: none; }
+.account-panel-user .account-signout { display: block; margin-top: .75rem; }
+@media (max-width: 900px) {
+  .site-account.is-authenticated { display: flex; }
+  .mobile-login-link[hidden] { display: none; }
+}
