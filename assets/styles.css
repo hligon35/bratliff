@@ -2752,3 +2752,13 @@ body.document-viewer-open {
 .footer-signup .newsletter-note { margin: 0; }
 .footer-signup .button { padding: .75rem 1rem; }
 @media (max-width: 420px) { .newsletter-names { grid-template-columns: 1fr; } }
+
+/* Admin navigation appears only after the server verifies an admin session. */
+.site-account { display: flex; align-items: center; gap: .5rem; }
+.header-admin-link { text-decoration: none; }
+[data-admin-session-link][hidden] { display: none !important; }
+.mobile-admin-link { display: none; }
+@media (max-width: 900px) {
+  .site-account { display: none; }
+  .mobile-admin-link:not([hidden]) { display: block; }
+}
