@@ -48,6 +48,7 @@
               Manage the three admin roles and access levels.
             </p>
           </div>
+          <button class="btn alt icon-only" type="button" id="openAdminFormBtn" data-icon="add" aria-label="Add or update admin" title="Add or update admin" hidden></button>
         </header>
         <div class="dashboard-accent"></div>
         <div class="dashboard-body">
@@ -59,10 +60,14 @@
               </div>
               <div class="panel-body table-wrap" id="adminList"></div>
             </section>
-            <section class="panel">
-              <div class="panel-head"><h2>Add or Update Admin</h2></div>
-              <div class="panel-body">
-                <form id="adminForm">
+
+          </div>
+        </div>
+      </section>
+    </div>
+    <dialog id="adminFormDialog" class="admin-access-dialog" aria-labelledby="adminFormDialogTitle">
+      <div class="admin-dialog-header"><h2 id="adminFormDialogTitle">Add or Update Admin</h2><button class="btn alt icon-only" type="button" id="closeAdminFormBtn" data-icon="close" aria-label="Close admin form" title="Close"></button></div>
+      <form id="adminForm">
                   <div class="form-grid">
                     <div class="field full">
                       <label>Email</label><input name="email" type="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]{2,}" title="Enter a valid email address (e.g. name@example.com)" required />
@@ -84,11 +89,6 @@
                   </div>
                   <div class="status" id="adminStatus"></div>
                 </form>
-              </div>
-            </section>
-          </div>
-        </div>
-      </section>
-    </div>
+    </dialog>
   </body>
 </html>
