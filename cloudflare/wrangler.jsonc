@@ -64,7 +64,7 @@
     }
   ],
   "vars": {
-    "ADMIN_BOOTSTRAP_EMAILS": "barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
+    "ADMIN_BOOTSTRAP_EMAILS": "barbarajratliff@hotmail.com, barbarajratliff67@gmail.com, jacrat2016@gmail.com, cratliff44@gmail.com",
     "ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
     "CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
     "CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
@@ -79,7 +79,8 @@
     "SPONSOR_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/read-it-forward.html",
     "SQUARE_API_VERSION": "2024-10-17",
     "SQUARE_ENVIRONMENT": "production",
-    "ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com"
+    "ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
+    "ADMIN_OWNER_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\"}"
   },
   "secrets": {
     "required": [
@@ -131,7 +132,7 @@
         }
       ],
       "vars": {
-        "ADMIN_BOOTSTRAP_EMAILS": "barbarajratliff@hotmail.com, barbarajratliff67@gmail.com",
+        "ADMIN_BOOTSTRAP_EMAILS": "barbarajratliff@hotmail.com, barbarajratliff67@gmail.com, jacrat2016@gmail.com, cratliff44@gmail.com",
         "ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
         "CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
         "CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
@@ -147,7 +148,8 @@
         "SPONSOR_SUCCESS_URL": "https://jrpp.alphazonelabs.com/read-it-forward.html",
         "SQUARE_API_VERSION": "2024-10-17",
         "SQUARE_ENVIRONMENT": "sandbox",
-        "ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com"
+        "ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
+        "ADMIN_OWNER_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\"}"
       },
       "secrets": {
         "required": [
