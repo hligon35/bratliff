@@ -2762,3 +2762,10 @@ body.document-viewer-open {
   .site-account { display: none; }
   .mobile-admin-link:not([hidden]) { display: block; }
 }
+
+/* Keep subscriber field labels readable on the dark footer. */
+.site-footer .footer-signup label {
+  color: var(--white);
+  font-size: .875rem;
+  font-weight: 700;
+}
