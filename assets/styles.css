@@ -2769,3 +2769,11 @@ body.document-viewer-open {
   font-size: .875rem;
   font-weight: 700;
 }
+
+.account-status { display: grid; gap: .1rem; max-width: 150px; padding: .35rem .5rem; border: 0; background: transparent; color: var(--navy); text-align: left; cursor: pointer; }
+.account-status small { font-size: .65rem; line-height: 1.3; }
+.account-status strong { font-size: .8rem; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-status[hidden] { display: none; }
+.account-status:hover { color: var(--purple); }
+.account-trigger .jrpp-public-icon { font-size: 22px; }
+.mobile-login-link { overflow-wrap: anywhere; }
