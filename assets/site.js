@@ -229,6 +229,7 @@ function footer() {
       .map(([label, href]) => `<a href="${href}">${label}</a>`)
       .join("")}</div></div>
     <div><h3>Policies</h3><div class="footer-links"><a href="policies.html#privacy">Privacy Policy</a><a href="policies.html#terms">Terms & Conditions</a><a href="policies.html#refund">Refund Policy</a><a href="policies.html#shipping">Shipping Policy</a><a href="policies.html#accessibility">Accessibility</a><a href="policies.html#copyright">Copyright</a></div></div>
+    <div class="footer-signup"><h3>Stay Connected</h3><p>Get news about books, author events, and Read It Forward.</p><form data-form-type="newsletter" data-success-message="Thank you for subscribing."><div class="newsletter-names"><label>First name<input type="text" name="firstName" autocomplete="given-name" maxlength="100" required></label><label>Last name<input type="text" name="lastName" autocomplete="family-name" maxlength="100" required></label></div><label>Email address<input type="email" name="email" autocomplete="email" required></label><input type="hidden" name="consent" value="true"><div class="cf-turnstile" data-action="turnstile-spin-v1"></div><button class="button" type="submit">Subscribe</button><p class="newsletter-note">Unsubscribe at any time.</p><div class="form-message" role="status"></div></form></div>
   </div><div class="container footer-bottom"><span>© 2026 Jackrabbit Punkin Publishing LLC. All rights reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
 }
 
@@ -628,6 +629,13 @@ function renderTurnstileWidgets() {
 }
 
 window.onloadTurnstileCallback = renderTurnstileWidgets;
+if (document.querySelector(".footer-signup") && !document.querySelector('script[src*="challenges.cloudflare.com/turnstile/"]')) {
+  const turnstileScript = document.createElement("script");
+  turnstileScript.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+  turnstileScript.async = true;
+  turnstileScript.onload = renderTurnstileWidgets;
+  document.head.appendChild(turnstileScript);
+}
 if (document.readyState !== "loading") renderTurnstileWidgets();
 else document.addEventListener("DOMContentLoaded", renderTurnstileWidgets);
 
