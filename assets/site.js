@@ -182,8 +182,8 @@ function header() {
   return "<a class=\"skip-link\" href=\"#main\">Skip to content</a><header class=\"site-header\"><div class=\"container nav-wrap\">" +
     "<a class=\"brand\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\"><span class=\"brand-mark\" aria-hidden=\"true\"><span>JP</span></span><span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
     "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\">☰</button>" +
-    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Sign in</a></nav>" +
-    "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"3.5\"></circle><path d=\"M4.5 20c.8-3.4 3.4-5.2 7.5-5.2s6.7 1.8 7.5 5.2\"></path></svg><span data-account-trigger-label>Sign in</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
+    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Sign in</a><a href=\"/admin/\" class=\"mobile-admin-link\" data-admin-session-link hidden>Admin</a></nav>" +
+    "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"3.5\"></circle><path d=\"M4.5 20c.8-3.4 3.4-5.2 7.5-5.2s6.7 1.8 7.5 5.2\"></path></svg><span data-account-trigger-label>Sign in</span></button><a class=\"account-trigger header-admin-link\" href=\"/admin/\" data-admin-session-link hidden>Admin</a><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
     "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\">×</button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
     "</div></header>";
 }
@@ -471,6 +471,37 @@ menu?.addEventListener("click", () => {
 });
 
 initCustomerAccount();
+
+function initHeaderAdminLink() {
+  const links = [...document.querySelectorAll("[data-admin-session-link]")];
+  if (!links.length) return;
+  let pending = false;
+  async function refreshAdminSession() {
+    if (pending) return;
+    pending = true;
+    try {
+      const response = await fetch(resolvePublicApiBase() + "/api/auth/session", {
+        credentials: "include",
+        cache: "no-store",
+        redirect: "error",
+      });
+      const data = response.ok ? await response.json() : null;
+      const active = Boolean(response.ok && data?.ok && data.viewer?.email);
+      links.forEach((link) => { link.hidden = !active; });
+    } catch {
+      links.forEach((link) => { link.hidden = true; });
+    } finally {
+      pending = false;
+    }
+  }
+  refreshAdminSession();
+  window.addEventListener("pageshow", refreshAdminSession);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshAdminSession();
+  });
+}
+initHeaderAdminLink();
+
 
 function setFormMessage(form, message, isError) {
   const panel = form.querySelector(".form-message");
