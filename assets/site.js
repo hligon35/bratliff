@@ -182,8 +182,8 @@ function header() {
   return "<a class=\"skip-link\" href=\"#main\">Skip to content</a><header class=\"site-header\"><div class=\"container nav-wrap\">" +
     "<a class=\"brand\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\"><span class=\"brand-mark\" aria-hidden=\"true\"><span>JP</span></span><span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
     "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\">☰</button>" +
-    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Login</a><a href=\"/admin/\" class=\"mobile-admin-link\" data-admin-session-link hidden>Admin</a></nav>" +
-    "<div class=\"site-account\" data-account-shell><button class=\"account-status\" type=\"button\" data-admin-status hidden aria-controls=\"account-popover\" aria-expanded=\"false\"><small>Logged in as</small><strong data-admin-status-name></strong></button><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><span class=\"jrpp-public-icon\" data-account-trigger-icon aria-hidden=\"true\">person</span><span data-account-trigger-label>Login</span></button><a class=\"account-trigger header-admin-link\" href=\"/admin/\" data-admin-session-link hidden>Admin</a><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
+    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Login</a></nav>" +
+    "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><span class=\"jrpp-public-icon\" data-account-trigger-icon aria-hidden=\"true\">person</span><span data-account-trigger-label>Login</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
     "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\">×</button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
     "</div></header>";
 }
@@ -383,19 +383,22 @@ function initCustomerAccount() {
   }
 
   function renderState() {
-    triggerLabel.textContent = currentAdmin ? "Logout" : currentUser ? (currentUser.displayName || "Profile") : "Login";
-    if (triggerIcon) triggerIcon.textContent = currentAdmin ? "logout" : "person";
+    shell.classList.toggle("is-authenticated", Boolean(currentAdmin || currentUser));
+    triggerLabel.textContent = currentAdmin || currentUser ? "Profile" : "Login";
+    overlay.querySelector("#account-overlay-title").textContent = currentAdmin ? "Admin account" : "Reader account";
+    if (triggerIcon) triggerIcon.textContent = "person";
     if (adminStatus) adminStatus.hidden = !currentAdmin;
     if (adminName) adminName.textContent = currentAdmin ? (currentAdmin.displayName || currentAdmin.name || currentAdmin.email) : "";
     document.querySelectorAll("[data-admin-session-link]").forEach((link) => { link.hidden = !currentAdmin; });
-    trigger.setAttribute("aria-label", currentAdmin ? "Logout of admin" : currentUser ? "Open your profile" : "Open reader login");
+    trigger.setAttribute("aria-label", currentAdmin || currentUser ? "Open profile menu" : "Open reader login");
     if (mobileLink) {
-      mobileLink.textContent = currentAdmin ? "Logout (" + (currentAdmin.displayName || currentAdmin.name || currentAdmin.email) + ")" : currentUser ? "Profile" : "Login";
+      mobileLink.textContent = currentAdmin || currentUser ? "Profile" : "Login";
+      mobileLink.hidden = Boolean(currentAdmin || currentUser);
       mobileLink.href = currentUser ? "account.html" : "#";
     }
     document.querySelectorAll("[data-account-panel]").forEach((root) => {
       if (currentAdmin) {
-        root.innerHTML = '<div class="account-panel account-panel-user"><p class="account-panel-kicker">Admin logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class="button ink" href="/admin/">Open admin</a><button class="account-signout" type="button" data-admin-logout>Logout</button></div>';
+        root.innerHTML = '<div class="account-panel account-panel-user"><p class="account-panel-kicker">Admin logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class="button ink" href="/admin/">Admin</a><button class="account-signout" type="button" data-admin-logout>Logout</button></div>';
         root.querySelector("[data-account-user-name]").textContent = currentAdmin.displayName || currentAdmin.name || currentAdmin.email;
         root.querySelector("[data-account-user-email]").textContent = currentAdmin.email;
         root.querySelector("[data-admin-logout]").addEventListener("click", logoutAdmin);
@@ -405,7 +408,7 @@ function initCustomerAccount() {
         panelMarkup(root);
         return;
       }
-      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Signed in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class=\"button ink\" href=\"account.html\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Sign out</button></div>";
+      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class=\"button ink\" href=\"account.html\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Logout</button></div>";
       root.querySelector("[data-account-user-name]").textContent = currentUser.displayName || "Reader";
       root.querySelector("[data-account-user-email]").textContent = currentUser.email;
       root.querySelector("[data-account-logout]")?.addEventListener("click", async () => {
@@ -434,7 +437,7 @@ function initCustomerAccount() {
   function openOverlay() {
     overlay.hidden = false;
     document.body.classList.add("account-overlay-open");
-    overlay.querySelector("input")?.focus();
+    overlay.querySelector("input, a, button")?.focus();
   }
 
   function closeOverlay() {
@@ -468,9 +471,8 @@ function initCustomerAccount() {
   }
 
   trigger.addEventListener("click", () => {
-    if (currentAdmin) { logoutAdmin(); return; }
-    if (currentUser) {
-      window.location.href = "account.html";
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      if (overlay.hidden) openOverlay(); else closeAll();
       return;
     }
     if (popover.hidden) openDesktop(); else closeAll();
@@ -479,9 +481,7 @@ function initCustomerAccount() {
     event.preventDefault();
     nav?.classList.remove("open");
     menu?.setAttribute("aria-expanded", "false");
-    if (currentAdmin) logoutAdmin();
-    else if (currentUser) window.location.href = "account.html";
-    else openOverlay();
+    openOverlay();
   });
   overlay.querySelector("[data-account-close]")?.addEventListener("click", closeOverlay);
   overlay.addEventListener("click", (event) => { if (event.target === overlay) closeOverlay(); });
