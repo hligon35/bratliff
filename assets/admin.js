@@ -733,6 +733,8 @@
     const form = qs("#adminForm");
     const canDelete = Boolean(state.viewer && state.viewer.role === "owner");
     if (form) form.hidden = !canDelete;
+    const addButton = qs("#openAdminFormBtn");
+    if (addButton) addButton.hidden = !canDelete;
     const root = qs("#adminList");
     if (!root) return;
     root.innerHTML = selectableTableMarkup(
@@ -1734,6 +1736,7 @@
       form.reset();
       await loadAdmins();
       setStatus("#adminStatus", "Admin saved.", true);
+      qs("#adminFormDialog")?.close();
     } catch (error) {
       setStatus("#adminStatus", error.message || "Admin could not be saved.", false);
     }
@@ -2624,6 +2627,16 @@
   qs("#bookForm")?.addEventListener("submit", saveBook);
   qs("#orderForm")?.addEventListener("submit", updateOrder);
   qs("#inventoryForm")?.addEventListener("submit", adjustInventory);
+  qs("#openAdminFormBtn")?.addEventListener("click", function () {
+    if (!state.viewer || state.viewer.role !== "owner") return;
+    qs("#adminFormDialog")?.showModal();
+  });
+  qs("#closeAdminFormBtn")?.addEventListener("click", function () { qs("#adminFormDialog")?.close(); });
+  qs("#adminFormDialog")?.addEventListener("click", function (event) {
+    if (event.target !== event.currentTarget) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.currentTarget.close();
+  });
   qs("#adminForm")?.addEventListener("submit", saveAdmin);
   qs("#settingsForm")?.addEventListener("submit", saveSettings);
    qs("#publishSponsorBtn")?.addEventListener("click", publishCurrentSponsor);
