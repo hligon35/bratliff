@@ -658,7 +658,7 @@ async function handleFormSubmission(
 
 function normalizeFormRecord(payload: Record<string, string>) {
   return {
-    name: cleanInput(payload.name, 250),
+    name: cleanInput(payload.name, 250) || [cleanInput(payload.firstName, 100), cleanInput(payload.lastName, 100)].filter(Boolean).join(" "),
     email: cleanInput(payload.email, 320),
     phone: cleanInput(payload.phone, 80),
     subject: cleanInput(payload.subject, 200),
