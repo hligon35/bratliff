@@ -1636,7 +1636,8 @@ async function authorizeAdmin(request: Request, env: Env): Promise<Authenticated
 }
 
 async function ensureBootstrapAdmins(env: Env) {
-  for (const email of splitEmails(env.ADMIN_BOOTSTRAP_EMAILS)) {
+  const ownerEmails = splitEmails(env.ADMIN_BOOTSTRAP_EMAILS);
+  for (const email of ownerEmails) {
     await env.DB.prepare(
       `INSERT INTO admins (email, role, display_name, created_at, updated_at)
        VALUES (?1, 'owner', '', datetime('now'), datetime('now'))
@@ -1644,6 +1645,16 @@ async function ensureBootstrapAdmins(env: Env) {
     )
       .bind(email)
       .run();
+  }
+  // Configured developers are reconciled on login, including existing accounts.
+  // Owner bootstrap entries take precedence if an email is listed in both.
+  for (const email of splitEmails(env.ADMIN_DEVELOPER_EMAILS || "")) {
+    if (ownerEmails.includes(email)) continue;
+    await env.DB.prepare(
+      `INSERT INTO admins (email, role, display_name, created_at, updated_at)
+       VALUES (?1, 'developer', '', datetime('now'), datetime('now'))
+       ON CONFLICT(email) DO UPDATE SET role = 'developer', updated_at = datetime('now')`,
+    ).bind(email).run();
   }
 }
 
