@@ -738,20 +738,29 @@
     root.innerHTML = selectableTableMarkup(
       "admins",
       [
+        { label: "Name", render: function (row) { return escapeHtml(row.name || row.displayName || "—"); } },
         { label: "Email", key: "email" },
         { label: "Role", render: function (row) { return '<span class="badge">' + escapeHtml(row.role || "") + "</span>"; } },
         { label: "Display Name", key: "displayName" },
+        { label: "Access", render: function (row) {
+          const access = {
+            owner: "Full admin access; manages permissions",
+            developer: "Admin tools, analytics and logs; cannot change permissions",
+            manager: "Admin tools; no analytics, logs or access management",
+          };
+          return escapeHtml(access[row.role] || "Unknown role");
+        } },
         {
-          label: "",
+          label: "Actions",
           render: function (row) {
             return canDelete
               ? '<button class="btn alt icon-only" type="button" data-remove-admin="' + escapeHtml(row.email) + '" data-icon="delete" aria-label="Remove admin access for ' + escapeHtml(row.email) + '" title="Remove admin access for ' + escapeHtml(row.email) + '"></button>'
-              : "<span class=\"asset-note\">View only</span>";
+              : '<span class="asset-note" title="Only owners can change admin access" aria-label="Only owners can change admin access">—</span>';
           },
         },
       ],
       state.admins,
-      "Only owners can view and manage the admin allow list.",
+      "No admin users found.",
       function (row) { return row.email; },
       function (row) { return row.email; },
       "admins",
