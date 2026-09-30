@@ -182,8 +182,8 @@ function header() {
   return "<a class=\"skip-link\" href=\"#main\">Skip to content</a><header class=\"site-header\"><div class=\"container nav-wrap\">" +
     "<a class=\"brand\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\"><span class=\"brand-mark\" aria-hidden=\"true\"><span>JP</span></span><span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
     "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\">☰</button>" +
-    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Sign in</a><a href=\"/admin/\" class=\"mobile-admin-link\" data-admin-session-link hidden>Admin</a></nav>" +
-    "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"8\" r=\"3.5\"></circle><path d=\"M4.5 20c.8-3.4 3.4-5.2 7.5-5.2s6.7 1.8 7.5 5.2\"></path></svg><span data-account-trigger-label>Sign in</span></button><a class=\"account-trigger header-admin-link\" href=\"/admin/\" data-admin-session-link hidden>Admin</a><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
+    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Login</a><a href=\"/admin/\" class=\"mobile-admin-link\" data-admin-session-link hidden>Admin</a></nav>" +
+    "<div class=\"site-account\" data-account-shell><button class=\"account-status\" type=\"button\" data-admin-status hidden aria-controls=\"account-popover\" aria-expanded=\"false\"><small>Logged in as</small><strong data-admin-status-name></strong></button><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><span class=\"jrpp-public-icon\" data-account-trigger-icon aria-hidden=\"true\">person</span><span data-account-trigger-label>Login</span></button><a class=\"account-trigger header-admin-link\" href=\"/admin/\" data-admin-session-link hidden>Admin</a><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
     "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\">×</button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
     "</div></header>";
 }
@@ -307,7 +307,7 @@ initPolicySections();
 function customerAccountPanelMarkup() {
   return [
     "<div class=\"account-panel\">",
-    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Sign in</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"current-password\" required></label><button class=\"button ink\" type=\"submit\">Sign in</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
+    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Login</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"current-password\" required></label><button class=\"button ink\" type=\"submit\">Login</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
     "<div data-account-mode-panel=\"signup\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Create an account</h3><form data-customer-auth-form data-auth-action=\"signup\"><label>Display name<input name=\"displayName\" autocomplete=\"name\" required></label><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"new-password\" minlength=\"8\" required></label><button class=\"button ink\" type=\"submit\">Create account</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
     "<div data-account-mode-panel=\"forgot\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Reset your password</h3><form data-customer-auth-form data-auth-action=\"forgot\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><button class=\"button ink\" type=\"submit\">Email reset link</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
     "</div>",
@@ -323,6 +323,11 @@ function initCustomerAccount() {
   const mobileLink = document.querySelector("[data-account-mobile-login]");
   if (!shell || !popover || !overlay || !trigger) return;
   let currentUser = null;
+  let currentAdmin = null;
+  let sessionVersion = 0;
+  const adminStatus = shell.querySelector("[data-admin-status]");
+  const adminName = shell.querySelector("[data-admin-status-name]");
+  const triggerIcon = shell.querySelector("[data-account-trigger-icon]");
 
   function setMode(root, mode) {
     root.querySelectorAll("[data-account-mode-panel]").forEach((panel) => {
@@ -378,13 +383,24 @@ function initCustomerAccount() {
   }
 
   function renderState() {
-    triggerLabel.textContent = currentUser ? (currentUser.displayName || "Profile") : "Sign in";
-    trigger.setAttribute("aria-label", currentUser ? "Open your profile" : "Open reader sign in");
+    triggerLabel.textContent = currentAdmin ? "Logout" : currentUser ? (currentUser.displayName || "Profile") : "Login";
+    if (triggerIcon) triggerIcon.textContent = currentAdmin ? "logout" : "person";
+    if (adminStatus) adminStatus.hidden = !currentAdmin;
+    if (adminName) adminName.textContent = currentAdmin ? (currentAdmin.displayName || currentAdmin.name || currentAdmin.email) : "";
+    document.querySelectorAll("[data-admin-session-link]").forEach((link) => { link.hidden = !currentAdmin; });
+    trigger.setAttribute("aria-label", currentAdmin ? "Logout of admin" : currentUser ? "Open your profile" : "Open reader login");
     if (mobileLink) {
-      mobileLink.textContent = currentUser ? "Profile" : "Sign in";
+      mobileLink.textContent = currentAdmin ? "Logout (" + (currentAdmin.displayName || currentAdmin.name || currentAdmin.email) + ")" : currentUser ? "Profile" : "Login";
       mobileLink.href = currentUser ? "account.html" : "#";
     }
     document.querySelectorAll("[data-account-panel]").forEach((root) => {
+      if (currentAdmin) {
+        root.innerHTML = '<div class="account-panel account-panel-user"><p class="account-panel-kicker">Admin logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class="button ink" href="/admin/">Open admin</a><button class="account-signout" type="button" data-admin-logout>Logout</button></div>';
+        root.querySelector("[data-account-user-name]").textContent = currentAdmin.displayName || currentAdmin.name || currentAdmin.email;
+        root.querySelector("[data-account-user-email]").textContent = currentAdmin.email;
+        root.querySelector("[data-admin-logout]").addEventListener("click", logoutAdmin);
+        return;
+      }
       if (!currentUser) {
         panelMarkup(root);
         return;
@@ -406,11 +422,13 @@ function initCustomerAccount() {
     overlay.hidden = true;
     document.body.classList.remove("account-overlay-open");
     trigger.setAttribute("aria-expanded", "false");
+    adminStatus?.setAttribute("aria-expanded", "false");
   }
 
   function openDesktop() {
     popover.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
+    adminStatus?.setAttribute("aria-expanded", "true");
   }
 
   function openOverlay() {
@@ -424,7 +442,33 @@ function initCustomerAccount() {
     document.body.classList.remove("account-overlay-open");
   }
 
+  adminStatus?.addEventListener("click", () => {
+    if (popover.hidden) openDesktop(); else closeAll();
+  });
+
+  async function logoutAdmin() {
+    if (!currentAdmin || trigger.disabled) return;
+    const accessSession = currentAdmin.token?.provider === "cloudflare-access";
+    trigger.disabled = true;
+    ++sessionVersion;
+    try {
+      const response = await fetch(resolvePublicApiBase() + "/api/auth/logout", {
+        method: "POST", credentials: "include", redirect: "error",
+      });
+      if (!response.ok) throw new Error("Logout failed. Please try again.");
+      currentAdmin = null;
+      renderState();
+      closeAll();
+      if (accessSession) window.location.assign("/cdn-cgi/access/logout");
+    } catch {
+      window.alert("We could not log you out. Please try again.");
+    } finally {
+      trigger.disabled = false;
+    }
+  }
+
   trigger.addEventListener("click", () => {
+    if (currentAdmin) { logoutAdmin(); return; }
     if (currentUser) {
       window.location.href = "account.html";
       return;
@@ -435,7 +479,8 @@ function initCustomerAccount() {
     event.preventDefault();
     nav?.classList.remove("open");
     menu?.setAttribute("aria-expanded", "false");
-    if (currentUser) window.location.href = "account.html";
+    if (currentAdmin) logoutAdmin();
+    else if (currentUser) window.location.href = "account.html";
     else openOverlay();
   });
   overlay.querySelector("[data-account-close]")?.addEventListener("click", closeOverlay);
@@ -446,13 +491,20 @@ function initCustomerAccount() {
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeAll(); });
 
   async function refresh() {
-    try {
-      const response = await fetch(resolvePublicApiBase() + "/api/customer/auth/session", { credentials: "include", cache: "no-store" });
-      const data = await response.json().catch(() => ({}));
-      currentUser = data.authenticated ? data.user : null;
-    } catch { currentUser = null; }
+    const version = ++sessionVersion;
+    const [reader, admin] = await Promise.allSettled([
+      fetch(resolvePublicApiBase() + "/api/customer/auth/session", { credentials: "include", cache: "no-store", redirect: "error" }).then(async (response) => response.ok ? response.json() : null),
+      fetch(resolvePublicApiBase() + "/api/auth/session", { credentials: "include", cache: "no-store", redirect: "error" }).then(async (response) => response.ok ? response.json() : null),
+    ]);
+    if (version !== sessionVersion) return;
+    currentUser = reader.status === "fulfilled" && reader.value?.authenticated ? reader.value.user : null;
+    currentAdmin = admin.status === "fulfilled" && admin.value?.ok && admin.value.viewer?.email ? admin.value.viewer : null;
     renderState();
   }
+  window.addEventListener("pageshow", refresh);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refresh();
+  });
 
   window.JRPPAccount = { refresh, openLoginOverlay: openOverlay };
   renderState();
@@ -472,35 +524,7 @@ menu?.addEventListener("click", () => {
 
 initCustomerAccount();
 
-function initHeaderAdminLink() {
-  const links = [...document.querySelectorAll("[data-admin-session-link]")];
-  if (!links.length) return;
-  let pending = false;
-  async function refreshAdminSession() {
-    if (pending) return;
-    pending = true;
-    try {
-      const response = await fetch(resolvePublicApiBase() + "/api/auth/session", {
-        credentials: "include",
-        cache: "no-store",
-        redirect: "error",
-      });
-      const data = response.ok ? await response.json() : null;
-      const active = Boolean(response.ok && data?.ok && data.viewer?.email);
-      links.forEach((link) => { link.hidden = !active; });
-    } catch {
-      links.forEach((link) => { link.hidden = true; });
-    } finally {
-      pending = false;
-    }
-  }
-  refreshAdminSession();
-  window.addEventListener("pageshow", refreshAdminSession);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") refreshAdminSession();
-  });
-}
-initHeaderAdminLink();
+
 
 
 function setFormMessage(form, message, isError) {
