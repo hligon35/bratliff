@@ -10,7 +10,7 @@
     "relatedText": "Battles Beyond the Waves book page",
     "relatedHref": "books.html#battles-beyond-the-waves",
     "coverAlt": "Cover of the Battles Beyond the Waves Reader & Discussion Guide: a lighthouse on a dusk horizon over calm water, in navy and copper tones.",
-    "cover": ""
+    "cover": "assets/resource-covers/battles-reader-discussion-guide.webp"
   },
   {
     "slug": "our-stories-matter",
@@ -23,7 +23,7 @@
     "relatedText": "JPP Books page",
     "relatedHref": "books.html",
     "coverAlt": "Cover of Our Stories Matter: a vintage family photo album, a handwritten letter, and a fountain pen in warm archival tones.",
-    "cover": ""
+    "cover": "assets/resource-covers/our-stories-matter.webp"
   },
   {
     "slug": "before-you-publish",
@@ -36,7 +36,7 @@
     "relatedText": "Speaking & Events page",
     "relatedHref": "speaking.html",
     "coverAlt": "Cover of Before You Publish: navy and gold design with faint crop marks, a proofed manuscript page, a book spine, and a pencil.",
-    "cover": ""
+    "cover": "assets/resource-covers/before-you-publish.webp"
   },
   {
     "slug": "junior-detective-observation-kit",
@@ -49,7 +49,7 @@
     "relatedText": "The Adventures of D.D. & Reuel, Book 1: The Great Pie Mystery",
     "relatedHref": "books.html#the-great-pie-mystery",
     "coverAlt": "Cover of The Junior Detective Observation Kit, styled like a detective's notebook with case-file details.",
-    "cover": "",
+    "cover": "assets/resource-covers/junior-detective-observation-kit.webp",
     "youngReaders": true
   },
   {
@@ -63,7 +63,7 @@
     "relatedText": "Read It Forward page",
     "relatedHref": "read-it-forward.html",
     "coverAlt": "Cover of Read It Forward: an open book glowing on a navy-to-purple background, with a dotted gold path of readers rising from its pages.",
-    "cover": ""
+    "cover": "assets/resource-covers/read-it-forward-guide.webp"
   },
   {
     "slug": "beyond-the-uniform",
@@ -76,6 +76,6 @@
     "relatedText": "Battles Beyond the Waves book page",
     "relatedHref": "books.html#battles-beyond-the-waves",
     "coverAlt": "Cover of Beyond the Uniform: a brass compass rose rising over a calm horizon line on deep service blue.",
-    "cover": ""
+    "cover": "assets/resource-covers/beyond-the-uniform.webp"
   }
 ]
