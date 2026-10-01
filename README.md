@@ -110,6 +110,18 @@ Use `--count 15` to create more than 10 of each type (allowed range 10–100). E
 npm run review-data:generate -- --apply --cleanup=RUN_ID
 ```
 
+## Resource Center handoff
+
+The public Resource Center is `https://jackrabbitpunkinpublishing.com/resources.html`; the Read It Forward page is `https://jackrabbitpunkinpublishing.com/read-it-forward.html`. The Resource Center link inside each guide must point to the public page, not a registration screen. Have JPP replace all placeholder URLs in the final six PDFs before they are uploaded; do not publish an older PDF with placeholder links.
+
+Guide titles, approved card/detail copy, audiences, and cover alt text live in [assets/resource-catalog.json](assets/resource-catalog.json). Add the six approved portrait covers under `assets/resource-covers/` and set their `cover` paths in the catalog; preserve each cover's original design and full composition. Export portrait images at approximately 900 x 1200 px in WebP or PNG, ideally below 500 KB each. Do not substitute book covers for guide covers. Until those files arrive, cards explicitly show "Cover pending."
+
+Upload each corrected PDF to the **private** `BOOK_ASSETS` R2 bucket under `resource-guides/<catalog-slug>.pdf` (for example, `resource-guides/battles-reader-discussion-guide.pdf`); do not place these PDFs under public `assets/`. Confirm the bucket has no public `r2.dev` or custom-domain access before launch. The staging script excludes the old discussion-guide PDF and the advanced publisher guide from public Worker assets. The Worker serves a PDF only through `/api/customer/resources/<slug>/download` after validating the reader's account and Resource Library registration, then records a download event. A user can still share a file they have downloaded; the site does not provide DRM.
+
+Registrations are stored in D1 `resource_registrations`, linked to `customer_accounts`; per-guide downloads are in `resource_downloads`. Apply migration `0010_resource_library.sql` before deploying the Worker to either environment. Barbara can review registrations, selected-guide totals, and per-guide downloads on the protected Admin Analytics page, and download the registrations CSV there. Each new registration attempts a confirmation email to the reader and a notification to `ADMIN_NOTIFICATION_EMAIL` via Resend. Marketing opt-in is optional and off by default; only explicit opt-in adds a newsletter subscriber. Returning readers use their existing reader-account password and the library link from the confirmation email; the site's existing password-reset flow remains available. If sending fails, the registration is retained and the failure is logged for follow-up.
+
+Do not consider the library launched until all six approved covers and corrected PDFs are in place, the migration is applied remotely, email delivery and the notification address are tested, and the resource access/analytics flow is verified on the deployment domain.
+
 ## Temporary launch page
 
 The public homepage temporarily redirects visitors to `coming-soon.html`, while the admin, login, API, and completed site files remain intact. Remove the temporary redirect block marked in `index.html` when the full website is ready to launch.

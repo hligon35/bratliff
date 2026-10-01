@@ -1,0 +1,81 @@
+[
+  {
+    "slug": "battles-reader-discussion-guide",
+    "title": "Battles Beyond the Waves: Reader & Discussion Guide",
+    "audience": "Readers & Book Clubs",
+    "filters": ["Readers & Book Clubs", "Veterans & Military Families"],
+    "description": "A companion for readers and book clubs exploring Barbara J. Ratliff's Battles Beyond the Waves. Thoughtful questions on surviving, speaking up, and carrying the story forward, with guidance for book clubs, faith groups, and veterans' communities.",
+    "inside": ["The three central themes at the heart of the book", "Discussion questions in four groups: Surviving, Speaking, Connecting, and Carrying It Forward", "Your Own Shoreline: a reflective writing page for personal response", "Facilitator guidance for book clubs and community groups, faith-based groups, and veterans and military communities", "How to share the book through the Read It Forward program"],
+    "relatedLabel": "RELATED BOOK",
+    "relatedText": "Battles Beyond the Waves book page",
+    "relatedHref": "books.html#battles-beyond-the-waves",
+    "coverAlt": "Cover of the Battles Beyond the Waves Reader & Discussion Guide: a lighthouse on a dusk horizon over calm water, in navy and copper tones.",
+    "cover": ""
+  },
+  {
+    "slug": "our-stories-matter",
+    "title": "Our Stories Matter: A Family Storytelling & Legacy Guide",
+    "audience": "Educators, Families & Communities",
+    "filters": ["Educators & Families", "Literacy & Community Partners"],
+    "description": "A guided interview kit for capturing the stories of parents, grandparents, elders, and neighbors before they are lost. Ready to use at home, in classrooms, libraries, churches, and community groups.",
+    "inside": ["Why family and community stories matter, and how to listen well", "Interview questions on childhood and hometown, the people who shaped us, hard roads and strong roots, and lessons for the next generation", "Things Worth Remembering: telling the story behind a keepsake, recipe, photo, or tradition", "A reflection page for the interviewer", "A family story record to preserve what you heard"],
+    "relatedLabel": "LEARN MORE",
+    "relatedText": "JPP Books page",
+    "relatedHref": "books.html",
+    "coverAlt": "Cover of Our Stories Matter: a vintage family photo album, a handwritten letter, and a fountain pen in warm archival tones.",
+    "cover": ""
+  },
+  {
+    "slug": "before-you-publish",
+    "title": "Before You Publish: An Independent Author Readiness & Planning Guide",
+    "audience": "Authors & Aspiring Publishers",
+    "filters": ["Authors & Aspiring Publishers"],
+    "description": "An honest readiness check for writers preparing to publish independently. Work through the decisions, identifiers, production steps, and launch materials that come before the book, so you can publish with purpose instead of in a rush.",
+    "inside": ["Key terms explained in plain language: ISBN, copyright, LCCN, imprint, metadata, formats, and editions", "Building the book: editing, cover, interior formatting, and proofing", "Who will handle it: a responsibility planner for each stage", "Questions to answer before ordering inventory or setting a launch date", "A readiness inventory, your three priorities, and a final checkpoint"],
+    "relatedLabel": "LEARN MORE",
+    "relatedText": "Speaking & Events page",
+    "relatedHref": "speaking.html",
+    "coverAlt": "Cover of Before You Publish: navy and gold design with faint crop marks, a proofed manuscript page, a book spine, and a pencil.",
+    "cover": ""
+  },
+  {
+    "slug": "junior-detective-observation-kit",
+    "title": "The Junior Detective Observation Kit",
+    "audience": "Young Readers, Educators & Families",
+    "filters": ["Educators & Families"],
+    "description": "Hands-on detective activities inspired by The Adventures of D.D. & Reuel. Young readers practice looking closely, sorting facts from guesses, and solving a mystery of their own. Perfect for home, classrooms, and library programs.",
+    "inside": ["An observation challenge: study the scene, then answer from memory", "Fact, Clue, or Guess? Practice telling what's known from what's assumed", "Build Your Own Case File, with space for clues and open questions", "A mini mystery to investigate, including a Sketch the Scene page", "A certificate for every junior detective who completes the kit"],
+    "relatedLabel": "RELATED BOOK",
+    "relatedText": "The Adventures of D.D. & Reuel, Book 1: The Great Pie Mystery",
+    "relatedHref": "books.html#the-great-pie-mystery",
+    "coverAlt": "Cover of The Junior Detective Observation Kit, styled like a detective's notebook with case-file details.",
+    "cover": "",
+    "youngReaders": true
+  },
+  {
+    "slug": "read-it-forward-guide",
+    "title": "Read It Forward: A Guide for Readers, Organizations, and Sponsors",
+    "audience": "Literacy & Community Partners",
+    "filters": ["Literacy & Community Partners", "Readers & Book Clubs"],
+    "description": "Everything you need to take part in JPP's Read It Forward program. Pass along a book you've finished, request books for your organization, sponsor readers in your community, or start a reading effort of your own.",
+    "inside": ["How the program works: the sponsorship path and the free reader path", "Printable bookplates and a Book's Journey log that travels with each copy", "Five ways to read it forward in your community, no sponsorship needed", "An organization book request form and a Recommend a Recipient form", "Sponsorship levels, from Page Pal to Literacy Trailblazer", "A Share Your Story page and the program disclosures"],
+    "relatedLabel": "RELATED PROGRAM",
+    "relatedText": "Read It Forward page",
+    "relatedHref": "read-it-forward.html",
+    "coverAlt": "Cover of Read It Forward: an open book glowing on a navy-to-purple background, with a dotted gold path of readers rising from its pages.",
+    "cover": ""
+  },
+  {
+    "slug": "beyond-the-uniform",
+    "title": "Beyond the Uniform: A Military Life, Transition & Family Reflection Guide",
+    "audience": "Veterans & Military Families",
+    "filters": ["Veterans & Military Families"],
+    "description": "Military life affects more than the person in uniform. This reflection guide helps service members, veterans, and their families put words to what service asked of them, what came home with them, and what comes next.",
+    "inside": ["Our Service Timeline, a family worksheet for mapping the years together", "Reflection sections from The Person Behind the Uniform to When the Uniform Comes Off", "Separate Perspectives, Shared Story: a side-by-side family conversation exercise", "A letter you never have to send, and a plan for reconnecting at home", "Facilitator guidance for veterans' organizations, transition groups, and chapels", "My Next Watch, a final worksheet for the chapter ahead"],
+    "relatedLabel": "RELATED BOOK",
+    "relatedText": "Battles Beyond the Waves book page",
+    "relatedHref": "books.html#battles-beyond-the-waves",
+    "coverAlt": "Cover of Beyond the Uniform: a brass compass rose rising over a calm horizon line on deep service blue.",
+    "cover": ""
+  }
+]

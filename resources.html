@@ -3,9 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="robots" content="noindex,nofollow" />
-    <title>Resources | Jackrabbit Punkin Publishing</title>
-    <meta name="description" content="Publishing resources and discussion guides from Jackrabbit Punkin Publishing." />
+    <title>Resource Center | Jackrabbit Punkin Publishing</title>
+    <meta name="description" content="Free guides for readers, families, educators, veterans, community partners, and independent authors from Jackrabbit Punkin Publishing." />
+    <link rel="canonical" href="https://jackrabbitpunkinpublishing.com/resources.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Jackrabbit Punkin Publishing LLC" />
+    <meta property="og:title" content="Resource Center | Jackrabbit Punkin Publishing" />
+    <meta property="og:description" content="Explore complimentary guides for readers, families, educators, veterans, community partners, and independent authors." />
+    <meta property="og:url" content="https://jackrabbitpunkinpublishing.com/resources.html" />
+    <meta property="og:image" content="https://jackrabbitpunkinpublishing.com/assets/icons/jrppLogo2.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
     <script src="assets/site.js" defer></script>
@@ -14,73 +21,76 @@
   <body data-page="resources">
     <div data-header></div>
     <main id="main">
-      <section class="resources-page">
+      <section class="resources-page" data-resources-page>
         <div class="container">
-          <div class="resource-gate" data-resource-gate aria-live="polite">
-            <div class="resource-gate-card">
-              <p class="eyebrow">Reader resources</p>
-              <h1>Resources for your publishing journey.</h1>
-              <p class="lede">
-                JPP discussion guides and publishing references are available
-                to signed-in readers and authorized administrators.
-              </p>
-              <p>
-                Sign in or create a reader account to access resources as they
-                become available.
-              </p>
-              <div class="button-row">
-                <a class="button ink" href="account.html" data-account-open>Sign in to continue</a>
-              </div>
+          <div data-resource-public>
+            <div class="resource-intro">
+              <p class="eyebrow">Beyond the Page. Into the Community.</p>
+              <h1>RESOURCE CENTER</h1>
+              <p>At Jackrabbit Punkin Publishing, we believe a meaningful story should do more than sit on a shelf. It should encourage conversation, inspire learning, strengthen communities, and create opportunities for others.</p>
+              <p>The JPP Resource Center extends the impact of our books through thoughtfully developed materials for readers, book clubs, educators, families, literacy partners, community organizations, authors, and aspiring independent publishers.</p>
+              <p>Whether you're continuing a conversation sparked by one of our books, helping a young reader explore a story more deeply, supporting literacy in your community, or learning more about the publishing journey, there is a place for you here.</p>
+              <p class="resource-intro-close">Explore the resources. Continue the conversation. Carry the story forward.</p>
             </div>
+            <div class="resource-filters" role="group" aria-label="Filter by audience" data-resource-filters></div>
+            <div class="resource-grid" data-resource-grid></div>
           </div>
-
-          <div data-resource-content hidden>
-            <p class="eyebrow">Reader resources</p>
-            <h1>Resources for your publishing journey.</h1>
-            <p class="lede">
-              These guides are available to signed-in readers and authorized
-              administrators. Resources will appear here as they are prepared
-              and published.
-            </p>
-            <div class="resource-login-note" data-resource-note>
-              Your account is active. Live resources can be downloaded below.
+          <div data-resource-library hidden>
+            <div class="resource-intro">
+              <p class="eyebrow">Free JPP resources</p>
+              <h1>WELCOME TO THE JPP RESOURCE LIBRARY</h1>
+              <p class="lede">Your resource is ready.</p>
             </div>
-            <div class="resource-grid" data-resource-grid>
-              <article class="resource-card" data-resource-card="copyright-registration">
-                <h2>Copyright Registration</h2>
-                <p>A practical discussion guide for understanding copyright registration, protecting original work, and preparing the information a publishing project may need.</p>
-                <span class="resource-status">Coming soon</span>
-                <a class="button ghost" data-download-link aria-disabled="true">Available when published</a>
-              </article>
-              <article class="resource-card" data-resource-card="library-of-congress-lccn">
-                <h2>Library of Congress / LCCN Process</h2>
-                <p>A clear overview of the Library of Congress Control Number process and the steps that help a publishing project prepare for cataloging.</p>
-                <span class="resource-status">Coming soon</span>
-                <a class="button ghost" data-download-link aria-disabled="true">Available when published</a>
-              </article>
-              <article class="resource-card" data-resource-card="trademark-registration">
-                <h2>Trademark Registration</h2>
-                <p>A starting-point guide to trademark registration, brand protection, and the questions to consider before filing.</p>
-                <span class="resource-status">Coming soon</span>
-                <a class="button ghost" data-download-link aria-disabled="true">Available when published</a>
-              </article>
-              <article class="resource-card" data-resource-card="isbn-publisher-identification">
-                <h2>ISBNs &amp; Publisher Identification</h2>
-                <p>A practical reference for ISBN planning, publisher identification, and organizing title information for future releases.</p>
-                <span class="resource-status">Coming soon</span>
-                <a class="button ghost" data-download-link aria-disabled="true">Available when published</a>
-              </article>
-              <article class="resource-card" data-resource-card="building-your-publishing-business">
-                <h2>Building Your Publishing Business</h2>
-                <p>A planning guide for developing a sustainable publishing business, clarifying responsibilities, and building repeatable workflows.</p>
-                <span class="resource-status">Coming soon</span>
-                <a class="button ghost" data-download-link aria-disabled="true">Available when published</a>
-              </article>
-            </div>
+            <div data-resource-featured></div>
+            <h2>Explore More Free JPP Resources</h2>
+            <div class="resource-grid" data-library-grid></div>
+            <p class="resource-print-tip">For best results, print on standard letter-size paper. Print bookplates and certificates on cardstock.</p>
           </div>
+          <p class="resource-feedback" data-resource-feedback role="status" aria-live="polite"></p>
         </div>
       </section>
     </main>
+    <dialog class="resource-dialog" data-resource-auth aria-label="Resource Library access">
+      <button class="resource-dialog-close" type="button" data-resource-close aria-label="Close">&times;</button>
+      <div data-resource-invite>
+        <p class="eyebrow">FREE JPP RESOURCES</p>
+        <h2 id="resource-dialog-heading">Your free guide is one step away.</h2>
+        <p>Register once to unlock the complete JPP Resource Library: discussion guides, family activities, and community tools, all free to print and share.</p>
+        <p>Already registered? Sign in to return to your library.</p>
+        <div class="button-row"><button class="button ink" type="button" data-resource-mode="register">REGISTER FREE</button><button class="button ghost" type="button" data-resource-mode="signin">SIGN IN</button></div>
+      </div>
+      <form data-resource-register hidden>
+        <h2>Access the JPP Resource Library</h2>
+        <p>One free registration unlocks every guide in the library.</p>
+        <div class="resource-form-pair"><label>First Name<input name="firstName" autocomplete="given-name" maxlength="100" required></label><label>Last Name<input name="lastName" autocomplete="family-name" maxlength="100" required></label></div>
+        <label>Email Address<input type="email" name="email" autocomplete="email" required></label>
+        <label>Organization, School, Book Club, or Group (optional)<input name="organization" maxlength="200"></label>
+        <label>Which best describes you? (optional)<select name="audience"><option value="">Select one</option><option>Reader</option><option>Educator or Parent</option><option>Community or Literacy Partner</option><option>Military or Veteran Family</option><option>Author or Aspiring Publisher</option><option>Other</option></select></label>
+        <label>Password<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+        <label class="resource-consent"><input type="checkbox" name="marketingOptIn" value="true">Yes, send me news about JPP books, events, and Read It Forward.</label>
+        <button class="button ink" type="submit">UNLOCK MY FREE RESOURCES</button>
+        <p class="resource-fine-print">We use your information to provide access to the Resource Library. See our <a href="policies.html#privacy">Privacy Policy</a>.</p>
+        <p>Parents, guardians, and educators: please register on behalf of young readers.</p>
+        <p>Already registered? <button class="resource-text-button" type="button" data-resource-mode="signin">Sign in</button></p>
+      </form>
+      <form data-resource-signin hidden>
+        <h2>Sign in to your library</h2>
+        <label>Email Address<input type="email" name="email" autocomplete="email" required></label>
+        <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+        <button class="button ink" type="submit">SIGN IN</button>
+        <p><a href="account.html">Forgot your password?</a></p>
+        <p>New here? <button class="resource-text-button" type="button" data-resource-mode="register">Register free</button></p>
+      </form>
+      <p class="resource-feedback" data-resource-auth-error role="alert"></p>
+    </dialog>
+    <dialog class="resource-dialog" data-resource-details aria-labelledby="resource-details-title">
+      <button class="resource-dialog-close" type="button" data-resource-details-close aria-label="Close">&times;</button>
+      <p class="eyebrow" data-resource-details-audience></p>
+      <h2 id="resource-details-title" data-resource-details-title></h2>
+      <h3>What's Inside</h3>
+      <ul data-resource-details-list></ul>
+      <a class="button ghost" data-resource-details-link></a>
+    </dialog>
     <div data-footer></div>
   </body>
 </html>

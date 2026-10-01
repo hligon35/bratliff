@@ -17,11 +17,11 @@ const loginUrl = normalizeUrl(siteConfig.loginUrl);
 const adminUrl = normalizeUrl(siteConfig.adminUrl);
 const adminApiUrl = normalizeUrl(siteConfig.adminApiUrl);
 const artwork = Object.freeze({
-  logo: "assets/jrppLogo.png",
-  brandLogo: "assets/jrppLogo2.png",
-  featuredBook: "assets/battles1.png",
-  futureBook: "assets/book2.png",
-  author: "assets/barbaraRatliff.png",
+  logo: "assets/icons/jrppLogo.png",
+  brandLogo: "assets/icons/jrppLogo2.png",
+  featuredBook: "assets/books/battles1.png",
+  futureBook: "assets/books/book2.png",
+  author: "assets/photos/barbaraRatliff.png",
 });
 
 function ensureFavicon() {
@@ -195,7 +195,7 @@ function socialLinks() {
        target="_blank"
        rel="noopener noreferrer"
        aria-label="Facebook — Jackrabbit Punkin Publishing">
-      <img src="assets/facebook.png" alt="Facebook">
+      <img src="assets/icons/facebook.png" alt="Facebook">
     </a>
   </span>
 
@@ -205,7 +205,7 @@ function socialLinks() {
        target="_blank"
        rel="noopener noreferrer"
        aria-label="LinkedIn — Barbara J. Ratliff">
-      <img src="assets/linkedIN.png" alt="LinkedIn">
+      <img src="assets/icons/linkedIN.png" alt="LinkedIn">
     </a>
   </span>
 
@@ -215,7 +215,7 @@ function socialLinks() {
        target="_blank"
        rel="noopener noreferrer"
        aria-label="TikTok — @barbararatliff765">
-      <img src="assets/tiktok.png" alt="TikTok">
+      <img src="assets/icons/tiktok.png" alt="TikTok">
     </a>
   </span>
 </div>`;
@@ -969,8 +969,8 @@ function initFeaturedAuthor() {
   if (!section) return;
 
   const portraits = [
-    { src: "assets/maleFeature.png", alt: "Featured male author" },
-    { src: "assets/femaleFeature.png", alt: "Featured female author" },
+    { src: "assets/icons/maleFeature.png", alt: "Featured male author" },
+    { src: "assets/icons/femaleFeature.png", alt: "Featured female author" },
   ];
   const portraitEl = section.querySelector("[data-featured-author-portrait]");
   const portraitCaptionEl = section.querySelector("[data-featured-author-portrait-caption]");
@@ -995,7 +995,7 @@ function initFeaturedAuthor() {
   }, 3000);
 
   if (bookCoverEl) {
-    bookCoverEl.src = "assets/bookFeature.png";
+    bookCoverEl.src = "assets/books/bookFeature.png";
     bookCoverEl.alt = "Featured book cover";
     bookCoverEl.hidden = false;
     bookCoverEl.closest(".spotlight-visual")?.classList.add("has-image");
@@ -1101,7 +1101,7 @@ function initSponsorProgram() {
     pagePal: { label: "Page Pal", price: "$100", books: 5 },
     chapterChampion: { label: "Chapter Champion", price: "$250", books: 12 },
     bookshelfBuilder: { label: "Bookshelf Builder", price: "$500", books: 25 },
-    literacyTrailblazer: { label: "Literacy Trailblazer", pricePerBook: 20, minBooks: 50 },
+    literacyTrailblazer: { label: "Literacy Trailblazer", price: "$1,000", books: 50 },
   };
   let recognitionTimer = null;
   let lowerPage = 1;
@@ -1173,9 +1173,6 @@ function initSponsorProgram() {
             <label>Website (optional)
               <input type="url" name="websiteUrl" maxlength="1000" autocomplete="url" placeholder="https://" />
             </label>
-            <label data-sponsor-books-field hidden>Number of books (50 minimum)
-              <input type="number" name="books" min="50" step="1" value="50" />
-            </label>
             <label data-sponsor-mailing-field hidden>Mailing address (private; required for Literacy Trailblazer certificate)
               <textarea name="mailingAddress" rows="4" maxlength="1200" autocomplete="street-address"></textarea>
               <small>This address is used privately to prepare and mail your certificate.</small>
@@ -1210,7 +1207,6 @@ function initSponsorProgram() {
     if (!definition) return;
     const backdrop = document.querySelector(".sponsor-modal-backdrop");
     const summary = document.querySelector("[data-sponsor-modal-summary]");
-    const booksField = document.querySelector("[data-sponsor-books-field]");
     const logoField = document.querySelector("[data-sponsor-logo-field]");
     const mailingField = document.querySelector("[data-sponsor-mailing-field]");
     const mailingInput = document.querySelector('[data-sponsor-form] textarea[name="mailingAddress"]');
@@ -1221,13 +1217,11 @@ function initSponsorProgram() {
     errorBox.hidden = true;
     const isTrailblazer = packageKey === "literacyTrailblazer";
     if (isTrailblazer) {
-      booksField.hidden = false;
       if (mailingField) mailingField.hidden = false;
       if (mailingInput) mailingInput.required = true;
       if (logoField) logoField.hidden = false;
-      summary.textContent = `${definition.label} - ${definition.pricePerBook} per book, ${definition.minBooks}-book minimum.`;
+      summary.textContent = `${definition.label} - ${definition.price} sponsors ${definition.books} books.`;
     } else {
-      booksField.hidden = true;
       if (mailingField) mailingField.hidden = true;
       if (mailingInput) {
         mailingInput.required = false;
@@ -1274,7 +1268,6 @@ function initSponsorProgram() {
         websiteUrl: formData.get("websiteUrl"),
         anonymous: formData.get("anonymous") ? "true" : "false",
         publishPermission: formData.get("publishPermission") ? "true" : "false",
-        books: formData.get("books") || "",
       };
       const response = await fetch(`${apiBase}/api/sponsors/checkout`, {
         method: "POST",
@@ -1350,7 +1343,7 @@ function initSponsorProgram() {
       literacyTrailblazer: "literacyTrailblazer.png",
     };
     const asset = assets[packageKey] || assets.pagePal;
-    return "<img class=\"sponsor-package-art sponsor-package-art--" + packageKey + "\" src=\"assets/" + asset + "\" alt=\"" + escapeHtmlSponsor(label || "Sponsor package") + "\" loading=\"lazy\">";
+    return "<img class=\"sponsor-package-art sponsor-package-art--" + packageKey + "\" src=\"assets/icons/" + asset + "\" alt=\"" + escapeHtmlSponsor(label || "Sponsor package") + "\" loading=\"lazy\">";
   }
 
   function sponsorWallName(sponsor) {
@@ -1385,7 +1378,7 @@ function initSponsorProgram() {
       const books = Math.max(0, Math.floor(Number(sponsor.booksSponsored) || 0));
       const medal = literacyMedal(books);
       const packageIcon = packageArt("literacyTrailblazer", "Literacy Trailblazer");
-      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div></div>";
+      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/icons/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div></div>";
     }).join("");
 
     const lowerBlock = lowerCards ? '<section class="sponsor-wall-section" aria-labelledby="sponsor-wall-names-title"><h3 id="sponsor-wall-names-title">Read It Forward Sponsors</h3><div class="sponsor-lower-grid">' + lowerCards + '</div></section>' : "";

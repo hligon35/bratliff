@@ -18,7 +18,6 @@ const staticEntries = [
   'read-it-forward.html',
   'recognition.html',
   'resources.html',
-  'resources-blocked.html',
   'speaking.html',
   'robots.txt',
   'sitemap.xml',
@@ -42,5 +41,13 @@ for (const entry of staticEntries) {
   clearDestinationEntry(destination);
   fs.cpSync(source, destination, { recursive: true });
 }
+
+for (const filename of [
+  'JPP_Battles_Beyond_the_Waves_Discussion_Guide_2.0_09222026.pdf',
+  'JPP_Publisher_Resource_Guide_Website_Edition.pdf'
+]) {
+  clearDestinationEntry(path.join(targetDir, 'assets', 'documents', filename));
+}
+clearDestinationEntry(path.join(targetDir, 'resources-blocked.html'));
 
 console.log('Staged Cloudflare assets into cloudflare/public');

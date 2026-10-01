@@ -1,5 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
-import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_MAX_BOOKS, SPONSOR_PACKAGES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
+import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
+import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import type {
   AdminRole,
   AdminUser,
@@ -59,45 +60,12 @@ const CUSTOMER_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const CUSTOMER_PASSWORD_ITERATIONS = 120000;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
-const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/JPP_Certificate_of_Appreciation_09222026.pdf";
+const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/documents/JPP_Certificate_of_Appreciation_09222026.pdf";
 const SPONSOR_CERTIFICATE_TIME_ZONE = "America/New_York"; // Atlanta, GA
 const SPONSOR_CERTIFICATE_PACKAGES = new Set<SponsorPackageKey>([
   "literacyTrailblazer",
 ]);
 const SPEAKING_BUDGETS = new Set(["Budget Available", "Community or Nonprofit Request", "Not Yet Determined"]);
-
-const CUSTOMER_RESOURCES = [
-  {
-    slug: "copyright-registration",
-    title: "Copyright Registration",
-    description: "A practical discussion guide for understanding copyright registration, protecting original work, and preparing the information a publishing project may need.",
-    assetPath: "/assets/JPP_Copyright_Registration_Guide.pdf",
-  },
-  {
-    slug: "library-of-congress-lccn",
-    title: "Library of Congress / LCCN Process",
-    description: "A clear overview of the Library of Congress Control Number process and the steps that help a publishing project prepare for cataloging.",
-    assetPath: "/assets/JPP_Library_of_Congress_LCCN_Process_Guide.pdf",
-  },
-  {
-    slug: "trademark-registration",
-    title: "Trademark Registration",
-    description: "A starting-point guide to trademark registration, brand protection, and the questions to consider before filing.",
-    assetPath: "/assets/JPP_Trademark_Registration_Guide.pdf",
-  },
-  {
-    slug: "isbn-publisher-identification",
-    title: "ISBNs & Publisher Identification",
-    description: "A practical reference for ISBN planning, publisher identification, and organizing title information for future releases.",
-    assetPath: "/assets/JPP_ISBNs_Publisher_Identification_Guide.pdf",
-  },
-  {
-    slug: "building-your-publishing-business",
-    title: "Building Your Publishing Business",
-    description: "A planning guide for developing a sustainable publishing business, clarifying responsibilities, and building repeatable workflows.",
-    assetPath: "/assets/JPP_Building_Your_Publishing_Business_Guide.pdf",
-  },
-] as const;
 
 type VerifiedGoogleIdentity = {
   email: string;
@@ -247,13 +215,6 @@ const app: AppHandler = {
 
       if (url.pathname === "/" || url.pathname === "/index" || url.pathname === "") {
         return await handleCompatibilityRoot(request, env, url);
-      }
-
-      if (request.method === "GET" && url.pathname === "/resources.html") {
-        if (!(await canAccessCustomerResources(request, env))) {
-          const blockedUrl = new URL("/resources-blocked.html", request.url);
-          return await env.ASSETS.fetch(new Request(blockedUrl.toString(), request));
-        }
       }
 
       return await env.ASSETS.fetch(request);
@@ -906,14 +867,8 @@ async function handleSponsorCheckout(
     throw new HttpError(400, "Enter a private mailing address for the Literacy Trailblazer certificate.");
   }
 
-  let books = definition.books;
-  let amountCents = definition.priceCents;
-  if (definition.perBookCents && definition.minBooks) {
-    const requestedBooks = Math.floor(Number(payload.books));
-    books = Number.isFinite(requestedBooks) && requestedBooks > definition.minBooks ? requestedBooks : definition.minBooks;
-    books = Math.min(books, SPONSOR_MAX_BOOKS);
-    amountCents = books * definition.perBookCents;
-  }
+  const books = definition.books;
+  const amountCents = definition.priceCents;
   if (amountCents <= 0) throw new HttpError(400, "Could not determine a sponsorship amount.");
 
   const sponsorId = "SP-" + crypto.randomUUID().slice(0, 10).toUpperCase();
@@ -974,7 +929,7 @@ async function validateOrderItems(env: Env, cart: unknown[]): Promise<CartLineIt
     const sku = text(data.sku, 100).toUpperCase();
     const quantity = Math.max(1, Math.floor(Number(data.quantity || 1)));
     const row = await env.DB.prepare(
-      "SELECT id AS bookId, sku, title, price, stock, preorder, status FROM books WHERE upper(sku) = ?1",
+      "SELECT id AS bookId, sku, title, format, price, stock, preorder, status FROM books WHERE upper(sku) = ?1",
     )
       .bind(sku)
       .first<Record<string, unknown>>();
@@ -988,7 +943,7 @@ async function validateOrderItems(env: Env, cart: unknown[]): Promise<CartLineIt
     if (!preorder && quantity > stock) {
       throw new HttpError(400, "Only " + stock + " copies of " + text(row.title, 300) + " are available.");
     }
-    const unitPrice = money(Number(row.price || 0));
+    const unitPrice = storeBookPrice(text(row.format, 100), Number(row.price || 0));
     result.push({
       bookId: text(row.bookId, 120),
       sku,
@@ -1509,6 +1464,46 @@ async function handleAdminApi(
       ...(await getAnalyticsSummary(env, clampInt(url.searchParams.get("days"), 1, 90, 30))),
     });
   }
+  if (request.method === "GET" && path === "resources/summary") {
+    requireRole(admin, "manager");
+    const registrations = await env.DB.prepare("SELECT email, first_name AS firstName, last_name AS lastName, organization, audience, selected_resource AS selectedResource, marketing_opt_in AS marketingOptIn, created_at AS createdAt FROM resource_registrations ORDER BY created_at DESC LIMIT 100").all<Record<string, unknown>>();
+    const selected = await env.DB.prepare("SELECT selected_resource AS slug, COUNT(*) AS count FROM resource_registrations GROUP BY selected_resource").all<Record<string, unknown>>();
+    const downloads = await env.DB.prepare("SELECT resource_slug AS slug, COUNT(*) AS count FROM resource_downloads GROUP BY resource_slug").all<Record<string, unknown>>();
+    const selectedCounts = new Map((selected.results || []).map((row) => [String(row.slug), Number(row.count)]));
+    const downloadCounts = new Map((downloads.results || []).map((row) => [String(row.slug), Number(row.count)]));
+    return json(request, env, {
+      ok: true,
+      totalRegistrations: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_registrations"),
+      totalDownloads: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_downloads"),
+      guides: RESOURCE_CATALOG.map((resource) => ({ slug: resource.slug, title: resource.title, selected: selectedCounts.get(resource.slug) || 0, downloads: downloadCounts.get(resource.slug) || 0 })),
+      registrations: registrations.results || [],
+    });
+  }
+  if (request.method === "GET" && path === "resources/registrations.csv") {
+    requireRole(admin, "manager");
+    const columns = ["email", "first_name", "last_name", "organization", "audience", "selected_resource", "marketing_opt_in", "created_at"];
+    const cell = (value: unknown) => {
+      const plain = String(value ?? "");
+      const safe = /^[=+\-@\t\r]/.test(plain) ? "'" + plain : plain;
+      return '"' + safe.replace(/"/g, '""') + '"';
+    };
+    const lines = [columns.join(",")];
+    let cursorDate = "9999-12-31";
+    let cursorId = "";
+    while (true) {
+      const batch = await env.DB.prepare(
+        "SELECT customer_id, email, first_name, last_name, organization, audience, selected_resource, marketing_opt_in, created_at FROM resource_registrations WHERE created_at < ?1 OR (created_at = ?1 AND customer_id < ?2) ORDER BY created_at DESC, customer_id DESC LIMIT 500",
+      ).bind(cursorDate, cursorId).all<Record<string, unknown>>();
+      const rows = batch.results || [];
+      lines.push(...rows.map((record) => columns.map((column) => cell(record[column])).join(",")));
+      if (rows.length < 500) break;
+      const last = rows[rows.length - 1];
+      cursorDate = String(last.created_at);
+      cursorId = String(last.customer_id);
+    }
+    const csv = lines.join("\r\n") + "\r\n";
+    return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="jpp-resource-registrations.csv"', "Cache-Control": "private, no-store" } });
+  }
   if (request.method === "GET" && path === "admins") {
     requireRole(admin, "developer");
     return json(request, env, { ok: true, admins: await listAdmins(env) });
@@ -1851,6 +1846,10 @@ async function getStoreBookById(env: Env, bookId: string): Promise<BookRecord | 
   return row ? mapBookRecord(row) : null;
 }
 
+function storeBookPrice(format: string, storedPrice: number): number {
+  return STORE_BOOK_PRICES[format as keyof typeof STORE_BOOK_PRICES] ?? money(storedPrice);
+}
+
 function mapBookRecord(row: Record<string, unknown>): BookRecord {
   return {
     bookId: text(row.bookId, 120),
@@ -1863,7 +1862,7 @@ function mapBookRecord(row: Record<string, unknown>): BookRecord {
     shortDescription: text(row.shortDescription, 1000),
     format: text(row.format, 100),
     category: text(row.category, 150),
-    price: Number(row.price || 0),
+    price: storeBookPrice(text(row.format, 100), Number(row.price || 0)),
     comparePrice: Number(row.comparePrice || 0),
     stock: Number(row.stock || 0),
     lowStockThreshold: Number(row.lowStockThreshold || 5),
@@ -1895,6 +1894,8 @@ async function saveBook(env: Env, admin: AuthenticatedAdmin, body: Record<string
   const duplicate = await env.DB.prepare("SELECT id FROM books WHERE upper(sku) = ?1 AND id != ?2").bind(sku, bookId).first();
   if (duplicate) throw new HttpError(400, "That SKU is already in use.");
   const stock = Math.max(0, Math.floor(Number(body.stock || existing?.stock || 0)));
+  const format = text(body.format, 100);
+  const price = storeBookPrice(format, Number(body.price || 0));
   const preorder = toBoolean(body.preorder);
   const statusInput = text(body.status, 40) || "Draft";
   const status = statusInput === "Published" && stock <= 0 && !preorder ? "Out of Stock" : statusInput;
@@ -1929,7 +1930,7 @@ async function saveBook(env: Env, admin: AuthenticatedAdmin, body: Record<string
       square_catalog_variation_id = excluded.square_catalog_variation_id,
       updated_at = datetime('now')`,
   )
-    .bind(bookId, sku, text(body.isbn, 80), title, text(body.subtitle, 300), text(body.author, 200), text(body.synopsis, 12000), text(body.shortDescription, 1000), text(body.format, 100), text(body.category, 150), money(Number(body.price || 0)), money(Number(body.comparePrice || 0)), stock, Math.max(0, Math.floor(Number(body.lowStockThreshold || 5))), existing?.imageKey || "", existing?.imageUrl || "", toBoolean(body.featured) ? 1 : 0, toBoolean(body.comingSoon) ? 1 : 0, preorder ? 1 : 0, status, text(body.publicationDate, 50), text(body.squareCatalogItemId, 200), text(body.squareCatalogVariationId, 200))
+    .bind(bookId, sku, text(body.isbn, 80), title, text(body.subtitle, 300), text(body.author, 200), text(body.synopsis, 12000), text(body.shortDescription, 1000), format, text(body.category, 150), price, money(Number(body.comparePrice || 0)), stock, Math.max(0, Math.floor(Number(body.lowStockThreshold || 5))), existing?.imageKey || "", existing?.imageUrl || "", toBoolean(body.featured) ? 1 : 0, toBoolean(body.comingSoon) ? 1 : 0, preorder ? 1 : 0, status, text(body.publicationDate, 50), text(body.squareCatalogItemId, 200), text(body.squareCatalogVariationId, 200))
     .run();
 
   if (existing && existing.stock !== stock) {
@@ -3060,13 +3061,13 @@ async function sendSponsorCertificateIfEligible(
     throw error;
   }
 }
-type CustomerResource = (typeof CUSTOMER_RESOURCES)[number];
+type CustomerResource = (typeof RESOURCE_CATALOG)[number];
 
 function customerSessionSecret(env: Env): string {
   return text(env.CUSTOMER_SESSION_SECRET || env.ADMIN_SESSION_SECRET, 300);
 }
 
-function base64UrlToBytes(value: string): Uint8Array {
+function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
   const binary = decodeBase64Url(value);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
@@ -3131,21 +3132,6 @@ function clearCustomerSessionCookie(response: Response) {
   return new Response(response.body, { status: response.status, headers });
 }
 
-async function canAccessCustomerResources(request: Request, env: Env): Promise<boolean> {
-  try {
-    if (await getOptionalCustomerSession(request, env)) return true;
-  } catch {
-    // Fall through to the admin session check. A missing or unavailable
-    // customer table must never expose the protected resource route.
-  }
-  try {
-    await authorizeAdmin(request, env);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function getOptionalCustomerSession(request: Request, env: Env): Promise<AuthenticatedCustomer | null> {
   const cookie = readCookie(request, CUSTOMER_SESSION_COOKIE);
   if (!cookie) return null;
@@ -3167,12 +3153,6 @@ async function requireCustomerSession(request: Request, env: Env): Promise<Authe
   return user;
 }
 
-async function requireCustomerOrAdmin(request: Request, env: Env): Promise<{ customer?: AuthenticatedCustomer; admin?: AuthenticatedAdmin }> {
-  const customer = await getOptionalCustomerSession(request, env);
-  if (customer) return { customer };
-  try { return { admin: await authorizeAdmin(request, env) }; } catch { throw new HttpError(401, "Please sign in to continue."); }
-}
-
 function customerPassword(value: unknown): string {
   const password = text(value, 200);
   if (password.length < 8) throw new HttpError(400, "Password must be at least 8 characters.");
@@ -3186,18 +3166,20 @@ function normalizeCustomerEmail(value: unknown): string {
 }
 
 function customerResourceBySlug(slug: string): CustomerResource | null {
-  return CUSTOMER_RESOURCES.find((resource) => resource.slug === slug) || null;
+  return RESOURCE_CATALOG.find((resource) => resource.slug === slug) || null;
 }
 
-async function resourceAssetAvailable(request: Request, env: Env, resource: CustomerResource): Promise<boolean> {
-  const assetUrl = new URL(resource.assetPath, request.url);
-  const response = await env.ASSETS.fetch(new Request(assetUrl.toString(), { method: "GET" }));
-  return response.ok;
+async function requireResourceRegistration(request: Request, env: Env) {
+  const customer = await requireCustomerSession(request, env);
+  const registration = await env.DB.prepare("SELECT selected_resource AS selectedResource FROM resource_registrations WHERE customer_id = ?1")
+    .bind(customer.id).first<{ selectedResource: string }>();
+  if (!registration) throw new HttpError(403, "Register free to unlock the Resource Library.");
+  return { customer, registration };
 }
 
-async function buildCustomerResourceList(request: Request, env: Env) {
-  return Promise.all(CUSTOMER_RESOURCES.map(async (resource) => {
-    const available = await resourceAssetAvailable(request, env, resource);
+async function buildCustomerResourceList(env: Env) {
+  return Promise.all(RESOURCE_CATALOG.map(async (resource) => {
+    const available = Boolean(await env.BOOK_ASSETS.head("resource-guides/" + resource.slug + ".pdf"));
     return {
       slug: resource.slug,
       title: resource.title,
@@ -3351,23 +3333,80 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
     return json(request, env, { ok: true, purchases });
   }
 
+  if (request.method === "POST" && path === "resources/register") {
+    const customer = await requireCustomerSession(request, env);
+    const body = await parseBody(request);
+    const firstName = text(body.firstName, 100);
+    const lastName = text(body.lastName, 100);
+    const organization = text(body.organization, 200);
+    const audience = text(body.audience, 80);
+    const resource = customerResourceBySlug(text(body.selectedResource, 100));
+    const marketingOptIn = toBoolean(body.marketingOptIn);
+    if (!firstName || !lastName || !resource || normalizeCustomerEmail(body.email) !== customer.email) {
+      throw new HttpError(400, "Enter your name, account email, and selected resource.");
+    }
+    if (audience && !["Reader", "Educator or Parent", "Community or Literacy Partner", "Military or Veteran Family", "Author or Aspiring Publisher", "Other"].includes(audience)) {
+      throw new HttpError(400, "Choose a valid audience.");
+    }
+    const result = await env.DB.prepare(
+      "INSERT OR IGNORE INTO resource_registrations (customer_id, email, first_name, last_name, organization, audience, selected_resource, marketing_opt_in) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+    ).bind(customer.id, customer.email, firstName, lastName, organization, audience, resource.slug, marketingOptIn ? 1 : 0).run();
+    if (result.meta?.changes) {
+      if (marketingOptIn) {
+        await env.DB.prepare(
+          "INSERT INTO newsletter_subscribers (email, first_seen_at, last_seen_at, consent, status, source, notes) VALUES (?1, datetime('now'), datetime('now'), 1, 'active', 'resource_library', '') ON CONFLICT(email) DO UPDATE SET consent = 1, status = 'active', last_seen_at = datetime('now') WHERE newsletter_subscribers.status != 'Unsubscribed'",
+        ).bind(customer.email).run();
+      }
+      const libraryUrl = new URL("/resources.html?library=1", firstUrlValue(env.SITE_URL) || request.url).toString();
+      try {
+        await sendEmail(env, {
+          to: customer.email,
+          subject: "Your JPP Resource Library is ready",
+          text: "Thank you for registering. Your free guides are waiting for you in the JPP Resource Library. Bookmark this link to return anytime: " + libraryUrl + ". Stories That Inspire. Books That Endure.",
+          html: "<p>Thank you for registering. Your free guides are waiting for you in the JPP Resource Library. Bookmark this link to return anytime: <a href=\"" + escapeHtml(libraryUrl) + "\">Resource Library</a>. Stories That Inspire. Books That Endure.</p>",
+          replyTo: env.ADMIN_NOTIFICATION_EMAIL,
+          fromName: "Jackrabbit Punkin Publishing",
+          idempotencyKey: "resource-library-" + customer.id,
+        });
+      } catch (error) {
+        console.warn(JSON.stringify({ type: "resource_confirmation_email_failed", error: getErrorMessage(error) }));
+      }
+      try {
+        await sendEmail(env, {
+          to: env.ADMIN_NOTIFICATION_EMAIL,
+          subject: "[Website] New Resource Library registration",
+          text: firstName + " " + lastName + " (" + customer.email + ") registered for " + resource.title + ". Marketing opt-in: " + (marketingOptIn ? "Yes" : "No") + ".",
+          html: "<p>New Resource Library registration: " + escapeHtml(firstName + " " + lastName + " (" + customer.email + ")") + "</p><p>Selected: " + escapeHtml(resource.title) + "</p>",
+          replyTo: customer.email,
+          fromName: "Jackrabbit Punkin Publishing",
+          idempotencyKey: "resource-admin-registration-" + customer.id,
+        });
+      } catch (error) {
+        console.warn(JSON.stringify({ type: "resource_admin_notice_failed", error: getErrorMessage(error) }));
+      }
+    }
+    return json(request, env, { ok: true });
+  }
+
   if (request.method === "GET" && path === "resources") {
-    const access = await requireCustomerOrAdmin(request, env);
-    return json(request, env, { ok: true, access: access.admin ? "admin" : "customer", resources: await buildCustomerResourceList(request, env) });
+    const { registration } = await requireResourceRegistration(request, env);
+    return json(request, env, { ok: true, selectedResource: registration.selectedResource, resources: await buildCustomerResourceList(env) });
   }
 
   const downloadMatch = path.match(/^resources\/([^/]+)\/download$/);
   if (request.method === "GET" && downloadMatch) {
-    await requireCustomerOrAdmin(request, env);
+    const { customer } = await requireResourceRegistration(request, env);
     const resource = customerResourceBySlug(downloadMatch[1]);
     if (!resource) throw new HttpError(404, "Resource not found.");
-    const assetUrl = new URL(resource.assetPath, request.url);
-    const assetResponse = await env.ASSETS.fetch(new Request(assetUrl.toString(), { method: "GET" }));
-    if (!assetResponse.ok) throw new HttpError(404, "This resource is not available yet.");
-    const headers = new Headers(assetResponse.headers);
-    headers.set("Content-Disposition", 'attachment; filename="' + resource.slug + '.pdf"');
-    headers.set("Cache-Control", "private, no-store");
-    return new Response(assetResponse.body, { status: 200, headers });
+    const object = await env.BOOK_ASSETS.get("resource-guides/" + resource.slug + ".pdf");
+    if (!object?.body) throw new HttpError(404, "This guide is not available yet.");
+    await env.DB.prepare("INSERT INTO resource_downloads (customer_id, resource_slug) VALUES (?1, ?2)").bind(customer.id, resource.slug).run();
+    return new Response(object.body, { headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": 'attachment; filename="' + resource.slug + '.pdf"',
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    } });
   }
 
   return json(request, env, { ok: false, error: "Not found." }, 404);
@@ -3471,7 +3510,7 @@ function buildEmailHtml(options: { eyebrow: string; heading: string; intro: stri
   const details = (options.details || []).map(([label, value], index) => "<tr>" + '<td style="' + (index ? "border-top:1px solid #e7dfd0;" : "") + 'padding:12px 14px;width:32%;color:#542476;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;vertical-align:top;">' + escapeHtml(label) + "</td>" + '<td style="' + (index ? "border-top:1px solid #e7dfd0;" : "") + 'padding:12px 14px;color:#26354a;font-size:15px;line-height:1.55;white-space:pre-wrap;word-break:break-word;">' + linkValue(value) + "</td></tr>").join("");
   const content = paragraphs || (details ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid #e7dfd0;border-radius:8px;border-collapse:separate;overflow:hidden;">' + details + "</table>" : "");
   const unsubscribe = options.unsubscribeUrl ? '<br><br><a href="' + escapeHtml(options.unsubscribeUrl) + '" style="color:#542476;text-decoration:underline;">Unsubscribe from these emails</a>' : "";
-  const logoUrl = options.siteUrl.replace(/\/$/, "") + "/assets/jrppLogo2.png";
+  const logoUrl = options.siteUrl.replace(/\/$/, "") + "/assets/icons/jrppLogo2.png";
   return '<!doctype html><html><body style="margin:0;padding:0;background:#fbf8f1;font-family:Arial,Helvetica,sans-serif;">' + '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fbf8f1;"><tr><td align="center" style="padding:28px 12px;">' + '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #e7dfd0;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(10,22,40,.08);">' + '<tr><td style="background:#0a1628;padding:28px 32px;">' + '<table role="presentation" cellspacing="0" cellpadding="0"><tr>' + '<td style="width:52px;"><img src="' + escapeHtml(logoUrl) + '" width="52" height="52" alt="Jackrabbit Punkin Publishing" style="display:block;border-radius:50%;border:2px solid #d4ad55;" /></td>' + '<td style="padding-left:16px;color:#ffffff;"><div style="font-family:Georgia,serif;font-size:21px;font-weight:700;line-height:1.2;">Jackrabbit Punkin Publishing</div><div style="margin-top:5px;color:#d4ad55;font-size:12px;letter-spacing:.6px;">Stories That Inspire. Books That Endure.</div></td>' + '</tr></table></td></tr><tr><td style="height:5px;background:#d4ad55;font-size:0;line-height:0;">&nbsp;</td></tr><tr><td style="padding:36px 32px 32px;">' + '<div style="margin-bottom:10px;color:#542476;font-size:12px;font-weight:700;letter-spacing:1.6px;">' + escapeHtml(options.eyebrow) + '</div><h1 style="margin:0 0 18px;color:#0a1628;font-family:Georgia,serif;font-size:30px;line-height:1.2;">' + escapeHtml(options.heading) + '</h1><p style="margin:0 0 20px;color:#26354a;font-size:16px;line-height:1.65;">' + escapeHtml(options.intro) + '</p>' + content + '<table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:26px;"><tr><td style="border-radius:999px;background:#542476;"><a href="' + escapeHtml(options.buttonUrl) + '" style="display:inline-block;padding:13px 22px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">' + escapeHtml(options.buttonLabel) + '</a></td></tr></table></td></tr><tr><td style="background:#f4efe5;padding:22px 32px;color:#687386;font-size:12px;line-height:1.55;">' + escapeHtml(options.footer) + '<br><span style="color:#0a1628;font-weight:700;">Jackrabbit Punkin Publishing LLC</span>' + unsubscribe + "</td></tr></table></td></tr></table></body></html>";
 }
 
@@ -3499,7 +3538,7 @@ function buildNewsletterPlainText(campaign: NewsletterCampaignRecord, unsubscrib
 
 function buildNewsletterEmailHtml(env: Env, campaign: NewsletterCampaignRecord, unsubscribeUrl: string) {
   const preview = campaign.previewText ? '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">' + escapeHtml(campaign.previewText) + "</div>" : "";
-  const logoUrl = firstUrlValue(env.SITE_URL).replace(/\/$/, "") + "/assets/jrppLogo2.png";
+  const logoUrl = firstUrlValue(env.SITE_URL).replace(/\/$/, "") + "/assets/icons/jrppLogo2.png";
   const heroButton = campaign.heroCtaLabel && campaign.heroCtaUrl ? '<table role="presentation" cellspacing="0" cellpadding="0" style="margin:20px auto 0;"><tr><td style="border-radius:999px;background:#542476;"><a href="' + escapeHtml(campaign.heroCtaUrl) + '" style="display:inline-block;padding:12px 20px;color:#fff;text-decoration:none;font-size:14px;font-weight:700;">' + escapeHtml(campaign.heroCtaLabel) + "</a></td></tr></table>" : "";
   return '<!doctype html><html><body style="margin:0;padding:0;background:#f3f0e9;font-family:Arial,Helvetica,sans-serif;">' + preview + '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f0e9;"><tr><td align="center" style="padding:28px 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:650px;background:#fff;border:1px solid #e2dccf;border-radius:12px;overflow:hidden;"><tr><td style="background:#0a1628;padding:20px 28px;border-bottom:5px solid #d4ad55;"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:44px;"><img src="' + escapeHtml(logoUrl) + '" width="44" height="44" alt="Jackrabbit Punkin Publishing" style="display:block;border-radius:50%;border:2px solid #d4ad55;" /></td><td style="padding-left:14px;"><div style="color:#fff;font-family:Georgia,serif;font-size:20px;font-weight:700;">Jackrabbit Punkin Publishing</div><div style="margin-top:4px;color:#d4ad55;font-size:11px;letter-spacing:.5px;">Stories That Inspire. Books That Endure.</div></td></tr></table></td></tr><tr><td align="center" style="padding:34px 34px 29px;background:#fbf8f1;"><div style="color:#542476;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">' + escapeHtml(campaign.title) + '</div><h1 style="margin:10px 0 13px;color:#0a1628;font-family:Georgia,serif;font-size:31px;line-height:1.18;">' + escapeHtml(campaign.subject) + '</h1><p style="margin:0;color:#485365;font-size:16px;line-height:1.65;">' + escapeHtml(campaign.heroMessage) + '</p>' + heroButton + '</td></tr><tr><td style="padding:24px 34px;background:#f4efe5;border-top:1px solid #e7dfcf;"><p style="margin:0 0 9px;color:#4e596c;font-size:15px;line-height:1.65;">' + escapeHtml(campaign.closingNote) + '</p><div style="color:#0a1628;font-family:Georgia,serif;font-weight:700;">- Jackrabbit Punkin Publishing LLC</div></td></tr><tr><td align="center" style="padding:18px 26px;background:#0a1628;color:#bfc5cf;font-size:11px;line-height:1.65;"><span style="color:#d4ad55;font-weight:700;">Jackrabbit Punkin Publishing LLC</span><br>Stories That Inspire. Books That Endure.<br><a href="' + escapeHtml(firstUrlValue(env.SITE_URL)) + '" style="color:#fff;">Visit website</a> &nbsp;|&nbsp; <a href="' + escapeHtml(unsubscribeUrl) + '" style="color:#fff;">Unsubscribe</a></td></tr></table></td></tr></table></body></html>';
 }

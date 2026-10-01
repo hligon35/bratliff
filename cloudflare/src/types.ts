@@ -34,6 +34,7 @@ export interface R2ObjectBody {
 
 export interface R2Bucket {
   get(key: string): Promise<R2ObjectBody | null>;
+  head(key: string): Promise<unknown | null>;
   put(
     key: string,
     value: ArrayBuffer | ArrayBufferView | string,

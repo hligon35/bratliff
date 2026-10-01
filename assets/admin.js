@@ -1033,6 +1033,7 @@
     const form = qs("#bookForm");
     if (!form) return;
     form.reset();
+    syncBookFormatPrice();
     const bookIdField = field(form, "bookId");
     const thresholdField = field(form, "lowStockThreshold");
     const fileInput = qs("#bookImage");
@@ -1153,6 +1154,7 @@
       const control = field(form, name);
       if (control) control.value = book[name] == null ? "" : book[name];
     });
+    syncBookFormatPrice();
     ["featured", "comingSoon", "preorder"].forEach(function (name) {
       const control = field(form, name);
       if (control) control.checked = Boolean(book[name]);
@@ -1166,6 +1168,17 @@
       preview.innerHTML = book.imageUrl ? '<img src="' + escapeHtml(book.imageUrl) + '" alt="">' : "<span>No image</span>";
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function syncBookFormatPrice() {
+    const form = qs("#bookForm");
+    if (!form) return;
+    const price = field(form, "price");
+    const format = field(form, "format");
+    if (!price || !format) return;
+    const fixedPrice = { Paperback: "20.00", Hardcover: "25.00" }[format.value];
+    price.readOnly = Boolean(fixedPrice);
+    if (fixedPrice) price.value = fixedPrice;
   }
 
   function bookPayload() {
@@ -1481,7 +1494,7 @@
     const payload = newsletterPayload();
     const book = newsletterSelectedBook();
     preview.innerHTML =
-      '<div class="nl-email-header"><div class="nl-email-brand"><img class="nl-logo" src="assets/jrppLogo2.png" alt="Jackrabbit Punkin Publishing"><div><h3>Jackrabbit Punkin Publishing</h3><p>Stories That Inspire. Books That Endure.</p></div></div></div>' +
+      '<div class="nl-email-header"><div class="nl-email-brand"><img class="nl-logo" src="assets/icons/jrppLogo2.png" alt="Jackrabbit Punkin Publishing"><div><h3>Jackrabbit Punkin Publishing</h3><p>Stories That Inspire. Books That Endure.</p></div></div></div>' +
       '<section class="nl-email-hero"><div class="nl-kicker">' +
       escapeHtml(payload.title || "The Jackrabbit Journal") +
       "</div><h1>" +
@@ -2170,6 +2183,41 @@
   async function loadAnalytics() {
     const data = await api("analytics/summary?days=" + encodeURIComponent(state.analyticsRangeDays));
     renderAnalytics(data);
+    try {
+      renderResourceAnalytics(await api("resources/summary"));
+    } catch (error) {
+      const status = qs("#resourceAnalyticsStatus");
+      if (status) status.textContent = error.message || "Resource reporting is unavailable.";
+    }
+  }
+
+  function renderResourceAnalytics(data) {
+    const metrics = qs("#resourceMetrics");
+    if (metrics) {
+      metrics.innerHTML =
+        '<div class="metric"><strong>' + escapeHtml(String(data.totalRegistrations || 0)) + '</strong><span>Registrations</span></div>' +
+        '<div class="metric"><strong>' + escapeHtml(String(data.totalDownloads || 0)) + '</strong><span>Guide Downloads</span></div>';
+    }
+    const guideBreakdown = qs("#resourceGuideBreakdown");
+    if (guideBreakdown) {
+      guideBreakdown.innerHTML = tableMarkup("table", [
+        { label: "Guide", render: function (row) { return escapeHtml(row.title); } },
+        { label: "Selected", render: function (row) { return escapeHtml(String(row.selected || 0)); } },
+        { label: "Downloads", render: function (row) { return escapeHtml(String(row.downloads || 0)); } },
+      ], data.guides || [], "No guides configured.");
+    }
+    const registrations = qs("#resourceRegistrations");
+    if (registrations) {
+      registrations.innerHTML = tableMarkup("table", [
+        { label: "Date", render: function (row) { return escapeHtml(row.createdAt || ""); } },
+        { label: "Name", render: function (row) { return escapeHtml((row.firstName || "") + " " + (row.lastName || "")); } },
+        { label: "Email", render: function (row) { return escapeHtml(row.email || ""); } },
+        { label: "Organization", render: function (row) { return escapeHtml(row.organization || ""); } },
+        { label: "Audience", render: function (row) { return escapeHtml(row.audience || ""); } },
+        { label: "Selected guide", render: function (row) { return escapeHtml(row.selectedResource || ""); } },
+        { label: "News opt-in", render: function (row) { return Number(row.marketingOptIn) ? "Yes" : "No"; } },
+      ], data.registrations || [], "No Resource Library registrations yet.");
+    }
   }
 
   function formatShortDay(value) {
@@ -2624,7 +2672,9 @@
   qs("#removeBookImageBtn")?.addEventListener("click", removeCurrentBookImage);
   qs("#publishBtn")?.addEventListener("click", publishCurrentBook);
   qs("#archiveBtn")?.addEventListener("click", archiveCurrentBook);
+  qs('#bookForm select[name="format"]')?.addEventListener("change", syncBookFormatPrice);
   qs("#bookForm")?.addEventListener("submit", saveBook);
+  syncBookFormatPrice();
   qs("#orderForm")?.addEventListener("submit", updateOrder);
   qs("#inventoryForm")?.addEventListener("submit", adjustInventory);
   qs("#openAdminFormBtn")?.addEventListener("click", function () {

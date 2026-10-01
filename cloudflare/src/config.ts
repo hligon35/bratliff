@@ -68,11 +68,7 @@ export const NEWSLETTER_DEFAULTS = Object.freeze({
   timeZone: "America/New_York",
 });
 
-/**
- * Read It Forward sponsorship packages. Every tier is a fixed price for a
- * fixed book count, except Literacy Trailblazer which is a 50-book minimum
- * with each additional book adding `perBookCents`.
- */
+/** Read It Forward sponsorship packages use fixed prices and book counts. */
 export const SPONSOR_PACKAGES: Record<
   SponsorPackageKey,
   {
@@ -80,8 +76,6 @@ export const SPONSOR_PACKAGES: Record<
     buttonLabel: string;
     priceCents: number;
     books: number;
-    perBookCents?: number;
-    minBooks?: number;
   }
 > = {
   pagePal: { label: "Page Pal", buttonLabel: "Sponsor 5 Books", priceCents: 10000, books: 5 },
@@ -89,14 +83,15 @@ export const SPONSOR_PACKAGES: Record<
   bookshelfBuilder: { label: "Bookshelf Builder", buttonLabel: "Sponsor 25 Books", priceCents: 50000, books: 25 },
   literacyTrailblazer: {
     label: "Literacy Trailblazer",
-    buttonLabel: "Sponsor 50+ Books",
+    buttonLabel: "Sponsor 50 Books",
     priceCents: 100000,
     books: 50,
-    perBookCents: 2000,
-    minBooks: 50,
   },
 };
 
-export const SPONSOR_MAX_BOOKS = 1000;
-
 export const STORE_SHIPPING_PER_BOOK_CENTS = 500;
+
+export const STORE_BOOK_PRICES: Record<"Paperback" | "Hardcover", number> = {
+  Paperback: 20,
+  Hardcover: 25,
+};

@@ -15,6 +15,7 @@ const WRANGLER_CONFIG = "cloudflare/wrangler.jsonc";
 const SITE_URL = "https://sandbox.jackrabbitpunkinpublishing.com";
 if (new URL(SITE_URL).hostname !== "sandbox.jackrabbitpunkinpublishing.com") throw new Error("Sandbox host mismatch.");
 const COUNT = parseCountArg();
+const SAMPLE_PAPERBACK_PRICE = 20;
 const runId = parseRunIdArg() || makeRunId();
 const apply = process.argv.includes("--apply");
 const cleanupId = parseCleanupArg();
@@ -140,16 +141,16 @@ function makeSeedSql(forms) {
     const id = prefix + "BOOK-" + pad(n);
     const sku = prefix + "SKU-" + pad(n);
     const title = "Sandbox QA Book " + pad(n);
-    books.push({ id, sku, title, price: 12 + n });
+    books.push({ id, sku, title, price: SAMPLE_PAPERBACK_PRICE });
     statements.push(sqlInsert("books",
       ["id", "sku", "isbn", "title", "subtitle", "author", "synopsis", "short_description", "format", "category", "price", "compare_price", "stock", "low_stock_threshold", "image_url", "featured", "coming_soon", "preorder", "status", "publication_date"],
-      [id, sku, "", title, "[TEST DATA]", "JPP QA Generator", "Generated sandbox catalog entry. Not a retail or publisher purchase.", "Sandbox review catalog item.", "Paperback", "QA Test Data", 12 + n, 0, 25, 5, "assets/bookFeature.png", 0, 0, 0, "Published", "2026-01-01"]));
+      [id, sku, "", title, "[TEST DATA]", "JPP QA Generator", "Generated sandbox catalog entry. Not a retail or publisher purchase.", "Sandbox review catalog item.", "Paperback", "QA Test Data", SAMPLE_PAPERBACK_PRICE, 0, 25, 5, "assets/books/bookFeature.png", 0, 0, 0, "Published", "2026-01-01"]));
     statements.push(sqlInsert("inventory_events",
       ["id", "book_id", "sku", "title", "change_qty", "previous_qty", "new_qty", "reason", "order_number", "admin_email", "notes"],
       [prefix + "INV-" + pad(n), id, sku, title, 5, 20, 25, "QA test inventory adjustment", "", "test-data@example.invalid", "[TEST DATA " + runId + "] No physical stock changed."]));
     statements.push(sqlInsert("authors",
       ["id", "name", "title", "short_intro", "biography", "portrait_url", "portrait_alt", "website_url", "social_links", "related_book_ids", "cta_label", "cta_url", "status", "display_order"],
-      [prefix + "AUTHOR-" + pad(n), "Sandbox QA Author " + pad(n), "Test author profile", "[TEST DATA] Draft profile for sandbox review.", "Generated author entry for reviewing the admin editor. This is not a real author profile.", "assets/femaleFeature.png", "Sandbox QA sample portrait", "", "[]", JSON.stringify([id]), "Read more", SITE_URL + "/about.html", "Draft", n]));
+      [prefix + "AUTHOR-" + pad(n), "Sandbox QA Author " + pad(n), "Test author profile", "[TEST DATA] Draft profile for sandbox review.", "Generated author entry for reviewing the admin editor. This is not a real author profile.", "assets/icons/femaleFeature.png", "Sandbox QA sample portrait", "", "[]", JSON.stringify([id]), "Read more", SITE_URL + "/about.html", "Draft", n]));
     statements.push(sqlInsert("newsletter_campaigns",
       ["campaign_id", "status", "title", "subject", "preview_text", "audience", "from_name", "hero_message", "closing_note"],
       [prefix + "CAMPAIGN-" + pad(n), "Draft", "[TEST DATA " + runId + "] QA Campaign " + pad(n), "Sandbox newsletter preview " + pad(n), "Synthetic draft. Do not send.", "all", "JPP Sandbox QA", "Generated campaign content for admin review.", "Test campaign only; do not send."]));
@@ -386,16 +387,6 @@ async function waitForSql(sql, expected, label) {
   }
   throw new Error("Timed out waiting for Square webhook to reconcile " + label + " at " + SITE_URL + "/square/webhook.");
 }
-// Trailblazer demo sponsors rotate through every badge tier. The amount stays
-// proportional to the $20-per-sponsored-book demo rate used by the 50-book tier.
-const TRAILBLAZER_LEVELS = [
-  { badge: "Bronze", books: 75, amountCents: 150000 },
-  { badge: "Silver", books: 125, amountCents: 250000 },
-  { badge: "Gold", books: 175, amountCents: 350000 },
-  { badge: "Platinum", books: 225, amountCents: 450000 },
-  { badge: "Diamond", books: 275, amountCents: 550000 },
-];
-
 const SPONSOR_DEFINITIONS = [
   { key: "pagePal", label: "Page Pal", books: 5, amountCents: 10000 },
   { key: "chapterChampion", label: "Chapter Champion", books: 12, amountCents: 25000 },
@@ -403,14 +394,8 @@ const SPONSOR_DEFINITIONS = [
   { key: "literacyTrailblazer", label: "Literacy Trailblazer", books: 50, amountCents: 100000 },
 ];
 
-function resolveSponsorDefinition(definition, n) {
-  if (definition.key !== "literacyTrailblazer") return definition;
-  const level = TRAILBLAZER_LEVELS[(n - 1) % TRAILBLAZER_LEVELS.length];
-  return { ...definition, ...level };
-}
-
 async function seedAndPaySponsor(definition, n) {
-  const sponsor = resolveSponsorDefinition(definition, n);
+  const sponsor = definition;
   const sequence = pad(n);
   const suffix = sponsor.key + "." + sequence;
   const sponsorId = "TEST-" + runId + "-SPONSOR-" + sponsor.key + "-" + sequence;
@@ -498,7 +483,7 @@ async function seedAndPayBookOrder(n) {
   const bookId = prefix + "BOOK-" + sequence;
   const sku = prefix + "SKU-" + sequence;
   const title = "Sandbox QA Book " + sequence;
-  const unitPrice = 12 + n;
+  const unitPrice = SAMPLE_PAPERBACK_PRICE;
   const shipping = 5;
   const subtotalCents = Math.round(unitPrice * 100);
   const totalCents = subtotalCents + shipping * 100;
