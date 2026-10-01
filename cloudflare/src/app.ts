@@ -155,7 +155,7 @@ const app: AppHandler = {
 
       if (url.pathname === "/square/sandbox") {
         const target = env.SQUARE_ENVIRONMENT === "production"
-          ? "https://jrpp.alphazonelabs.com/"
+          ? "https://sandbox.jackrabbitpunkinpublishing.com/"
           : new URL("/", url).toString();
         return Response.redirect(target, 302);
       }

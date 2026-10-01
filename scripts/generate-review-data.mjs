@@ -12,8 +12,8 @@ const REVIEWER = "hligon@getsparqd.com";
 const DATABASE = "bratliff-platform-sandbox";
 const WRANGLER_CONFIG = "cloudflare/wrangler.jsonc";
 // The review generator ignores deployment URL values in .env; all site/API traffic is pinned here.
-const SITE_URL = "https://jrpp.alphazonelabs.com";
-if (new URL(SITE_URL).hostname !== "jrpp.alphazonelabs.com") throw new Error("Sandbox host mismatch.");
+const SITE_URL = "https://sandbox.jackrabbitpunkinpublishing.com";
+if (new URL(SITE_URL).hostname !== "sandbox.jackrabbitpunkinpublishing.com") throw new Error("Sandbox host mismatch.");
 const COUNT = parseCountArg();
 const runId = parseRunIdArg() || makeRunId();
 const apply = process.argv.includes("--apply");
@@ -297,7 +297,7 @@ async function assertSandboxTarget() {
     throw new Error(
       "Refusing to generate review data: " + SITE_URL +
       " did not identify itself as the sandbox Worker (environment: " +
-      String(health.environment || "unknown") + "). Resolve the jrpp domain route before retrying.",
+      String(health.environment || "unknown") + "). Resolve the sandbox domain route before retrying.",
     );
   }
 }
