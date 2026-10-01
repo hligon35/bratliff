@@ -23,6 +23,8 @@
 }
 html {
   scroll-behavior: smooth;
+  /* Reserve a constant scrollbar gutter so the fixed header doesn't jump width between pages with/without a scrollbar. */
+  scrollbar-gutter: stable;
 }
 body {
   margin: 0;
@@ -30,6 +32,7 @@ body {
   background: var(--cream);
   font-family: var(--sans);
   line-height: 1.65;
+  overflow-y: scroll;
 }
 img {
   max-width: 100%;
@@ -2241,6 +2244,7 @@ body.document-viewer-open {
   }
   .site-nav a {
     padding: 0.85rem 1rem;
+    text-align: center;
   }
   .site-account {
     display: none;
@@ -2730,9 +2734,9 @@ body.document-viewer-open {
 .resource-filter[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: var(--white); }
 .resource-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1.5rem; }
 .resource-card { display: flex; flex-direction: column; gap: 0; padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--paper); }
-.resource-cover { display: grid; place-items: center; aspect-ratio: 3 / 4; max-height: 350px; background: var(--navy-2); color: var(--gold-soft); }
-.resource-cover img { width: 100%; height: 100%; object-fit: contain; }
-.resource-cover-pending { padding: 1rem; text-align: center; font-size: .85rem; }
+.resource-cover { position: relative; height: 350px; overflow: hidden; background: var(--navy-2); color: var(--gold-soft); }
+.resource-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.resource-cover-pending { position: absolute; inset: 0; display: grid; place-items: center; padding: 1rem; text-align: center; font-size: .85rem; }
 .resource-card-body { display: flex; flex: 1; flex-direction: column; gap: .7rem; padding: 1.2rem; }
 .resource-card-body > * { margin: 0; }
 .resource-card h3 { font: 700 1.2rem/1.3 var(--serif); }
@@ -2743,7 +2747,7 @@ body.document-viewer-open {
 .resource-actions .button { border-radius: 4px; min-height: 44px; font-size: .83rem; }
 .resource-card .button[aria-disabled="true"] { opacity: .55; pointer-events: none; }
 .resource-card-featured { display: flex; flex-direction: column; margin-bottom: 2.5rem; }
-.resource-card-featured .resource-cover { max-height: 420px; }
+.resource-card-featured .resource-cover { height: 420px; }
 .resource-print-tip { margin-top: 2rem; border-top: 1px solid var(--line); padding-top: 1rem; }
 .resource-feedback { min-height: 1.5rem; color: #a51d2d; }
 .resource-dialog { width: min(620px, calc(100% - 1.5rem)); max-height: min(85dvh, 760px); overflow-y: auto; padding: 2rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
