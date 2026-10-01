@@ -180,7 +180,9 @@ function header() {
     .map(([label, href, key]) => "<a href=\"" + href + "\"" + (key === current ? " aria-current=\"page\"" : "") + ">" + label + "</a>")
     .join("");
   return "<a class=\"skip-link\" href=\"#main\">Skip to content</a><header class=\"site-header\"><div class=\"container nav-wrap\">" +
-    "<a class=\"brand\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\"><span class=\"brand-mark\" aria-hidden=\"true\"><span>JP</span></span><span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
+    "<a class=\"brand brand-with-logo\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\">" +
+    "<img class=\"brand-logo\" src=\"" + artwork.brandLogo + "\" alt=\"\" aria-hidden=\"true\">" +
+    "<span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
     "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\">☰</button>" +
     "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Login</a></nav>" +
     "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><span class=\"jrpp-public-icon\" data-account-trigger-icon aria-hidden=\"true\">person</span><span data-account-trigger-label>Login</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
