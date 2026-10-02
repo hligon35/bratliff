@@ -1853,16 +1853,17 @@ function storeBookPrice(format: string, storedPrice: number): number {
 function normalizeBookImageUrl(value: unknown): string {
   const imageUrl = text(value, 1000);
   if (!imageUrl) return "";
-  if (/^(?:[a-z][a-z\\d+.-]*:|\\/\\/)/i.test(imageUrl)) return imageUrl;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(imageUrl) || imageUrl.startsWith("//")) return imageUrl;
 
-  const rootRelativeUrl = "/" + imageUrl.replace(/^\\/+/, "");
+  let path = imageUrl;
+  while (path.startsWith("/")) path = path.slice(1);
+  const rootRelativeUrl = "/" + path;
   // Older sandbox review records used this path before the asset was organized
   // under assets/books. Keep those already-seeded catalog entries visible.
   return rootRelativeUrl === "/assets/bookFeature.png"
     ? "/assets/books/bookFeature.png"
     : rootRelativeUrl;
 }
-
 function mapBookRecord(row: Record<string, unknown>): BookRecord {
   return {
     bookId: text(row.bookId, 120),
