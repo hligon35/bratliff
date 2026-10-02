@@ -1850,6 +1850,19 @@ function storeBookPrice(format: string, storedPrice: number): number {
   return STORE_BOOK_PRICES[format as keyof typeof STORE_BOOK_PRICES] ?? money(storedPrice);
 }
 
+function normalizeBookImageUrl(value: unknown): string {
+  const imageUrl = text(value, 1000);
+  if (!imageUrl) return "";
+  if (/^(?:[a-z][a-z\\d+.-]*:|\\/\\/)/i.test(imageUrl)) return imageUrl;
+
+  const rootRelativeUrl = "/" + imageUrl.replace(/^\\/+/, "");
+  // Older sandbox review records used this path before the asset was organized
+  // under assets/books. Keep those already-seeded catalog entries visible.
+  return rootRelativeUrl === "/assets/bookFeature.png"
+    ? "/assets/books/bookFeature.png"
+    : rootRelativeUrl;
+}
+
 function mapBookRecord(row: Record<string, unknown>): BookRecord {
   return {
     bookId: text(row.bookId, 120),
@@ -1867,7 +1880,7 @@ function mapBookRecord(row: Record<string, unknown>): BookRecord {
     stock: Number(row.stock || 0),
     lowStockThreshold: Number(row.lowStockThreshold || 5),
     imageKey: text(row.imageKey, 300),
-    imageUrl: text(row.imageUrl, 1000),
+    imageUrl: normalizeBookImageUrl(row.imageUrl),
     featured: Boolean(Number(row.featured || 0)),
     comingSoon: Boolean(Number(row.comingSoon || 0)),
     preorder: Boolean(Number(row.preorder || 0)),
