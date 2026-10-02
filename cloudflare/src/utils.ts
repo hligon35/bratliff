@@ -141,6 +141,16 @@ export function matchOriginUrl(rawValue: string | undefined, request: Request, f
   return candidates[0];
 }
 
+export function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "DENY");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  headers.set("Strict-Transport-Security", "max-age=31536000");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export function withCors(request: Request, env: Env, response: Response) {
   const origin = request.headers.get("Origin") || "";
   const allowedOrigins = new Set(
@@ -161,7 +171,7 @@ export function withCors(request: Request, env: Env, response: Response) {
   headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type, Cf-Access-Jwt-Assertion, x-square-hmacsha256-signature");
   headers.set("Vary", "Origin");
-  return new Response(response.body, { status: response.status, headers });
+  return withSecurityHeaders(new Response(response.body, { status: response.status, headers }));
 }
 
 export function json(request: Request, env: Env, payload: Record<string, unknown>, status = 200) {

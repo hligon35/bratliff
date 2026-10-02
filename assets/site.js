@@ -235,9 +235,10 @@ function footer() {
   </div><div class="container footer-bottom"><span>© 2026 Jackrabbit Punkin Publishing LLC. All rights reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
 }
 
-document
-  .querySelector("[data-header]")
-  ?.insertAdjacentHTML("afterbegin", header());
+const headerMount = document.querySelector("[data-header]");
+if (headerMount && !headerMount.querySelector(".site-header")) {
+  headerMount.insertAdjacentHTML("afterbegin", header());
+}
 document
   .querySelector("[data-footer]")
   ?.insertAdjacentHTML("afterbegin", footer());

@@ -71,7 +71,7 @@
       const stockClass = book.stock <= book.lowStockThreshold ? 'low' : 'ok';
       const stockLabel = book.preorder ? 'Preorder available' : book.status === 'Out of Stock' ? 'Out of stock' : book.stock <= book.lowStockThreshold ? `Only ${book.stock} left` : 'In stock';
       return `<article class="store-card" data-book-id="${escapeHtml(book.bookId)}">
-        <div class="store-book-image">${book.imageUrl ? `<img src="${escapeHtml(book.imageUrl)}" alt="${escapeHtml(book.title)}">` : ''}</div>
+        <div class="store-book-image">${book.imageUrl ? `<img src="${escapeHtml(book.imageUrl)}" alt="${escapeHtml(book.title)}" loading="lazy" decoding="async">` : ''}</div>
         <div>
           <div class="store-book-meta"><span>${escapeHtml(book.format || 'Book')}</span>${book.category ? `<span>· ${escapeHtml(book.category)}</span>` : ''}</div>
           <h3 style="margin-top:.45rem">${escapeHtml(book.title)}</h3>

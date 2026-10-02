@@ -3,5 +3,8 @@ node_modules/
 .env.local
 cloudflare/public/
 .wrangler/
+cloudflare/.wrangler/
+review-data-digest-*.txt
+review-data-digest-*.html
 .secrets.sandbox
 .env.local2

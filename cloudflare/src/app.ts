@@ -50,6 +50,7 @@ import {
   toBoolean,
   verifySquareSignature,
   withCors,
+  withSecurityHeaders,
 } from "./utils";
 
 
@@ -100,39 +101,39 @@ const app: AppHandler = {
         if (!env.BOOK_ASSETS) {
           return new Response("Not found", { status: 404 });
         }
-        return await serveBookImage(url, env);
+        return withSecurityHeaders(await serveBookImage(url, env));
       }
 
       if (url.pathname.startsWith("/media/sponsors/")) {
         if (!env.BOOK_ASSETS) {
           return new Response("Not found", { status: 404 });
         }
-        return await serveSponsorLogo(url, env);
+        return withSecurityHeaders(await serveSponsorLogo(url, env));
       }
 
       if (url.pathname.startsWith("/media/authors/")) {
         if (!env.BOOK_ASSETS) {
           return new Response("Not found", { status: 404 });
         }
-        return await serveAuthorPortrait(url, env);
+        return withSecurityHeaders(await serveAuthorPortrait(url, env));
       }
 
       if (url.pathname.startsWith("/media/admin-avatars/")) {
-        return await serveAdminAvatar(request, url, env);
+        return withSecurityHeaders(await serveAdminAvatar(request, url, env));
       }
 
       if (url.pathname === "/square/sandbox") {
         const target = env.SQUARE_ENVIRONMENT === "production"
           ? "https://sandbox.jackrabbitpunkinpublishing.com/"
           : new URL("/", url).toString();
-        return Response.redirect(target, 302);
+        return withSecurityHeaders(Response.redirect(target, 302));
       }
 
       if (url.pathname === "/square/webhook") {
         if (!env.DB) {
           return new Response("Not configured", { status: 404 });
         }
-        return await handleSquareWebhook(request, env);
+        return withSecurityHeaders(await handleSquareWebhook(request, env));
       }
 
       if (url.pathname === "/api/auth/google") {
@@ -145,6 +146,13 @@ const app: AppHandler = {
 
       if (url.pathname === "/api/auth/logout") {
         return await handleAdminLogoutRequest(request, env);
+      }
+
+      if (
+        (url.pathname.startsWith("/api/admin/") || url.pathname.startsWith("/api/customer/")) &&
+        !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
+      ) {
+        requireTrustedMutationOrigin(request, env);
       }
 
       if (url.pathname.startsWith("/api/customer/")) {
@@ -217,7 +225,7 @@ const app: AppHandler = {
         return await handleCompatibilityRoot(request, env, url);
       }
 
-      return await env.ASSETS.fetch(request);
+      return withSecurityHeaders(await env.ASSETS.fetch(request));
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
       return json(request, env, { ok: false, error: getErrorMessage(error) }, status);
@@ -231,6 +239,29 @@ const app: AppHandler = {
 };
 
 export default app;
+
+function requireTrustedMutationOrigin(request: Request, env: Env): void {
+  const origin = request.headers.get("Origin");
+  if (!origin) {
+    throw new HttpError(403, "A trusted request origin is required for this action.");
+  }
+
+  const allowedOrigins = new Set(
+    [...splitUrlList(env.CORS_ORIGIN), ...splitUrlList(env.SITE_URL), ...splitUrlList(env.PUBLIC_ADMIN_URL)]
+      .map((value) => {
+        try {
+          return new URL(value).origin;
+        } catch {
+          return value;
+        }
+      }),
+  );
+  allowedOrigins.add(new URL(request.url).origin);
+
+  if (!allowedOrigins.has(origin)) {
+    throw new HttpError(403, "This action must be submitted from an approved site.");
+  }
+}
 
 async function handleCompatibilityRoot(
   request: Request,
