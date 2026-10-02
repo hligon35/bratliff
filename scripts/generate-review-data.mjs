@@ -144,7 +144,7 @@ function makeSeedSql(forms) {
     books.push({ id, sku, title, price: SAMPLE_PAPERBACK_PRICE });
     statements.push(sqlInsert("books",
       ["id", "sku", "isbn", "title", "subtitle", "author", "synopsis", "short_description", "format", "category", "price", "compare_price", "stock", "low_stock_threshold", "image_url", "featured", "coming_soon", "preorder", "status", "publication_date"],
-      [id, sku, "", title, "[TEST DATA]", "JPP QA Generator", "Generated sandbox catalog entry. Not a retail or publisher purchase.", "Sandbox review catalog item.", "Paperback", "QA Test Data", SAMPLE_PAPERBACK_PRICE, 0, 25, 5, "assets/books/bookFeature.png", 0, 0, 0, "Published", "2026-01-01"]));
+      [id, sku, "", title, "[TEST DATA]", "JPP QA Generator", "Generated sandbox catalog entry. Not a retail or publisher purchase.", "Sandbox review catalog item.", "Paperback", "QA Test Data", SAMPLE_PAPERBACK_PRICE, 0, 25, 5, "/assets/books/bookFeature.png", 0, 0, 0, "Published", "2026-01-01"]));
     statements.push(sqlInsert("inventory_events",
       ["id", "book_id", "sku", "title", "change_qty", "previous_qty", "new_qty", "reason", "order_number", "admin_email", "notes"],
       [prefix + "INV-" + pad(n), id, sku, title, 5, 20, 25, "QA test inventory adjustment", "", "test-data@example.invalid", "[TEST DATA " + runId + "] No physical stock changed."]));
