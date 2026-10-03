@@ -1307,6 +1307,9 @@ async function handleAdminApi(
   if (request.method === "GET" && path === "mail/items") {
     return json(request, env, { ok: true, ...(await listMailboxItems(env, admin, url.searchParams)) });
   }
+  if (request.method === "GET" && path === "mail/failed") {
+    return json(request, env, { ok: true, ...(await listFailedMailboxEmail(env, admin, url.searchParams)) });
+  }
   if (request.method === "GET" && path === "mail/item") {
     const itemKey = text(url.searchParams.get("key"), 240);
     return json(request, env, { ok: true, item: await getMailboxItem(env, admin, itemKey) });
@@ -1317,7 +1320,7 @@ async function handleAdminApi(
   }
   if (request.method === "GET" && path === "mail/item/draft") {
     const itemKey = text(url.searchParams.get("key"), 240);
-    await assertMailboxItemExists(env, itemKey);
+    await assertMailboxItemExists(env, itemKey, admin.email);
     const draft = await env.DB.prepare("SELECT body, updated_at AS updatedAt FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2")
       .bind(admin.email, itemKey).first<Record<string, unknown>>();
     return json(request, env, { ok: true, draft: draft ? { body: text(draft.body, 20000), updatedAt: draft.updatedAt } : null });
@@ -1327,7 +1330,7 @@ async function handleAdminApi(
     const body = await parseBody(request);
     const itemKey = text(body.itemKey, 240);
     const draftBody = typeof body.body === "string" ? body.body.slice(0, 20000) : "";
-    await assertMailboxItemExists(env, itemKey);
+    await assertMailboxItemExists(env, itemKey, admin.email);
     await env.DB.prepare(
       "INSERT INTO mailbox_drafts (admin_email, item_key, body, updated_at) VALUES (?1, ?2, ?3, datetime('now')) ON CONFLICT(admin_email, item_key) DO UPDATE SET body = excluded.body, updated_at = datetime('now')",
     ).bind(admin.email, itemKey, draftBody).run();
@@ -1336,7 +1339,7 @@ async function handleAdminApi(
   if (request.method === "DELETE" && path === "mail/item/draft") {
     requireRole(admin, "manager");
     const itemKey = text(url.searchParams.get("key"), 240);
-    await assertMailboxItemExists(env, itemKey);
+    await assertMailboxItemExists(env, itemKey, admin.email);
     await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, itemKey).run();
     return json(request, env, { ok: true, deleted: true });
   }
@@ -1609,24 +1612,26 @@ async function handleAdminApi(
   return json(request, env, { ok: false, error: "Admin route not found." }, 404);
 }
 
-type MailboxSourceKey = { sourceType: "order" | "submission"; id: string; itemKey: string };
+type MailboxSourceKey = { sourceType: "order" | "submission" | "outbound"; id: string; itemKey: string };
 
 function parseMailboxSourceKey(value: unknown): MailboxSourceKey {
   const itemKey = text(value, 240);
   const splitAt = itemKey.indexOf(":");
   const sourceType = itemKey.slice(0, splitAt);
   const id = itemKey.slice(splitAt + 1);
-  if (splitAt < 1 || !id || !["order", "submission"].includes(sourceType) || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) {
+  if (splitAt < 1 || !id || !["order", "submission", "outbound"].includes(sourceType) || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) {
     throw new HttpError(400, "Choose a valid mailbox item.");
   }
-  return { sourceType: sourceType as "order" | "submission", id, itemKey };
+  return { sourceType: sourceType as "order" | "submission" | "outbound", id, itemKey };
 }
 
-async function assertMailboxItemExists(env: Env, value: unknown): Promise<MailboxSourceKey> {
+async function assertMailboxItemExists(env: Env, value: unknown, adminEmail = ""): Promise<MailboxSourceKey> {
   const key = parseMailboxSourceKey(value);
   const row = key.sourceType === "order"
     ? await env.DB.prepare("SELECT order_number AS id FROM orders WHERE order_number = ?1").bind(key.id).first()
-    : await env.DB.prepare("SELECT id FROM form_submissions WHERE id = ?1").bind(key.id).first();
+    : key.sourceType === "submission"
+      ? await env.DB.prepare("SELECT id FROM form_submissions WHERE id = ?1").bind(key.id).first()
+      : await env.DB.prepare("SELECT id FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2").bind(key.id, adminEmail).first();
   if (!row) throw new HttpError(404, "Mailbox item not found.");
   return key;
 }
@@ -1711,8 +1716,34 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   };
 }
 
+async function listFailedMailboxEmail(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams) {
+  const page = clampInt(search.get("page"), 1, 5000, 1);
+  const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
+  const term = text(search.get("search"), 120).toLowerCase();
+  const bindings: unknown[] = [admin.email];
+  let where = " WHERE o.admin_email = ?1 AND o.status = 'Failed' AND o.item_key = '' AND COALESCE(ms.folder, 'inbox') = 'inbox'";
+  if (term) {
+    bindings.push("%" + term + "%");
+    where += " AND (lower(o.subject) LIKE ?2 OR lower(o.recipient) LIKE ?2 OR lower(o.error) LIKE ?2)";
+  }
+  const from = " FROM mailbox_outbound o LEFT JOIN mailbox_state ms ON ms.admin_email = o.admin_email AND ms.item_key = 'outbound:' || o.id";
+  const count = await env.DB.prepare("SELECT COUNT(*) AS count" + from + where).bind(...bindings).first<{ count: number }>();
+  bindings.push(pageSize, (page - 1) * pageSize);
+  const rows = await env.DB.prepare(
+    "SELECT 'outbound' AS sourceType, 'outbound:' || o.id AS itemKey, o.id AS id, o.created_at AS createdAt, o.recipient AS name, o.recipient AS email, o.subject, o.error AS preview, o.body, 'Failed email' AS formTypeLabel, o.status, o.idempotency_key AS idempotencyKey, o.error, COALESCE(ms.folder, 'inbox') AS folder, COALESCE(ms.is_read, 0) AS isRead, COALESCE(ms.starred, 0) AS starred" +
+    from + where + " ORDER BY datetime(o.created_at) DESC LIMIT ?" + (bindings.length - 1) + " OFFSET ?" + bindings.length,
+  ).bind(...bindings).all<Record<string, unknown>>();
+  return {
+    items: (rows.results || []).map((row) => ({ ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 })),
+    total: Number(count?.count || 0),
+    page,
+    pageSize,
+    counts: { failed: Number(count?.count || 0) },
+  };
+}
+
 async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknown) {
-  const key = await assertMailboxItemExists(env, value);
+  const key = await assertMailboxItemExists(env, value, admin.email);
   let item: Record<string, unknown> | null = null;
   if (key.sourceType === "order") {
     const found = await env.DB.prepare(
@@ -1729,7 +1760,7 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
         shipping: found.shipping, tax: found.tax, shippingAddress: found.shippingAddress, trackingNumber: found.trackingNumber, items: lines.results || [],
       };
     }
-  } else {
+  } else if (key.sourceType === "submission") {
     const found = await env.DB.prepare(
       "SELECT id, form_type AS formType, created_at AS createdAt, name, email, phone, subject, title, organization, event_type AS eventType, event_date AS eventDate, location, audience, details, group_name AS groupName, group_size AS groupSize, preferred_format AS preferredFormat, preferred_speaker AS preferredSpeaker, speaking_budget AS speakingBudget, request_text AS requestText, notes, message, page_url AS pageUrl, status FROM form_submissions WHERE id = ?1",
     ).bind(key.id).first<Record<string, unknown>>();
@@ -1738,27 +1769,38 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
       subject: text(found.subject, 240) || (text(found.formType, 40) === "speaking" ? "Speaking request" : text(found.formType, 40) === "bookClub" ? "Book club request" : "Website submission"),
       body: text(found.message, 16000) || text(found.requestText, 16000) || text(found.details, 16000) || text(found.notes, 4000),
     };
+  } else {
+    const found = await env.DB.prepare(
+      "SELECT id, recipient, subject, body, status, idempotency_key AS idempotencyKey, created_at AS createdAt, error FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2",
+    ).bind(key.id, admin.email).first<Record<string, unknown>>();
+    if (found) item = {
+      itemKey: key.itemKey, sourceType: "outbound", id: key.id, name: found.recipient, email: found.recipient,
+      recipient: found.recipient, subject: found.subject, body: found.body, status: found.status,
+      idempotencyKey: found.idempotencyKey, createdAt: found.createdAt, error: found.error,
+    };
   }
   if (!item) throw new HttpError(404, "Mailbox item not found.");
   const savedState = await env.DB.prepare("SELECT folder, is_read AS isRead, starred FROM mailbox_state WHERE admin_email = ?1 AND item_key = ?2")
     .bind(admin.email, key.itemKey).first<Record<string, unknown>>();
   const draft = await env.DB.prepare("SELECT body, updated_at AS updatedAt FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2")
     .bind(admin.email, key.itemKey).first<Record<string, unknown>>();
-  const outbound = await env.DB.prepare(
-    "SELECT recipient, subject, body, status, idempotency_key AS idempotencyKey, created_at AS createdAt, error FROM mailbox_outbound WHERE admin_email = ?1 AND item_key = ?2 ORDER BY datetime(created_at) ASC LIMIT 50",
-  ).bind(admin.email, key.itemKey).all<Record<string, unknown>>();
+  const outboundRows = key.sourceType === "outbound"
+    ? [{ recipient: item.email, subject: item.subject, body: item.body, status: item.status, idempotencyKey: item.idempotencyKey, createdAt: item.createdAt, error: item.error }]
+    : (await env.DB.prepare(
+      "SELECT recipient, subject, body, status, idempotency_key AS idempotencyKey, created_at AS createdAt, error FROM mailbox_outbound WHERE admin_email = ?1 AND item_key = ?2 ORDER BY datetime(created_at) ASC LIMIT 50",
+    ).bind(admin.email, key.itemKey).all<Record<string, unknown>>()).results || [];
   return {
     ...item,
     folder: text(savedState?.folder, 20) || "inbox",
     isRead: Number(savedState?.isRead || 0) === 1,
     starred: Number(savedState?.starred || 0) === 1,
     draft: draft ? { body: text(draft.body, 20000), updatedAt: draft.updatedAt } : null,
-    outbound: outbound.results || [],
+    outbound: outboundRows,
   };
 }
 
 async function updateMailboxState(env: Env, admin: AuthenticatedAdmin, body: Record<string, string>) {
-  const key = await assertMailboxItemExists(env, body.itemKey);
+  const key = await assertMailboxItemExists(env, body.itemKey, admin.email);
   const current = await env.DB.prepare("SELECT folder, is_read AS isRead, starred FROM mailbox_state WHERE admin_email = ?1 AND item_key = ?2")
     .bind(admin.email, key.itemKey).first<Record<string, unknown>>();
   let folder = text(current?.folder, 20) || "inbox";
@@ -1784,7 +1826,7 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
   const to = text(body.to, 320).toLowerCase();
   const subject = text(body.subject, 240);
   const content = typeof body.body === "string" ? body.body.slice(0, 20000) : "";
-  const itemKey = body.itemKey ? (await assertMailboxItemExists(env, body.itemKey)).itemKey : "";
+  const itemKey = body.itemKey ? (await assertMailboxItemExists(env, body.itemKey, admin.email)).itemKey : "";
   const idempotencyKey = text(body.idempotencyKey, 120);
   if (!isValidEmail(to)) throw new HttpError(400, "Enter a valid recipient email address.");
   if (!subject || !content.trim()) throw new HttpError(400, "Subject and message are required.");
