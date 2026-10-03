@@ -92,6 +92,7 @@
 
   const adminNavItems = [
     { key: "dashboard", href: "admin/index.html", label: "Dashboard", icon: "overview" },
+    { key: "mailbox", href: "admin/index.html?view=mailbox", label: "Mailbox", icon: "newsletter" },
     { key: "store", href: "admin/store.html", label: "Book Store", icon: "books" },
     { key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "newsletter" },
     { key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "contacts" },

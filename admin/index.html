@@ -1,62 +1,124 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <link rel="icon" type="image/png" href="/assets/icons/jrppLogo.png" />
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="robots" content="noindex,nofollow" />
-    <base href="../" />
-    <title>Publisher Admin | Jackrabbit Punkin Publishing LLC</title>
-    <meta
-      name="description"
-      content="Protected publisher administration console for Jackrabbit Punkin Publishing LLC."
-    />
-    <script>
-      try {
-        if (window.localStorage.getItem("jrpp-admin-drawer-collapsed") === "1") {
-          document.documentElement.classList.add("admin-drawer-collapsed");
-        }
-      } catch (error) {}
-    </script>
-    <link rel="stylesheet" href="assets/admin.css" />
-    <script src="assets/site-config.js" defer></script>
-    <script src="assets/admin.js" defer></script>
-  </head>
-  <body data-page="admin" data-admin-page="dashboard">
-    <div class="jrpp-admin-switcher"><button type="button" class="jrpp-admin-drawer-toggle" data-admin-drawer-toggle aria-label="Collapse admin navigation" aria-expanded="true"><span aria-hidden="true">☰</span><span class="drawer-toggle-label">Collapse menu</span></button>
-      <a class="jrpp-admin-home" href="index.html" aria-label="Jackrabbit Punkin Publishing home">
-        <img class="jrpp-admin-logo" src="assets/icons/jrppLogo2.png" alt="Jackrabbit Punkin Publishing" />
-        <span class="jrpp-admin-brandcopy">
-          Jackrabbit Punkin Publishing
-          <small>Secure Admin System</small>
-        </span>
-      </a>
-      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages"></div>
-      <div class="jrpp-admin-actions">
-                <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0a1628">
+  <meta name="description" content="Jackrabbit Punkin Publishing secure admin workspace.">
+  <link rel="manifest" href="/admin/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/assets/icons/jrppLogo.png">
+  <link rel="stylesheet" href="/assets/admin-workspace.css">
+  <title>Admin Workspace | Jackrabbit Punkin Publishing</title>
+  <script>try{if(localStorage.getItem("jrpp-workspace-drawer")==="collapsed")document.documentElement.classList.add("drawer-collapsed")}catch(e){}</script>
+  <script src="/assets/site-config.js" defer></script>
+  <script src="/assets/admin-workspace.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="drawer" id="workspaceDrawer" aria-label="Admin workspace navigation">
+      <div class="brand-row">
+        <img src="/assets/icons/jrppLogo2.png" alt="" width="42" height="42">
+        <span class="brand-name">Jackrabbit Punkin<small>Publisher workspace</small></span>
+        <button class="icon-button drawer-close" type="button" data-drawer-toggle aria-label="Collapse navigation" title="Collapse navigation">‹</button>
       </div>
-    </div>
+      <div class="nav-label">BOOKSTORE</div>
+      <nav class="primary-nav" aria-label="Bookstore">
+        <button type="button" class="nav-item active" data-view="orders"><span class="nav-icon">▤</span><span>Orders</span><span class="nav-count" id="orderNavCount">—</span></button>
+        <button type="button" class="nav-item" data-view="catalog"><span class="nav-icon">▣</span><span>Catalog</span></button>
+        <button type="button" class="nav-item" data-view="inventory"><span class="nav-icon">▥</span><span>Inventory</span></button>
+      </nav>
+      <div class="nav-label">CUSTOMER WORK</div>
+      <nav class="primary-nav" aria-label="Customer work">
+        <button type="button" class="nav-item" data-view="mailbox"><span class="nav-icon">✉</span><span>Mailbox</span><span class="nav-count" id="mailNavCount">—</span></button>
+      </nav>
+      <div class="nav-label">PUBLISHING</div>
+      <nav class="primary-nav" aria-label="Publishing">
+        <a class="nav-item" href="/admin/author.html"><span class="nav-icon">♙</span><span>Featured Author</span></a>
+        <a class="nav-item" href="/admin/sponsors.html"><span class="nav-icon">✦</span><span>Sponsors</span></a>
+        <a class="nav-item" href="/admin/newsletter.html"><span class="nav-icon">▧</span><span>Newsletter</span></a>
+      </nav>
+      <div class="nav-label">ADMINISTRATION</div>
+      <nav class="primary-nav" aria-label="Administration">
+        <a class="nav-item" href="/admin/analytics.html"><span class="nav-icon">◫</span><span>Reports</span></a>
+        <a class="nav-item" href="/admin/activity.html"><span class="nav-icon">◷</span><span>Activity log</span></a>
+        <a class="nav-item" href="/admin/profile.html"><span class="nav-icon">♧</span><span>Access management</span></a>
+        <a class="nav-item" href="/admin/settings.html"><span class="nav-icon">⚙</span><span>Settings</span></a>
+      </nav>
+      <div class="drawer-bottom">
+        <a href="/admin/store.html" class="manage-store-link">Open full bookstore manager <span aria-hidden="true">↗</span></a>
+        <div class="account-row"><span class="avatar" id="viewerInitials">J</span><span class="account-copy"><b id="viewerName">Loading account</b><small id="viewerEmail">Checking secure session…</small></span></div>
+        <button type="button" class="signout" id="signOutBtn">Sign out</button>
+      </div>
+    </aside>
 
-    <div class="dashboard-page">
-      <section class="dashboard-stage">
-        <header class="dashboard-header">
-          <div class="dashboard-header-copy">
-            <div class="dashboard-kicker">GOOGLE ACCOUNT REQUIRED</div>
-            <h1>Jackrabbit Punkin Admin Dashboard</h1>
-            <p>
-              Signed in as
-              <span id="dashboardViewerEmail" data-viewer-email>Loading secure session...</span>.
-              Review recent form activity and jump into the live spreadsheet.
-            </p>
-          </div>
-        </header>
-        <div class="dashboard-accent"></div>
-        <div class="dashboard-body">
-          <div class="dashboard-summary" id="dashboardSummary"></div>
-          <div id="dashboardSections"></div>
-          
+    <main class="workspace">
+      <header class="workspace-header">
+        <button class="icon-button mobile-menu" type="button" data-drawer-toggle aria-label="Open navigation">☰</button>
+        <div><p class="eyebrow" id="moduleEyebrow">BOOKSTORE OPERATIONS</p><h1 id="moduleTitle">Orders</h1></div>
+        <div class="header-actions"><span class="connection-state" id="connectionState"><i></i> Connecting</span><button class="button secondary" id="refreshBtn" type="button">↻ <span>Refresh</span></button></div>
+      </header>
+      <div class="notice" id="workspaceNotice" role="status" aria-live="polite" hidden></div>
+
+      <section class="module-view active" data-module="orders" aria-label="Bookstore orders">
+        <div class="metrics-row" id="orderMetrics"></div>
+        <div class="split-view">
+          <section class="list-pane" aria-label="Orders list">
+            <div class="pane-tools"><label class="search"><span aria-hidden="true">⌕</span><input id="orderSearch" type="search" placeholder="Search orders or customers" aria-label="Search orders"></label>
+              <select id="orderStatusFilter" aria-label="Filter orders"><option value="">All orders</option><option>Unfulfilled</option><option>Processing</option><option>Fulfilled</option><option>Cancelled</option></select>
+            </div>
+            <div class="list-heading"><b>Recent orders</b><span id="orderListCount"></span></div>
+            <div class="record-list" id="orderList" aria-live="polite"><div class="loading">Loading orders…</div></div>
+          </section>
+          <section class="detail-pane" id="orderDetail" aria-label="Order details"><div class="empty-detail"><span>▤</span><h2>Select an order</h2><p>Order items, payment and fulfillment details will appear here.</p></div></section>
         </div>
       </section>
-    </div>
-  </body>
+
+      <section class="module-view" data-module="mailbox" aria-label="Mailbox">
+        <div class="mail-toolbar">
+          <div class="folder-tabs" role="tablist" aria-label="Mailbox folders">
+            <button type="button" class="folder-tab active" data-folder="inbox">Inbox <span id="inboxCount"></span></button>
+            <button type="button" class="folder-tab" data-folder="starred">Starred</button>
+            <button type="button" class="folder-tab" data-folder="archive">Archive</button>
+            <button type="button" class="folder-tab" data-folder="trash">Trash</button>
+          </div>
+          <button class="button primary" id="composeBtn" type="button">＋ New message</button>
+        </div>
+        <div class="mail-filters">
+          <label class="search"><span aria-hidden="true">⌕</span><input id="mailSearch" type="search" placeholder="Search messages, customers, orders" aria-label="Search mailbox"></label>
+          <select id="mailTypeFilter" aria-label="Filter mailbox"><option value="all">All records</option><option value="orders">Orders</option><option value="submissions">Website submissions</option></select>
+          <span id="mailResultCount" class="muted"></span>
+        </div>
+        <div class="split-view mailbox-split" id="mailboxSplit">
+          <section class="list-pane" aria-label="Mailbox messages">
+            <div class="record-list" id="mailList" aria-live="polite"><div class="loading">Loading mailbox…</div></div>
+            <div class="pagination"><button class="button secondary small" id="mailPrev" type="button">← Newer</button><span id="mailPageLabel">Page 1</span><button class="button secondary small" id="mailNext" type="button">Older →</button></div>
+          </section>
+          <section class="detail-pane message-detail" id="mailDetail" aria-label="Selected message"><div class="empty-detail"><span>✉</span><h2>Choose a message</h2><p>Submissions and orders stay in their original records. Mailbox actions only organize your view.</p></div></section>
+        </div>
+      </section>
+
+      <section class="module-view" data-module="catalog" aria-label="Book catalog">
+        <div class="module-intro"><div><p class="eyebrow">BOOKSTORE</p><h2>Catalog</h2><p>Review book availability and publishing status. Full editing tools remain available in the bookstore manager.</p></div><a class="button primary" href="/admin/store.html#books">Manage books ↗</a></div>
+        <div class="table-card"><div class="pane-tools"><label class="search"><span>⌕</span><input id="catalogSearch" type="search" placeholder="Search title, author or SKU" aria-label="Search books"></label><select id="catalogStatus" aria-label="Filter books"><option value="">All statuses</option><option>Published</option><option>Coming Soon</option><option>Draft</option><option>Archived</option></select></div><div class="record-list" id="catalogList"><div class="loading">Loading catalog…</div></div></div>
+      </section>
+      <section class="module-view" data-module="inventory" aria-label="Book inventory">
+        <div class="module-intro"><div><p class="eyebrow">BOOKSTORE</p><h2>Inventory</h2><p>Stock health and recent quantities. Adjustments and Square stock sync are in the full bookstore manager.</p></div><a class="button primary" href="/admin/store.html#inventory">Manage inventory ↗</a></div>
+        <div class="metrics-row" id="inventoryMetrics"></div><div class="table-card"><div class="record-list" id="inventoryList"><div class="loading">Loading inventory…</div></div></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="compose-dialog" id="composeDialog" aria-labelledby="composeTitle">
+    <form id="composeForm" method="dialog">
+      <header><div><p class="eyebrow">JACKRABBIT PUNKIN PUBLISHING</p><h2 id="composeTitle">New message</h2></div><button class="icon-button" type="button" id="closeCompose" aria-label="Close compose">×</button></header>
+      <label>To<input id="composeTo" name="to" type="email" required autocomplete="email" maxlength="320"></label>
+      <label>Subject<input id="composeSubject" name="subject" required maxlength="240"></label>
+      <label>Message<textarea id="composeBody" name="body" rows="10" required maxlength="20000"></textarea></label>
+      <div class="compose-status" id="composeStatus" role="status" aria-live="polite"></div><button class="button secondary small" id="retryCompose" type="button" hidden>Retry sending safely</button>
+      <footer><span id="draftStatus">Draft saves automatically</span><div><button class="button secondary" type="button" id="discardDraft">Discard</button><button class="button primary" type="submit" id="sendMessageBtn">Send message</button></div></footer>
+    </form>
+  </dialog>
+  <div class="mobile-backdrop" id="mobileBackdrop" hidden></div>
+</body>
 </html>
