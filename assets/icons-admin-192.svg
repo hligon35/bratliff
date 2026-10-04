@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a1628"/>
+  <path d="M112 143c53-18 103-10 144 20v185c-42-30-91-38-144-20V143Zm288 0c-53-18-103-10-144 20v185c42-30 91-38 144-20V143Z" fill="#fbf8f1" stroke="#d4ad55" stroke-width="13" stroke-linejoin="round"/>
+  <path d="M256 166v182M145 190c37-10 68-3 91 12m131-12c-37-10-68-3-91 12" fill="none" stroke="#542476" stroke-width="11" stroke-linecap="round"/>
+  <text x="256" y="425" fill="#d4ad55" text-anchor="middle" font-family="Georgia,serif" font-size="54" font-weight="700" letter-spacing="8">JPP</text>
+</svg>
