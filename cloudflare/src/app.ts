@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
+import { sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
 import type {
   AdminRole,
   AdminUser,
@@ -1311,6 +1312,10 @@ async function handleAdminApi(
       ),
     });
   }
+  if (request.method === "POST" && path === "mail/sync") {
+    requireRole(admin, "manager");
+    return json(request, env, { ok: true, ...(await syncNamecheapInbox(env)) });
+  }
   if (request.method === "GET" && path === "mail/items") {
     return json(request, env, { ok: true, ...(await listMailboxItems(env, admin, url.searchParams)) });
   }
@@ -1619,14 +1624,14 @@ async function handleAdminApi(
   return json(request, env, { ok: false, error: "Admin route not found." }, 404);
 }
 
-type MailboxSourceKey = { sourceType: "order" | "submission" | "outbound"; id: string; itemKey: string };
+type MailboxSourceKey = { sourceType: "order" | "submission" | "outbound" | "email"; id: string; itemKey: string };
 
 function parseMailboxSourceKey(value: unknown): MailboxSourceKey {
   const itemKey = text(value, 240);
   const splitAt = itemKey.indexOf(":");
   const sourceType = itemKey.slice(0, splitAt);
   const id = itemKey.slice(splitAt + 1);
-  if (splitAt < 1 || !id || !["order", "submission", "outbound"].includes(sourceType) || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) {
+  if (splitAt < 1 || !id || !["order", "submission", "outbound", "email"].includes(sourceType) || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) {
     throw new HttpError(400, "Choose a valid mailbox item.");
   }
   return { sourceType: sourceType as "order" | "submission" | "outbound", id, itemKey };
@@ -1640,11 +1645,11 @@ async function resolveMailboxDraftKey(env: Env, value: unknown, adminEmail: stri
 
 async function assertMailboxItemExists(env: Env, value: unknown, adminEmail = ""): Promise<MailboxSourceKey> {
   const key = parseMailboxSourceKey(value);
-  const row = key.sourceType === "order"
-    ? await env.DB.prepare("SELECT order_number AS id FROM orders WHERE order_number = ?1").bind(key.id).first()
-    : key.sourceType === "submission"
-      ? await env.DB.prepare("SELECT id FROM form_submissions WHERE id = ?1").bind(key.id).first()
-      : await env.DB.prepare("SELECT id FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2").bind(key.id, adminEmail).first();
+  let row: Record<string, unknown> | null;
+  if (key.sourceType === "order") row = await env.DB.prepare("SELECT order_number AS id FROM orders WHERE order_number = ?1").bind(key.id).first();
+  else if (key.sourceType === "submission") row = await env.DB.prepare("SELECT id FROM form_submissions WHERE id = ?1").bind(key.id).first();
+  else if (key.sourceType === "email") row = await env.DB.prepare("SELECT uid AS id FROM mailbox_external_messages WHERE uid = ?1").bind(key.id).first();
+  else row = await env.DB.prepare("SELECT id FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2").bind(key.id, adminEmail).first();
   if (!row) throw new HttpError(404, "Mailbox item not found.");
   return key;
 }
@@ -1656,7 +1661,7 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   const page = clampInt(search.get("page"), 1, 5000, 1);
   const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
   if (!["inbox", "starred", "archive", "trash", "all"].includes(folder)) throw new HttpError(400, "Choose a valid mailbox folder.");
-  if (!["all", "orders", "submissions"].includes(type)) throw new HttpError(400, "Choose a valid mailbox record type.");
+  if (!["all", "orders", "submissions", "email"].includes(type)) throw new HttpError(400, "Choose a valid mailbox record type.");
 
   const sourceSql =
     "WITH source_items AS (" +
@@ -1673,8 +1678,12 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
     " COALESCE(NULLIF(f.message,''), NULLIF(f.request_text,''), NULLIF(f.details,''), NULLIF(f.subject,''), NULLIF(f.title,''), 'Website submission') AS preview, " +
     " COALESCE(NULLIF(f.message,''), NULLIF(f.request_text,''), NULLIF(f.details,''), NULLIF(f.notes,''), '') AS body, " +
     " f.form_type AS formTypeLabel, f.status AS status, '' AS paymentStatus, '' AS fulfillmentStatus, 0 AS total, '' AS shippingAddress, f.organization AS organization, f.phone AS phone, f.page_url AS pageUrl " +
-    " FROM form_submissions f" +
-    "), mailbox_items AS (" +
+    " FROM form_submissions f UNION ALL " +
+    " SELECT 'email' AS sourceType, 'email:' || e.uid AS itemKey, e.uid AS id, e.received_at AS createdAt, " +
+    " e.from_name AS name, e.from_email AS email, e.subject AS subject, e.preview AS preview, e.body AS body, " +
+    " 'Email message' AS formTypeLabel, 'Received' AS status, '' AS paymentStatus, '' AS fulfillmentStatus, 0 AS total, '' AS shippingAddress, '' AS organization, '' AS phone, '' AS pageUrl " +
+    " FROM mailbox_external_messages e" +
+    "), mailbox_items AS ("
     " SELECT s.*, COALESCE(m.folder, 'inbox') AS folder, COALESCE(m.is_read, 0) AS isRead, COALESCE(m.starred, 0) AS starred " +
     " FROM source_items s LEFT JOIN mailbox_state m ON m.item_key = s.itemKey AND m.admin_email = ?1" +
     ")";
@@ -1685,6 +1694,7 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   else if (folder !== "all") filters.push("folder = " + bind(folder));
   if (type === "orders") filters.push("sourceType = 'order'");
   else if (type === "submissions") filters.push("sourceType = 'submission'");
+  else if (type === "email") filters.push("sourceType = 'email'");
   if (term) {
     const pattern = bind("%" + term + "%");
     filters.push("(lower(name) LIKE " + pattern + " OR lower(email) LIKE " + pattern + " OR lower(subject) LIKE " + pattern + " OR lower(preview) LIKE " + pattern + " OR lower(body) LIKE " + pattern + " OR lower(id) LIKE " + pattern + ")");
@@ -1782,6 +1792,11 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
       subject: text(found.subject, 240) || (text(found.formType, 40) === "speaking" ? "Speaking request" : text(found.formType, 40) === "bookClub" ? "Book club request" : "Website submission"),
       body: text(found.message, 16000) || text(found.requestText, 16000) || text(found.details, 16000) || text(found.notes, 4000),
     };
+  } else if (key.sourceType === "email") {
+    const found = await env.DB.prepare(
+      "SELECT uid AS id, message_id AS messageId, from_name AS name, from_email AS email, to_email AS toEmail, subject, body, preview, received_at AS createdAt FROM mailbox_external_messages WHERE uid = ?1",
+    ).bind(key.id).first<Record<string, unknown>>();
+    if (found) item = { ...found, itemKey: key.itemKey, sourceType: "email", status: "Received", formTypeLabel: "Email message" };
   } else {
     const found = await env.DB.prepare(
       "SELECT id, recipient, subject, body, status, idempotency_key AS idempotencyKey, created_at AS createdAt, error FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2",
@@ -1871,9 +1886,7 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
   }
   try {
     const siteUrl = firstUrlValue(env.SITE_URL);
-    await sendEmail(env, {
-      to, subject, text: content,
-      html: buildEmailHtml({
+    const outgoingHtml = buildEmailHtml({
         eyebrow: "JACKRABBIT PUNKIN PUBLISHING",
         heading: subject,
         intro: "A message from the Jackrabbit Punkin Publishing team.",
@@ -1882,11 +1895,22 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
         buttonUrl: siteUrl,
         siteUrl,
         footer: "This message was sent by Jackrabbit Punkin Publishing LLC.",
-      }),
-      replyTo: env.ADMIN_NOTIFICATION_EMAIL,
-      fromName: "Jackrabbit Punkin Publishing LLC",
-      idempotencyKey,
-    });
+      });
+    if (env.NAMECHEAP_EMAIL_ADDRESS && env.NAMECHEAP_EMAIL_PASSWORD) {
+      await sendNamecheapEmail(env, {
+        to, subject, text: content, html: outgoingHtml,
+        replyTo: env.NAMECHEAP_EMAIL_ADDRESS,
+        fromName: "Jackrabbit Punkin Publishing LLC",
+        idempotencyKey,
+      });
+    } else {
+      await sendEmail(env, {
+        to, subject, text: content, html: outgoingHtml,
+        replyTo: env.ADMIN_NOTIFICATION_EMAIL,
+        fromName: "Jackrabbit Punkin Publishing LLC",
+        idempotencyKey,
+      });
+    }
     await env.DB.prepare("UPDATE mailbox_outbound SET status = 'Accepted', error = '', updated_at = datetime('now') WHERE id = ?1")
       .bind(outboundId).run();
     if (itemKey || draftKey) await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, draftKey || itemKey).run();
