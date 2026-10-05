@@ -8,7 +8,7 @@ interface __BaseEnv_Env {
 	SITE_URL: "https://jackrabbitpunkinpublishing.com";
 	PUBLIC_ADMIN_URL: "https://jackrabbitpunkinpublishing.com/admin/";
 	PUBLIC_API_URL: "https://jackrabbitpunkinpublishing.com";
-	ADMIN_BOOTSTRAP_EMAILS: "hligon@getsparqd.com, barbarajratliff@hotmail.com, barbarajratliff67@gmail.com, cratliff44@gmail.com";
+	ADMIN_BOOTSTRAP_EMAILS: "barbarajratliff@hotmail.com,barbarajratliff67@gmail.com,jacrat2016@gmail.com,cratliff44@gmail.com";
 	GOOGLE_CLIENT_ID: "1046438446475-e24chmr5bnsjn0dik3t5me1i77856qlk.apps.googleusercontent.com";
 	CF_ACCESS_TEAM_DOMAIN: "jackrabbitpunkin.cloudflareaccess.com";
 	CF_ACCESS_AUD: "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc";
@@ -17,7 +17,7 @@ interface __BaseEnv_Env {
 	ORDER_SUCCESS_URL: "https://jackrabbitpunkinpublishing.com/books.html?checkout=success";
 	ORDER_CANCEL_URL: "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled";
 	CORS_ORIGIN: "https://jackrabbitpunkinpublishing.com";
-	MAIL_FROM_EMAIL: "no-reply@jackrabbitpunkinpublishing.com";
+	MAIL_FROM_EMAIL: "website@notifications.jackrabbitpunkinpublishing.com";
 	ADMIN_NOTIFICATION_EMAIL: "hligon@getsparqd.com";
 	UNSUBSCRIBE_SECRET: string;
 	ADMIN_SESSION_SECRET: string;
