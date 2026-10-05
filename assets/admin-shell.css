@@ -54,9 +54,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .module-intro p:not(.eyebrow){margin:6px 0 0;color:var(--muted);font-size:12px}
 .compose-dialog .icon-button{color:var(--ink);border-color:var(--line);font-size:22px}
 .mobile-menu,.mobile-backdrop{display:none}
-.drawer-collapsed .drawer{width:64px;overflow-x:hidden}
 .drawer *{white-space:nowrap}
-.drawer-collapsed .workspace{margin-left:64px}
+.drawer .brand-name,.drawer .nav-label,.drawer .nav-item>span:nth-child(n+2),.drawer .account-copy,.drawer .signout>span:last-child{transition:opacity .15s ease .05s}
+.signout{display:flex;align-items:center;gap:10px;padding-inline:12px}
+.nav-item{padding-inline:12px}
+@media(min-width:681px){
+.drawer-collapsed .drawer{width:68px;overflow:hidden}
+.drawer-collapsed .workspace{margin-left:68px}
+.drawer-collapsed .brand-name,.drawer-collapsed .nav-label,.drawer-collapsed .nav-item>span:nth-child(n+2),.drawer-collapsed .account-copy,.drawer-collapsed .signout>span:last-child{opacity:0;pointer-events:none;transition-delay:0s}
+}
 @media(max-width:900px){
 .workspace{padding-inline:16px}
 }

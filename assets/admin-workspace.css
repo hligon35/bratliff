@@ -18,7 +18,7 @@
 .record-row:hover{background:#faf9f6}
 .record-row.selected{background:#f6f0fa;box-shadow:inset 3px 0 var(--purple)}
 .record-row.unread .record-title{font-weight:700}
-.record-row.unread:after{content:"";position:absolute;top:18px;right:12px;width:7px;height:7px;border-radius:50%;background:var(--purple)}
+.record-row.unread:after{content:"";position:absolute;top:6px;right:12px;width:7px;height:7px;border-radius:50%;background:var(--purple)}
 .row-top,.row-bottom{display:flex;justify-content:space-between;gap:8px;align-items:center}
 .row-sender{max-width:72%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}
 .row-date{color:var(--muted);font-size:10px;white-space:nowrap}
