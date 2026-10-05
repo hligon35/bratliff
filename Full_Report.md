@@ -11,7 +11,8 @@ Last updated 2026-10-05. Earlier analysis items that are finished have been remo
 - One local Material Icons subset (`assets/material-icons.woff2`, 157 icons) for the site and admin; text glyphs replaced with icons.
 - Admin drawer menu button fixed at the top-left on its own row above the logo (verified at 1280 px and 390 px).
 - `account_id` pinned in `cloudflare/wrangler.jsonc`.
-- Tests: `worker:check` passes, `test:maintenance` passes 52/52.
+- Tests: `worker:check` passes, `test:maintenance` passes 60/60.
+- Deployed to sandbox and production (2026-10-05); public pages no longer log 401 for the admin-session probe.
 
 ## 2. Configuration reference (unchanged)
 
@@ -32,13 +33,12 @@ Needed scripts: `worker:deploy`, `worker:deploy:sandbox`, `worker:prepare`, `pre
 2. Confirm GitHub Pages is disabled for the repository.
 3. Test live integrations (Resend, Namecheap, Square, Turnstile, Google sign-in); these were never exercised against live services from here.
 4. Decide on the working-tree deletions of `FORM_SETUP.md` and `PUBLISHER_STORE_MANAGER.md` (not in any commit; merge anything useful into `docs/` first).
-5. Approve push and deploy: `main` is ahead of what is live. The asset, icon, image, icon-font and menu-button commits (`753cacc`, `c986c2b`) are local only.
+5. Add GitHub Actions secrets `RESEND_API_KEY`, `MAINTENANCE_EMAIL_TO`, `MAINTENANCE_EMAIL_FROM` so the monthly check-up can email you (see `docs/maintenance.md`), then run the workflow once manually to confirm delivery.
 
 ### Decisions
-6. Monthly maintenance system (`monthlyReport.md`, `maintenance:*` scripts, `scripts/maintenance/**`, `monthly-maintenance.yml`, whose schedule is paused). Keep, or remove the whole block together with its tests and workflow. `monthlyReport.md` is stale generated output and better as a workflow artifact.
-7. Dependabot branches `dotenv 17` and `typescript 7` (a major jump; test first), the moot `open-cli 9` branch, and the remote `mailbox` branch.
+6. Monthly maintenance: now kept, scheduled for the 1st of each month, look-only by default, with a plain-English email and approval-gated fixes. Nothing to decide.
+7. All other branches are removed (only `main` remains). `dotenv` 18 and `typescript` 7 are major upgrades; the monthly email will keep reminding you.
 8. `assets/photos/barbaraRatliff2.png` is unreferenced; keep or delete.
-9. `scripts/bootstrap-sandbox.mjs` is unreferenced; keep for rebuilding the sandbox or delete.
 
 ### Engineering follow-ups
 10. `assets/admin.js` (116 KB) and `admin.css` (38 KB) are still monoliths loaded on every non-workspace admin page; splitting is a refactor.
