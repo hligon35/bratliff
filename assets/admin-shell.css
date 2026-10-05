@@ -12,7 +12,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .brand-name{font:700 15px Georgia,serif;line-height:1.25}
 .brand-name small{display:block;margin-top:4px;color:#d4ad55;font:700 9px Arial,sans-serif;letter-spacing:1.2px;text-transform:uppercase}
 .icon-button{width:36px;height:36px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:transparent;color:inherit;font-size:20px;cursor:pointer;display:grid;place-items:center}
-.drawer-close{margin-left:auto}
+.drawer-toolbar{display:flex;justify-content:flex-start;padding:0 6px 10px}
 .nav-label{margin:20px 9px 7px;color:#a9b0bf;font-size:10px;font-weight:700;letter-spacing:1.3px}
 .primary-nav{display:grid;gap:3px}
 .nav-item{width:100%;min-height:40px;padding:8px 10px;display:flex;align-items:center;gap:10px;border:0;border-radius:7px;background:transparent;color:#e7eaf0;text-align:left;text-decoration:none;font-size:13px;font-weight:600;cursor:pointer}
@@ -57,7 +57,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .drawer-collapsed .drawer{width:74px}
 .drawer-collapsed .brand-name,.drawer-collapsed .nav-label,.drawer-collapsed .nav-item>span:not(.nav-icon),.drawer-collapsed .drawer-bottom{display:none}
 .drawer-collapsed .brand-row{justify-content:center;padding-inline:0}
-.drawer-collapsed .drawer-close{position:absolute;top:21px;right:9px;width:25px;height:25px;font-size:15px}
 .drawer-collapsed .nav-item{justify-content:center;padding-inline:6px}
 .drawer-collapsed .nav-icon{font-size:19px}
 .drawer-collapsed .workspace{margin-left:74px}
@@ -71,7 +70,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .drawer-collapsed .brand-name,.drawer-collapsed .nav-label,.drawer-collapsed .nav-item>span:not(.nav-icon),.drawer-collapsed .drawer-bottom{display:initial}
 .drawer-collapsed .nav-item{justify-content:flex-start;padding:8px 10px}
 .drawer-collapsed .brand-row{justify-content:flex-start}
-.drawer-collapsed .drawer-close{position:static;width:36px;height:36px}
 .workspace,.drawer-collapsed .workspace{margin-left:0;padding:0 12px 20px}
 .workspace-header{min-height:68px}
 .workspace-header h1{font-size:21px}

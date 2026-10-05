@@ -47,10 +47,9 @@
   }
 
   drawer.innerHTML =
-    '<div class="brand-row"><a class="workspace-brand" href="/admin/" aria-label="Publisher workspace">' +
+    '<div class="drawer-toolbar"><button class="icon-button drawer-close" type="button" data-drawer-toggle aria-controls="workspaceDrawer">' + icon("menu") + '</button></div><div class="brand-row"><a class="workspace-brand" href="/admin/" aria-label="Publisher workspace">' +
     '<img src="/assets/icons/jrppLogo2.png" alt="" width="42" height="42">' +
-    '<span class="brand-name">Jackrabbit Punkin<small>Publisher workspace</small></span></a>' +
-    '<button class="icon-button drawer-close" type="button" data-drawer-toggle aria-controls="workspaceDrawer">' + icon("menu") + "</button></div>" +
+    '<span class="brand-name">Jackrabbit Punkin<small>Publisher workspace</small></span></a></div>' +
     groups.map(function (group) {
       return '<div class="nav-label">' + group.label.toUpperCase() + '</div><nav class="primary-nav" aria-label="' + group.label + '">' +
         group.items.map(function (item) {

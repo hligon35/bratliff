@@ -94,6 +94,27 @@ Minimum set to keep: `.env.example` (committed), `.env.local` (sandbox, local), 
 
 After any removal run `npm run worker:check` and `npm run test:maintenance` (the static-guard tests reference the workflow and `monthlyReport.md`, so they would need updating if those go).
 
-## 8. Status update (2026-10-05)
+## 8. Status update (2026-10-05, after review)
 
-Done since this review: unreferenced PDFs renamed to the _v1 form and compressed (press kit 16.2 MB -> 0.6 MB, certificate 3.6 MB -> 0.4 MB); resource guides are no longer staged publicly; used PNGs resized/palette-optimized in place (39 MB -> 3 MB, file names unchanged so stored image paths keep working); jppIcon became the home-screen icon (180/192/512); a single local icon font (ssets/material-icons.woff2) now serves site and admin. IG/X/YouTube icons kept. FORM_SETUP.md and PUBLISHER_STORE_MANAGER.md were deleted in the working tree by you and are not part of these commits.
+### Completed
+| Item | Result |
+|---|---|
+| Deleted: `.secrets.sandbox`, `cloudflare/.env.example`, `worker-configuration.d.ts`, `assets/finalUpdates.txt`, `CNAME`, `.nojekyll`, `cloudflare-proxy/`, `scripts/generate-resource-covers.py` | Done (commit `a714a4f`, deployed to sandbox and production) |
+| Removed scripts `dev`, `open`, `start`, `proxy:deploy` and devDependencies `http-server`, `open-cli` | Done |
+| `jppIcon.png` | Became the home-screen icon (`jppIcon-180/192/512.png`), linked on every page and in the admin manifest |
+| IG, X, YouTube icons | Kept (resized to 160 px) |
+| Resource/press PDFs | Renamed to `<Name>_v1.pdf` (no `(2)`, `(3)` or dates). Press kit 16.2 MB to 0.6 MB, certificate 3.6 MB to 0.4 MB, guides about 50% smaller |
+| Resource guides served publicly | Fixed: staging now publishes only the press kit, certificate and `S2CEO.png` |
+| Material Icons | One local subset (`assets/material-icons.woff2`, 13 KB, 157 icons) for site and admin; the 400 KB `.otf` and the broken `admin-icons.woff2` removed; text glyphs (`☰ × ← →`, social letters) replaced with icons |
+| Images | Used PNGs resized and palette-optimized in place, 39 MB to 3 MB, file names unchanged |
+| Admin menu button | Now in its own row at the top-left of the drawer, above the logo. It stays at the same position expanded or collapsed and on mobile; verified at 1280 px and 390 px |
+| Tests | 52 maintenance tests pass, including new asset-budget, icon-font, home-screen-icon and document-naming guards |
+
+### Still open for you
+- Back up `.env.local2` (production values) to a password manager before deleting it.
+- Confirm GitHub Pages is disabled for the repository (`CNAME`/`.nojekyll` are gone).
+- `monthlyReport.md` and the monthly-maintenance system: keep or remove (section 2).
+- Dependabot branches (`dotenv 17`, `typescript 7`; `open-cli 9` is now moot) and the remote `mailbox` branch.
+- `FORM_SETUP.md` and `PUBLISHER_STORE_MANAGER.md` show as deleted in the working tree (not by me); they are not in these commits.
+- `assets/admin.js` (116 KB) and `admin.css` (38 KB) are still monoliths; splitting is a refactor, not clean-up.
+- The latest commits (images, PDFs, icons, menu button) are not yet pushed or deployed unless stated in the chat.
