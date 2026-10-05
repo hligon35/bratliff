@@ -534,6 +534,8 @@ p {
   gap: 0.65rem;
 }
 
+.customer-login-turnstile { display: flex; justify-content: center; min-height: 65px; }
+
 .account-panel label {
   display: grid;
   gap: 0.3rem;

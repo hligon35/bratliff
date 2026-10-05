@@ -547,7 +547,12 @@ function validateFormPayload(payload: Record<string, string>): FormType {
   return formType;
 }
 
-async function verifyTurnstile(env: Env, token: string, remoteIp: string | null): Promise<boolean> {
+async function verifyTurnstile(
+  env: Env,
+  token: string,
+  remoteIp: string | null,
+  expected?: { action: string; hostname: string },
+): Promise<boolean> {
   if (!env.TURNSTILE_SECRET_KEY || !token) return false;
   const params = new URLSearchParams();
   params.set("secret", env.TURNSTILE_SECRET_KEY);
@@ -558,8 +563,10 @@ async function verifyTurnstile(env: Env, token: string, remoteIp: string | null)
     headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
     body: params.toString(),
   });
-  const data = (await response.json().catch(() => ({}))) as { success?: boolean };
-  return data.success === true;
+  const data = (await response.json().catch(() => ({}))) as { success?: boolean; action?: string; hostname?: string };
+  if (data.success !== true) return false;
+  if (!expected) return true;
+  return data.action === expected.action && String(data.hostname || "").toLowerCase() === expected.hostname.toLowerCase();
 }
 
 async function handleFormSubmission(
@@ -3582,6 +3589,14 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
 
   if (request.method === "POST" && path === "auth/login") {
     const body = await parseBody(request);
+    const turnstileToken = text(body["cf-turnstile-response"], 2000);
+    const loginHostname = new URL(request.url).hostname.toLowerCase();
+    if (!(await verifyTurnstile(env, turnstileToken, request.headers.get("CF-Connecting-IP"), {
+      action: "customer_login",
+      hostname: loginHostname,
+    }))) {
+      throw new HttpError(400, "Security verification failed. Please try again.");
+    }
     const email = normalizeCustomerEmail(body.email);
     const password = text(body.password, 200);
     const account = await findCustomerByEmail(env, email);
