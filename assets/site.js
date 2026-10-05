@@ -310,7 +310,7 @@ initPolicySections();
 function customerAccountPanelMarkup() {
   return [
     "<div class=\"account-panel\">",
-    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Login</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"current-password\" required></label><button class=\"button ink\" type=\"submit\">Login</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
+    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Login</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"current-password\" required></label><div class=\"customer-login-turnstile\" data-customer-turnstile></div><input type=\"hidden\" name=\"cf-turnstile-response\" data-turnstile-token><button class=\"button ink\" type=\"submit\">Login</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
     "<div data-account-mode-panel=\"signup\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Create an account</h3><form data-customer-auth-form data-auth-action=\"signup\"><label>Display name<input name=\"displayName\" autocomplete=\"name\" required></label><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"new-password\" minlength=\"8\" required></label><button class=\"button ink\" type=\"submit\">Create account</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
     "<div data-account-mode-panel=\"forgot\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Reset your password</h3><form data-customer-auth-form data-auth-action=\"forgot\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><button class=\"button ink\" type=\"submit\">Email reset link</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
     "</div>",
@@ -331,11 +331,57 @@ function initCustomerAccount() {
   const adminStatus = shell.querySelector("[data-admin-status]");
   const adminName = shell.querySelector("[data-admin-status-name]");
   const triggerIcon = shell.querySelector("[data-account-trigger-icon]");
+  let customerTurnstilePromise = null;
+  function loadCustomerTurnstile() {
+    if (window.turnstile) return Promise.resolve(window.turnstile);
+    if (customerTurnstilePromise) return customerTurnstilePromise;
+    customerTurnstilePromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector("script[data-turnstile-api]");
+      const script = existing || document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true; script.defer = true; script.dataset.turnstileApi = "true";
+      script.addEventListener("load", () => window.turnstile ? resolve(window.turnstile) : reject(new Error("Security check did not initialize.")), { once: true });
+      script.addEventListener("error", () => reject(new Error("Security check could not load. Please refresh and try again.")), { once: true });
+      if (!existing) document.head.appendChild(script);
+    });
+    return customerTurnstilePromise;
+  }
+  async function mountCustomerTurnstile(root) {
+    const form = root?.querySelector('[data-customer-auth-form][data-auth-action="login"]');
+    const container = form?.querySelector("[data-customer-turnstile]");
+    if (!form || !container || container.dataset.widgetId) return;
+    const key = String(window.siteConfig?.turnstileSiteKey || "").trim();
+    const message = form.querySelector("[data-account-message]");
+    const submit = form.querySelector("button[type=submit]");
+    if (!key) {
+      if (submit) submit.disabled = true;
+      if (message) { message.textContent = "Sign-in security is not configured. Please contact support."; message.classList.add("show", "error"); }
+      return;
+    }
+    try {
+      const turnstile = await loadCustomerTurnstile();
+      if (!container.isConnected || !form.isConnected) return;
+      const widgetId = turnstile.render(container, {
+        sitekey: key, action: "customer_login", theme: "light",
+        callback: (token) => { const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = token; },
+        "expired-callback": () => { const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = ""; },
+        "error-callback": () => {
+          const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = "";
+          if (message) { message.textContent = "Security check failed. Please try again."; message.classList.add("show", "error"); }
+        }
+      });
+      container.dataset.widgetId = String(widgetId);
+    } catch (error) {
+      if (submit) submit.disabled = true;
+      if (message) { message.textContent = error.message || "Security check could not load. Please refresh and try again."; message.classList.add("show", "error"); }
+    }
+  }
 
   function setMode(root, mode) {
     root.querySelectorAll("[data-account-mode-panel]").forEach((panel) => {
       panel.hidden = panel.dataset.accountModePanel !== mode;
     });
+    if (mode === "login" && ((root.closest(".account-popover") && !popover.hidden) || (root.closest(".account-overlay") && !overlay.hidden))) mountCustomerTurnstile(root);
   }
 
   function panelMarkup(root) {
@@ -357,6 +403,11 @@ function initCustomerAccount() {
         }[action];
         const message = form.querySelector("[data-account-message]");
         const submit = form.querySelector("button[type=submit]");
+        const turnstileInput = form.querySelector("[data-turnstile-token]");
+        if (action === "login" && !String(turnstileInput?.value || "").trim()) {
+          if (message) { message.textContent = "Complete the security check before signing in."; message.classList.add("show", "error"); }
+          return;
+        }
         if (submit) submit.disabled = true;
         if (message) { message.textContent = ""; message.classList.remove("error", "show"); }
         try {
@@ -379,6 +430,11 @@ function initCustomerAccount() {
         } catch (error) {
           if (message) { message.textContent = error.message || "We could not complete that request."; message.classList.add("show", "error"); }
         } finally {
+          if (action === "login" && currentUser === null && turnstileInput) {
+            turnstileInput.value = "";
+            const widgetId = form.querySelector("[data-customer-turnstile]")?.dataset.widgetId;
+            if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
+          }
           if (submit) submit.disabled = false;
         }
       });
@@ -435,12 +491,16 @@ function initCustomerAccount() {
     popover.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     adminStatus?.setAttribute("aria-expanded", "true");
+    const panel = popover.querySelector("[data-account-panel]");
+    if (panel && !currentUser && !currentAdmin) mountCustomerTurnstile(panel);
   }
 
   function openOverlay() {
     overlay.hidden = false;
     document.body.classList.add("account-overlay-open");
     overlay.querySelector("input, a, button")?.focus();
+    const panel = overlay.querySelector("[data-account-panel]");
+    if (panel && !currentUser && !currentAdmin) mountCustomerTurnstile(panel);
   }
 
   function closeOverlay() {
