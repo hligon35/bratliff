@@ -5,7 +5,6 @@ const rootDir = path.resolve(__dirname, '..');
 const targetDir = path.join(rootDir, 'cloudflare', 'public');
 
 const staticEntries = [
-  '.nojekyll',
   '_headers',
   'about.html',
   'account.html',

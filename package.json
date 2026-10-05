@@ -4,15 +4,11 @@
   "version": "1.0.0",
   "scripts": {
     "prepare:config": "node scripts/write-site-config.js",
-    "dev": "npm run prepare:config && http-server . -p 8080 -c-1",
-    "open": "npm run prepare:config && open-cli http://127.0.0.1:8080",
-    "start": "npm run dev",
     "worker:prepare": "node scripts/stage-cloudflare-assets.js",
     "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
     "worker:deploy": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc",
     "worker:deploy:sandbox": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc --env sandbox",
     "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit",
-    "proxy:deploy": "wrangler deploy --config cloudflare-proxy/wrangler.jsonc",
     "maintenance:run": "node scripts/monthly-maintenance.mjs --trigger local",
     "maintenance:dry-run": "node scripts/monthly-maintenance.mjs --trigger local --dry-run",
     "test:maintenance": "node --test scripts/maintenance/tests/*.test.mjs scripts/admin-shell.test.mjs",
@@ -23,8 +19,6 @@
   },
   "devDependencies": {
     "dotenv": "^16.6.1",
-    "http-server": "^14.1.1",
-    "open-cli": "^8.0.0",
     "typescript": "^5.9.2",
     "wrangler": "^4.146.0"
   }

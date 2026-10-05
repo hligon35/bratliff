@@ -4,7 +4,6 @@ These items live outside the code and must be completed by an account owner befo
 
 ## Deployment safety
 
-- Do not run `npm run proxy:deploy` until `cloudflare-proxy/wrangler.jsonc` has a unique worker `name`. It currently uses `bratliff-platform`, the same name as the production Worker, and would overwrite it.
 - `npm run worker:deploy` regenerates `assets/site-config.js` from `SITE_URL` (process environment first, then `.env*`). A placeholder or empty value falls back to `https://jackrabbitpunkinpublishing.com`; make sure the deploy shell does not export a sandbox `SITE_URL`.
 - The temporary site gate in `index.html` / `coming-soon.html` is intentional. Removing it is a separate launch decision.
 
