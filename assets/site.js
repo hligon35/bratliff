@@ -328,6 +328,10 @@ function initCustomerAccount() {
   let currentUser = null;
   let currentAdmin = null;
   let sessionVersion = 0;
+  let sessionResolved = false;
+  const authHintKey = "jrpp-auth-hint";
+  let authHint = false;
+  try { authHint = window.localStorage.getItem(authHintKey) === "1"; } catch (error) { authHint = false; }
   const adminStatus = shell.querySelector("[data-admin-status]");
   const adminName = shell.querySelector("[data-admin-status-name]");
   const triggerIcon = shell.querySelector("[data-account-trigger-icon]");
@@ -442,8 +446,9 @@ function initCustomerAccount() {
   }
 
   function renderState() {
-    shell.classList.toggle("is-authenticated", Boolean(currentAdmin || currentUser));
-    triggerLabel.textContent = currentAdmin || currentUser ? "Profile" : "Login";
+    const signedIn = Boolean(currentAdmin || currentUser) || (!sessionResolved && authHint);
+    shell.classList.toggle("is-authenticated", signedIn);
+    triggerLabel.textContent = signedIn ? "Profile" : "Login";
     overlay.querySelector("#account-overlay-title").textContent = currentAdmin ? "Admin account" : "Reader account";
     if (triggerIcon) triggerIcon.textContent = "person";
     if (adminStatus) adminStatus.hidden = !currentAdmin;
@@ -451,8 +456,8 @@ function initCustomerAccount() {
     document.querySelectorAll("[data-admin-session-link]").forEach((link) => { link.hidden = !currentAdmin; });
     trigger.setAttribute("aria-label", currentAdmin || currentUser ? "Open profile menu" : "Open reader login");
     if (mobileLink) {
-      mobileLink.textContent = currentAdmin || currentUser ? "Profile" : "Login";
-      mobileLink.hidden = Boolean(currentAdmin || currentUser);
+      mobileLink.textContent = signedIn ? "Profile" : "Login";
+      mobileLink.hidden = signedIn;
       mobileLink.href = currentUser ? "account.html" : "#";
     }
     document.querySelectorAll("[data-account-panel]").forEach((root) => {
@@ -562,6 +567,8 @@ function initCustomerAccount() {
     if (version !== sessionVersion) return;
     currentUser = reader.status === "fulfilled" && reader.value?.authenticated ? reader.value.user : null;
     currentAdmin = admin.status === "fulfilled" && admin.value?.ok && admin.value.viewer?.email ? admin.value.viewer : null;
+    sessionResolved = true;
+    try { window.localStorage.setItem(authHintKey, currentAdmin || currentUser ? "1" : "0"); } catch (error) { authHint = false; }
     renderState();
   }
   window.addEventListener("pageshow", refresh);
