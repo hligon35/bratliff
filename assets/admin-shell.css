@@ -6,7 +6,7 @@ button,input,select,textarea{font:inherit}
 button,a,select{touch-action:manipulation}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #bd9adc;outline-offset:2px}
 .app-shell{min-height:100vh}
-.drawer{position:fixed;inset:0 auto 0 0;width:248px;padding:16px 12px 12px;background:var(--navy);color:#fff;display:flex;flex-direction:column;z-index:20;overflow-y:auto;transition:width .16s ease}
+.drawer{position:fixed;inset:0 auto 0 0;width:248px;padding:16px 12px 12px;background:var(--navy);color:#fff;display:flex;flex-direction:column;z-index:20;overflow-y:auto;transition:width .2s ease}
 .brand-row{display:flex;align-items:center;gap:10px;padding:2px 6px 19px;border-bottom:1px solid rgba(255,255,255,.13)}
 .brand-row img{object-fit:contain;flex:0 0 42px}
 .brand-name{font:700 15px Georgia,serif;line-height:1.25}
@@ -33,7 +33,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .account-copy small{max-width:154px;color:#b9c0cc;font-size:10px}
 .signout{width:100%;margin-top:12px;padding:8px 10px;border:0;border-radius:6px;background:transparent;color:#d8dce4;text-align:left;cursor:pointer}
 .signout:hover{background:rgba(255,255,255,.09);color:#fff}
-.workspace{min-height:100vh;margin-left:248px;padding:0 24px 32px;transition:margin-left .16s ease}
+.workspace{min-height:100vh;margin-left:248px;padding:0 24px 32px;transition:margin-left .2s ease}
 .workspace-header{min-height:82px;display:flex;align-items:center;gap:15px;border-bottom:1px solid #e1dfd9}
 .workspace-header h1{margin:0;font:700 25px/1.1 Georgia,serif;color:var(--navy)}
 .eyebrow{margin:0 0 5px;color:var(--purple);font-size:10px;font-weight:700;letter-spacing:1.35px}
@@ -54,12 +54,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .module-intro p:not(.eyebrow){margin:6px 0 0;color:var(--muted);font-size:12px}
 .compose-dialog .icon-button{color:var(--ink);border-color:var(--line);font-size:22px}
 .mobile-menu,.mobile-backdrop{display:none}
-.drawer-collapsed .drawer{width:74px}
-.drawer-collapsed .brand-name,.drawer-collapsed .nav-label,.drawer-collapsed .nav-item>span:not(.nav-icon),.drawer-collapsed .drawer-bottom{display:none}
-.drawer-collapsed .brand-row{justify-content:center;padding-inline:0}
-.drawer-collapsed .nav-item{justify-content:center;padding-inline:6px}
-.drawer-collapsed .nav-icon{font-size:19px}
-.drawer-collapsed .workspace{margin-left:74px}
+.drawer-collapsed .drawer{width:64px;overflow-x:hidden}
+.drawer *{white-space:nowrap}
+.drawer-collapsed .workspace{margin-left:64px}
 @media(max-width:900px){
 .workspace{padding-inline:16px}
 }
@@ -101,10 +98,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .skip-link{position:fixed;top:8px;left:8px;z-index:10001;transform:translateY(-150%);padding:10px 16px;background:white;color:var(--navy);border-radius:6px}
 .skip-link:focus{transform:translateY(0)}
 .mobile-backdrop{border:0;padding:0}
-@media(min-width:681px){
-  .drawer-collapsed .drawer-bottom{display:block;padding-inline:0}
-  .drawer-collapsed .account-copy,.drawer-collapsed .manage-store-link>span:not(.material-icons-round),.drawer-collapsed .signout>span:not(.material-icons-round){display:none}
-  .drawer-collapsed .manage-store-link,.drawer-collapsed .signout,.drawer-collapsed .account-row{justify-content:center}
+
 }
 @media(max-width:680px){
   body.navigation-open{overflow:hidden}
