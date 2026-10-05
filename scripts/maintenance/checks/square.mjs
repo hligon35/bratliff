@@ -4,6 +4,7 @@ const EXPECTED = [
   { key: "pagePal", label: "Page Pal", priceCents: 10000, books: 5 },
   { key: "chapterChampion", label: "Chapter Champion", priceCents: 25000, books: 12 },
   { key: "bookshelfBuilder", label: "Bookshelf Builder", priceCents: 50000, books: 25 },
+  { key: "literacyTrailblazer", label: "Literacy Trailblazer", priceCents: 100000, books: 50 },
 ];
 
 const REQUIRED_SQUARE_SECRETS = ["SQUARE_ACCESS_TOKEN", "SQUARE_WEBHOOK_SIGNATURE_KEY", "SQUARE_LOCATION_ID"];
@@ -46,31 +47,6 @@ export async function checkSquareConfig({ cwd }) {
         automationStatus: "Human review required",
       });
     }
-  }
-
-  const trailblazerMatch = configSource.match(/literacyTrailblazer:\s*\{[^}]*priceCents:\s*(\d+)[^}]*books:\s*(\d+)[^}]*perBookCents:\s*(\d+)[^}]*minBooks:\s*(\d+)/s);
-  const perBookCents = trailblazerMatch ? Number(trailblazerMatch[3]) : null;
-  const minBooks = trailblazerMatch ? Number(trailblazerMatch[4]) : null;
-  const at90 = perBookCents ? (90 * perBookCents) / 100 : null;
-  const trailblazerOk = perBookCents === 2000 && minBooks === 50 && at90 === 1800;
-  checks.push({
-    command: "verify SPONSOR_PACKAGES.literacyTrailblazer",
-    exitCode: trailblazerOk ? 0 : 1,
-    status: trailblazerOk ? "pass" : "fail",
-    summary: trailblazerOk
-      ? "Literacy Trailblazer: $20/book, 50-book minimum, 90 books = $1,800 (matches spec)."
-      : `Literacy Trailblazer mismatch: perBookCents=${perBookCents}, minBooks=${minBooks}, 90-book total=$${at90}.`,
-  });
-  if (!trailblazerOk) {
-    findings.push({
-      id: "SQUARE-TIER-literacyTrailblazer",
-      severity: "High",
-      area: "Square sponsorship math",
-      finding: "Literacy Trailblazer pricing does not match the documented $20/book, 50-book-minimum spec.",
-      evidence: `perBookCents=${perBookCents}, minBooks=${minBooks}, computed 90-book total=$${at90}`,
-      recommendedAction: "Correct SPONSOR_PACKAGES.literacyTrailblazer in cloudflare/src/config.ts.",
-      automationStatus: "Human review required",
-    });
   }
 
   const hasSignatureCheck = /verifySquareSignature/.test(appSource);
@@ -125,7 +101,7 @@ export async function checkSquareConfig({ cwd }) {
     checks,
     findings,
     squareStatus: {
-      "Sponsorship tier math": [...EXPECTED.map((e) => e.key), "literacyTrailblazer"].every((k) => true) && findings.filter((f) => f.area === "Square sponsorship math").length === 0
+      "Sponsorship tier math": findings.filter((f) => f.area === "Square sponsorship math").length === 0
         ? "Matches documented spec"
         : "Mismatch — see Findings",
       "Webhook signature verification": hasSignatureCheck ? "Present" : "Missing",

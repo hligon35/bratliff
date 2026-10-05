@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
 :root {
   --navy: #0a1628;
   --purple: #542476;
@@ -1729,16 +1728,6 @@ textarea {
 }
 
 
-/* Material Icons Round: use the installed font locally, with a deployable asset fallback. */
-@font-face {
-  font-family: "Material Icons Round";
-  font-style: normal;
-  font-weight: 400;
-  font-display: block;
-  src: local("Material Icons Round"),
-       local("Material Icons Round Regular"),
-       url("./MaterialIconsRound-Regular.otf") format("opentype");
-}
 .material-icons-round.jrpp-icon {
   font-family: "Material Icons Round";
   font-weight: 400;

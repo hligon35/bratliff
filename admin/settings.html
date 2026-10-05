@@ -4,7 +4,7 @@
     <meta name="robots" content="noindex,nofollow" /><base href="../"><title>Settings | Publisher Admin</title>
     <script>try{if(localStorage.getItem("jrpp-workspace-drawer")==="collapsed")document.documentElement.classList.add("drawer-collapsed")}catch(e){}</script>
     <link rel="stylesheet" href="assets/admin.css" />
-    <link rel="stylesheet" href="assets/admin-shell.css" /><script src="assets/site-config.js" defer></script>
+    <link rel="preload" href="/assets/admin-icons.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="assets/admin-shell.css" /><script src="assets/site-config.js" defer></script>
     <script src="assets/admin-shell.js" defer></script><script src="assets/admin.js" defer></script></head>
 <body data-page="admin" data-admin-page="settings">
     <a class="skip-link" href="/admin/settings.html#workspaceMain">Skip to main content</a><div class="app-shell">
@@ -13,8 +13,8 @@
         <header class="workspace-header" data-admin-shell-header></header>
         <div class="notice" id="workspaceNotice" role="status" aria-live="polite" hidden></div>
         <div class="page-content">
-<div class="main"><header class="page-head"><div><p class="eyebrow">ACCOUNT</p><h2>Settings</h2><p>Update your profile and sign-in email.</p></div></header>
-<section class="panel settings-panel"><div class="panel-head"><h2>Profile</h2></div><div class="panel-body"><form id="settingsForm"><div class="settings-layout"><div class="settings-avatar-column"><div class="settings-avatar-preview" id="settingsAvatarPreview"><span>No avatar</span></div><div class="settings-avatar-actions"><label class="btn alt settings-avatar-button" data-icon="edit" aria-label="Change avatar" title="Change avatar">Change avatar<input type="file" id="settingsAvatar" name="avatar" accept="image/png,image/jpeg,image/webp" hidden></label><button class="btn" type="submit">Save Settings</button></div></div><div class="form-grid"><div class="field"><label>Display Name</label><input name="displayName" id="settingsDisplayName"></div><div class="field"><label>Name</label><input name="name" id="settingsName"></div><div class="field full"><label>Email</label><input type="email" name="email" id="settingsEmail" required></div></div></div><div class="status" id="settingsStatus"></div></form></div></section></div>        </div>
+<div class="main"><header class="page-head"><div><p class="eyebrow">ACCOUNT</p><h2>Settings</h2><p>Update your display name and avatar. Your sign-in email is managed by an owner.</p></div></header>
+<section class="panel settings-panel"><div class="panel-head"><h2>Profile</h2></div><div class="panel-body"><form id="settingsForm"><div class="settings-layout"><div class="settings-avatar-column"><div class="settings-avatar-preview" id="settingsAvatarPreview"><span>No avatar</span></div><div class="settings-avatar-actions"><label class="btn alt settings-avatar-button" data-icon="edit" aria-label="Change avatar" title="Change avatar">Change avatar<input type="file" id="settingsAvatar" name="avatar" accept="image/png,image/jpeg,image/webp" hidden></label><button class="btn" type="submit">Save Settings</button></div></div><div class="form-grid"><div class="field"><label>Display Name</label><input name="displayName" id="settingsDisplayName"></div><div class="field"><label>Name</label><input name="name" id="settingsName"></div><div class="field full"><label>Email</label><input type="email" name="email" id="settingsEmail" readonly aria-readonly="true" required></div></div></div><div class="status" id="settingsStatus"></div></form></div></section></div>        </div>
       </main>
     </div>
   </body></html>

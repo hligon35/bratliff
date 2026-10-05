@@ -148,6 +148,10 @@ By default the admin API is protected by the built-in Google Identity Services s
 
 This is intentionally opt-in and additive: leaving both variables blank keeps the current Google sign-in flow working exactly as before, so there is no risk of being locked out of `/admin/*` by deploying this change alone. Actually restricting access at Cloudflare's edge requires completing steps 1-4 above in the Zero Trust dashboard, which only an account owner should perform (a misconfigured Access policy can lock out all admins, including the person setting it up, until the policy is fixed from the dashboard).
 
+## Production prerequisites
+
+Cloudflare, Resend, Namecheap and migration steps required before release are listed in [docs/production-prerequisites.md](docs/production-prerequisites.md).
+
 ## Monthly maintenance
 
 A scheduled GitHub Actions workflow checks dependencies, security advisories, Cloudflare/D1 config, Square integration correctness, and site quality once a month, applies only safe in-range dependency updates, and opens a PR from a `monthlyUpdate` branch for review — it never merges itself or deploys to production. See [docs/maintenance.md](docs/maintenance.md) for the full details, and `monthlyReport.md` (generated at the repo root by each run) for the latest findings.

@@ -1,6 +1,6 @@
 "use strict";
-var CACHE="jrpp-admin-shell-v2";
-var SHELL=["/admin/","/admin/index.html","/assets/admin-shell.css","/assets/admin-shell.js","/assets/admin-workspace.css","/assets/admin-workspace.js","/assets/site-config.js","/assets/icons-admin-192.svg","/assets/icons-admin-512.svg"];
+var CACHE="jrpp-admin-shell-v3";
+var SHELL=["/admin/","/admin/index.html","/assets/admin-shell.css","/assets/admin-icons.woff2","/assets/admin-shell.js","/assets/admin-workspace.css","/assets/admin-workspace.js","/assets/site-config.js","/assets/icons-admin-192.svg","/assets/icons-admin-512.svg"];
 self.addEventListener("install",function(event){event.waitUntil(caches.open(CACHE).then(function(cache){return cache.addAll(SHELL)}).then(function(){return self.skipWaiting()}))});
 self.addEventListener("activate",function(event){event.waitUntil(caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k!==CACHE}).map(function(k){return caches.delete(k)}))}).then(function(){return self.clients.claim()}))});
 self.addEventListener("fetch",function(event){var request=event.request,url=new URL(request.url);if(request.method!=="GET"||url.origin!==self.location.origin||url.pathname.indexOf("/api/")===0)return;var isShell=SHELL.indexOf(url.pathname)>=0;if(isShell)event.respondWith(caches.match(request).then(function(cached){var update=fetch(request).then(function(response){if(response.ok){var copy=response.clone();caches.open(CACHE).then(function(cache){cache.put(request,copy)})}return response}).catch(function(){return cached});return cached||update}))});

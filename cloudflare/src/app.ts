@@ -137,6 +137,16 @@ const app: AppHandler = {
         return withSecurityHeaders(await handleSquareWebhook(request, env));
       }
 
+      if (
+        (url.pathname.startsWith("/api/admin/") ||
+          url.pathname.startsWith("/api/customer/") ||
+          url.pathname === "/api/auth/google" ||
+          url.pathname === "/api/auth/logout") &&
+        !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
+      ) {
+        requireTrustedMutationOrigin(request, env);
+      }
+
       if (url.pathname === "/api/auth/google") {
         return await handleGoogleAuthRequest(request, env);
       }
@@ -147,13 +157,6 @@ const app: AppHandler = {
 
       if (url.pathname === "/api/auth/logout") {
         return await handleAdminLogoutRequest(request, env);
-      }
-
-      if (
-        (url.pathname.startsWith("/api/admin/") || url.pathname.startsWith("/api/customer/")) &&
-        !["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())
-      ) {
-        requireTrustedMutationOrigin(request, env);
       }
 
       if (url.pathname.startsWith("/api/customer/")) {
@@ -228,8 +231,11 @@ const app: AppHandler = {
 
       return withSecurityHeaders(await env.ASSETS.fetch(request));
     } catch (error) {
-      const status = error instanceof HttpError ? error.status : 500;
-      return json(request, env, { ok: false, error: getErrorMessage(error) }, status);
+      if (error instanceof HttpError) {
+        return json(request, env, { ok: false, error: error.message }, error.status);
+      }
+      console.error(JSON.stringify({ type: "unhandled_request_error", path: new URL(request.url).pathname, error: getErrorMessage(error) }));
+      return json(request, env, { ok: false, error: "Something went wrong on our side. Please try again." }, 500);
     }
   },
 
@@ -654,6 +660,7 @@ async function handleFormSubmission(
     emailSent = true;
   } catch (error) {
     console.error(JSON.stringify({ type: "submission_email_failed", formType, error: getErrorMessage(error) }));
+    await writeAuditLog(env, { email: "system@website", role: "developer", displayName: "Website", name: "Website", avatarUrl: "", token: { provider: "worker-form" } }, "email_delivery_failed", "form_submission", submissionId, "Notification email failed for " + formType + ": " + getErrorMessage(error).slice(0, 1500));
   }
 
   return json(request, env, { ok: true, emailSent, submissionId });
@@ -1388,7 +1395,11 @@ async function handleAdminApi(
     return json(request, env, { ok: true, rows: await getInventorySummary(env) });
   }
   if (request.method === "GET" && path === "orders") {
-    return json(request, env, { ok: true, orders: await listOrders(env, 100) });
+    const limit = clampInt(url.searchParams.get("limit"), 1, 100, 100);
+    const offset = clampInt(url.searchParams.get("offset"), 0, 1000000, 0);
+    const orders = await listOrders(env, limit, offset);
+    const total = await countQuery(env, "SELECT COUNT(*) AS count FROM orders");
+    return json(request, env, { ok: true, orders, total, offset, hasMore: offset + orders.length < total });
   }
   if (request.method === "POST" && path.startsWith("orders/") && path.endsWith("/fulfillment")) {
     requireRole(admin, "manager");
@@ -1434,10 +1445,31 @@ async function handleAdminApi(
   if (request.method === "POST" && path === "newsletter/send") {
     requireRole(admin, "manager");
     const body = await parseBody(request);
+    const existingId = text(body.campaignId, 120);
+    if (existingId) {
+      const existing = await env.DB.prepare("SELECT status FROM newsletter_campaigns WHERE campaign_id = ?1").bind(existingId).first<{ status: string }>();
+      if (existing && ["Sent", "Sending"].includes(existing.status)) {
+        throw new HttpError(409, "This newsletter was already " + existing.status.toLowerCase() + ". Duplicate it to send again.");
+      }
+    }
     const campaign = await saveNewsletterCampaign(env, { ...body, status: "Sending" });
     await sendNewsletterCampaign(env, campaign);
-    await writeAuditLog(env, admin, "newsletter_sent", "newsletter_campaign", campaign.campaignId, "Newsletter sent: " + text(campaign.title || campaign.subject, 200) + ".");
-    return json(request, env, { ok: true, campaignId: campaign.campaignId, message: "Newsletter sent." });
+    const outcome = await env.DB.prepare("SELECT status, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE campaign_id = ?1")
+      .bind(campaign.campaignId)
+      .first<{ status: string; recipients: number; sent: number; failed: number; lastError: string }>();
+    await writeAuditLog(env, admin, "newsletter_sent", "newsletter_campaign", campaign.campaignId, "Newsletter " + (outcome?.status || "sent") + ": " + text(campaign.title || campaign.subject, 200) + " (" + Number(outcome?.sent || 0) + " sent, " + Number(outcome?.failed || 0) + " failed).");
+    if (outcome && outcome.failed > 0) {
+      const allFailed = outcome.sent === 0;
+      return json(request, env, {
+        ok: !allFailed,
+        campaignId: campaign.campaignId,
+        sent: outcome.sent,
+        failed: outcome.failed,
+        error: outcome.lastError,
+        message: allFailed ? "Newsletter could not be delivered: " + outcome.lastError : "Newsletter sent to " + outcome.sent + " of " + outcome.recipients + " recipients; " + outcome.failed + " failed. " + outcome.lastError,
+      }, allFailed ? 502 : 200);
+    }
+    return json(request, env, { ok: true, campaignId: campaign.campaignId, sent: outcome?.sent ?? 0, failed: 0, message: "Newsletter sent." });
   }
   if (request.method === "POST" && path.startsWith("newsletter/campaigns/") && path.endsWith("/cancel")) {
     requireRole(admin, "manager");
@@ -1603,7 +1635,16 @@ async function handleAdminApi(
   }
   if (request.method === "DELETE" && path.startsWith("admins/")) {
     requireRole(admin, "owner");
-    await env.DB.prepare("DELETE FROM admins WHERE lower(email) = ?1").bind(decodeURIComponent(path.slice("admins/".length)).toLowerCase()).run();
+    const targetEmail = decodeURIComponent(path.slice("admins/".length)).toLowerCase();
+    if (targetEmail === admin.email.toLowerCase()) throw new HttpError(400, "You cannot remove your own admin access.");
+    const target = await env.DB.prepare("SELECT role FROM admins WHERE lower(email) = ?1").bind(targetEmail).first<{ role: string }>();
+    if (!target) throw new HttpError(404, "Admin not found.");
+    if (target.role === "owner") {
+      const owners = await env.DB.prepare("SELECT COUNT(*) AS total FROM admins WHERE role = 'owner'").first<{ total: number }>();
+      if (Number(owners?.total || 0) <= 1) throw new HttpError(409, "The last owner cannot be removed.");
+    }
+    await env.DB.prepare("DELETE FROM admins WHERE lower(email) = ?1").bind(targetEmail).run();
+    await writeAuditLog(env, admin, "admin_removed", "admin", targetEmail, "Admin access removed.");
     return json(request, env, { ok: true });
   }
   if (request.method === "POST" && path.startsWith("books/") && path.endsWith("/image")) {
@@ -1686,7 +1727,7 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
     " e.from_name AS name, e.from_email AS email, e.subject AS subject, e.preview AS preview, e.body AS body, " +
     " 'Email message' AS formTypeLabel, 'Received' AS status, '' AS paymentStatus, '' AS fulfillmentStatus, 0 AS total, '' AS shippingAddress, '' AS organization, '' AS phone, '' AS pageUrl " +
     " FROM mailbox_external_messages e" +
-    "), mailbox_items AS ("
+    "), mailbox_items AS (" +
     " SELECT s.*, COALESCE(m.folder, 'inbox') AS folder, COALESCE(m.is_read, 0) AS isRead, COALESCE(m.starred, 0) AS starred " +
     " FROM source_items s LEFT JOIN mailbox_state m ON m.item_key = s.itemKey AND m.admin_email = ?1" +
     ")";
@@ -1716,7 +1757,7 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
     " SUM(CASE WHEN folder = 'inbox' THEN 1 ELSE 0 END) AS inbox, SUM(CASE WHEN folder = 'archive' THEN 1 ELSE 0 END) AS archive, " +
     " SUM(CASE WHEN folder = 'trash' THEN 1 ELSE 0 END) AS trash FROM mailbox_items",
   ).bind(admin.email).first<Record<string, unknown>>();
-  const rows = (pageRows.results || []).map((row) => ({ ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 }));
+  const rows = (pageRows.results || []).map((row): Record<string, unknown> => ({ ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 }));
   const orderNumbers = rows.filter((row) => row.sourceType === "order").map((row) => text(row.id, 180));
   if (orderNumbers.length) {
     const slots = orderNumbers.map((_, index) => "?" + (index + 1)).join(",");
@@ -1952,8 +1993,7 @@ async function updateAdminProfile(
   const email = text(body.email, 320).toLowerCase() || current.email;
   if (!isValidEmail(email)) throw new HttpError(400, "Enter a valid email address.");
   if (email !== current.email) {
-    const conflict = await env.DB.prepare("SELECT email FROM admins WHERE lower(email) = ?1").bind(email).first();
-    if (conflict) throw new HttpError(409, "That email already has admin access.");
+    throw new HttpError(400, "Your sign-in email cannot be changed here. Ask an owner to add the new address as an admin.");
   }
   const displayName = typeof body.displayName === "string" ? text(body.displayName, 200) : current.displayName;
   const name = typeof body.name === "string" ? text(body.name, 200) : current.name;
@@ -3070,10 +3110,10 @@ async function adjustInventory(env: Env, admin: AuthenticatedAdmin, body: Record
   return getStoreBookById(env, bookId);
 }
 
-async function listOrders(env: Env, limit: number) {
+async function listOrders(env: Env, limit: number, offset = 0) {
   const rows = await env.DB.prepare(
-    "SELECT order_number AS orderNumber, square_order_id AS squareOrderId, square_payment_id AS squarePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders ORDER BY datetime(created_at) DESC LIMIT ?1",
-  ).bind(limit).all<Record<string, unknown>>();
+    "SELECT order_number AS orderNumber, square_order_id AS squareOrderId, square_payment_id AS squarePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders ORDER BY datetime(created_at) DESC, order_number DESC LIMIT ?1 OFFSET ?2",
+  ).bind(limit, offset).all<Record<string, unknown>>();
   const orders = rows.results || [];
   if (!orders.length) return orders;
 
@@ -3094,16 +3134,24 @@ async function listOrders(env: Env, limit: number) {
   return orders.map((order) => ({ ...order, items: itemsByOrder.get(text(order.orderNumber, 120)) || [] }));
 }
 
-async function updateFulfillment(env: Env, orderNumber: string, body: Record<string, string>) {
-  await env.DB.prepare("UPDATE orders SET fulfillment_status = ?2, tracking_number = ?3, notes = ?4 WHERE order_number = ?1")
-    .bind(text(orderNumber, 120), text(body.fulfillmentStatus, 80) || "Unfulfilled", text(body.trackingNumber, 200), text(body.notes, 4000))
-    .run();
-  const rows = await env.DB.prepare(
-    "SELECT order_number AS orderNumber, square_order_id AS squareOrderId, square_payment_id AS squarePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders WHERE order_number = ?1",
-  ).bind(text(orderNumber, 120)).first();
-  return rows;
-}
+export const FULFILLMENT_STATUSES = ["Unfulfilled", "Processing", "Shipped", "Fulfilled", "Cancelled"] as const;
 
+async function updateFulfillment(env: Env, orderNumber: string, body: Record<string, string>) {
+  const key = text(orderNumber, 120);
+  const requested = text(body.fulfillmentStatus, 80) || "Unfulfilled";
+  const status = FULFILLMENT_STATUSES.find((value) => value.toLowerCase() === requested.toLowerCase());
+  if (!status) throw new HttpError(400, "Choose a valid fulfillment status: " + FULFILLMENT_STATUSES.join(", ") + ".");
+  const existing = await env.DB.prepare("SELECT notes FROM orders WHERE order_number = ?1").bind(key).first<{ notes: string | null }>();
+  if (!existing) throw new HttpError(404, "Order not found.");
+  // Notes are only replaced when the client sends them, so a status save never wipes existing notes.
+  const notes = typeof body.notes === "string" ? text(body.notes, 4000) : text(existing.notes, 4000);
+  await env.DB.prepare("UPDATE orders SET fulfillment_status = ?2, tracking_number = ?3, notes = ?4 WHERE order_number = ?1")
+    .bind(key, status, text(body.trackingNumber, 200), notes)
+    .run();
+  return await env.DB.prepare(
+    "SELECT order_number AS orderNumber, square_order_id AS squareOrderId, square_payment_id AS squarePaymentId, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders WHERE order_number = ?1",
+  ).bind(key).first();
+}
 async function getNewsletterBuilderState(env: Env, admin: AuthenticatedAdmin) {
   const books = (await listAllStoreBooks(env)).filter((book) => book.status !== "Archived").map((book) => ({ bookId: book.bookId, title: book.title, author: book.author, shortDescription: book.shortDescription || book.synopsis, imageUrl: book.imageUrl, status: book.status }));
   const bookBuzzTargets = await env.DB.prepare(
@@ -3857,8 +3905,19 @@ async function sendEmail(
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error("Resend send failed (" + response.status + "): " + (await response.text()));
+    throw new Error(describeResendFailure(response.status, await response.text(), env.MAIL_FROM_EMAIL));
   }
+}
+
+export function describeResendFailure(status: number, body: string, fromEmail: string): string {
+  const detail = body.slice(0, 500);
+  if ((status === 403 || status === 422) && /domain.*(not verified|unverified)|not verified|verify.*domain/i.test(detail)) {
+    const domain = fromEmail.split("@")[1] || "the sending domain";
+    return "Email delivery blocked: Resend has not verified " + domain + " (status " + status + "). Verify the domain in Resend or set MAIL_FROM_EMAIL to an address on a verified domain. " + detail;
+  }
+  if (status === 401) return "Email delivery failed: Resend rejected the API key (status 401). Check the RESEND_API_KEY secret.";
+  if (status === 429) return "Email delivery throttled by Resend (status 429). Retry shortly.";
+  return "Resend send failed (" + status + "): " + detail;
 }
 
 function buildAdminMessage(formType: FormType, record: ReturnType<typeof normalizeFormRecord>, siteUrl: string) {
@@ -4198,6 +4257,7 @@ async function sendNewsletterCampaign(env: Env, campaign: NewsletterCampaignReco
 
   let sent = 0;
   let failed = 0;
+  let firstError = "";
   for (let index = 0; index < subscribers.length; index += 20) {
     const batch = subscribers.slice(index, index + 20);
     const results = await Promise.allSettled(
@@ -4210,20 +4270,30 @@ async function sendNewsletterCampaign(env: Env, campaign: NewsletterCampaignReco
           html: buildNewsletterEmailHtml(env, campaign, unsubscribeUrl),
           replyTo: env.ADMIN_NOTIFICATION_EMAIL,
           fromName: campaign.fromName || "Jackrabbit Punkin Publishing LLC",
+          idempotencyKey: await newsletterIdempotencyKey(campaign.campaignId, email),
         });
       }),
     );
     for (const result of results) {
       if (result.status === "fulfilled") sent += 1;
-      else failed += 1;
+      else {
+        failed += 1;
+        if (!firstError) firstError = getErrorMessage(result.reason).slice(0, 1000);
+      }
     }
   }
 
   await env.DB.prepare(
-    "UPDATE newsletter_campaigns SET status = ?2, sent_at = datetime('now'), recipients = ?3, sent = ?4, failed = ?5, last_error = '', updated_at = datetime('now') WHERE campaign_id = ?1",
+    "UPDATE newsletter_campaigns SET status = ?2, sent_at = datetime('now'), recipients = ?3, sent = ?4, failed = ?5, last_error = ?6, updated_at = datetime('now') WHERE campaign_id = ?1",
   )
-    .bind(campaign.campaignId, failed ? "Sent with Errors" : "Sent", subscribers.length, sent, failed)
+    .bind(campaign.campaignId, failed ? "Sent with Errors" : "Sent", subscribers.length, sent, failed, firstError)
     .run();
+}
+
+async function newsletterIdempotencyKey(campaignId: string, email: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(campaignId + ":" + email));
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return "nl-" + hex.slice(0, 48);
 }
 
 async function getNewsletterCampaignRecipients(env: Env, campaign: NewsletterCampaignRecord): Promise<string[]> {

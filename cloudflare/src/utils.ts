@@ -141,6 +141,9 @@ export function matchOriginUrl(rawValue: string | undefined, request: Request, f
   return candidates[0];
 }
 
+// Directive subset that blocks framing, plugins, and base-tag injection without restricting script/style sources used by static pages.
+const BASELINE_CSP = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+
 export function withSecurityHeaders(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
@@ -148,6 +151,8 @@ export function withSecurityHeaders(response: Response): Response {
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   headers.set("Strict-Transport-Security", "max-age=31536000");
+  headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  if (!headers.has("Content-Security-Policy")) headers.set("Content-Security-Policy", BASELINE_CSP);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -168,9 +173,11 @@ export function withCors(request: Request, env: Env, response: Response) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Access-Control-Allow-Credentials", "true");
   }
-  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type, Cf-Access-Jwt-Assertion, x-square-hmacsha256-signature");
   headers.set("Vary", "Origin");
+  if (!headers.has("Cache-Control")) headers.set("Cache-Control", "no-store");
+  headers.set("X-Robots-Tag", "noindex, nofollow");
   return withSecurityHeaders(new Response(response.body, { status: response.status, headers }));
 }
 

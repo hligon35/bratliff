@@ -45,7 +45,9 @@ const envValues = readEnvFile(envPath);
 const envLocalValues = readEnvFile(envLocalPath);
 const values = { ...exampleValues, ...envValues, ...envLocalValues };
 
-const siteUrl = pickPrimaryUrl(values.SITE_URL);
+const PRODUCTION_SITE_URL = 'https://jackrabbitpunkinpublishing.com';
+const configuredSiteUrl = pickPrimaryUrl(process.env.SITE_URL || values.SITE_URL);
+const siteUrl = isPlaceholder(configuredSiteUrl) ? PRODUCTION_SITE_URL : configuredSiteUrl;
 const publicApiUrl = '';
 const formEndpoint = '/api/forms/submit';
 const storeBooksEndpoint = '/api/store/books';

@@ -32,11 +32,10 @@ test("the workflow has a concurrency guard to prevent overlapping runs", () => {
   assert.match(workflow, /concurrency:/);
 });
 
-test("the workflow supports manual dispatch and a monthly cron schedule", () => {
+test("the workflow supports manual dispatch while automatic schedules stay paused", () => {
   const workflow = read(".github/workflows/monthly-maintenance.yml");
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /schedule:/);
-  assert.match(workflow, /cron:/);
+  assert.doesNotMatch(workflow, /^\s*schedule:/m);
 });
 
 test("the workflow requests least-privilege token permissions and never merges the PR automatically", () => {

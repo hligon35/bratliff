@@ -7,6 +7,7 @@
       { key: "orders", label: "Orders", icon: "receipt_long", view: true, count: "orderNavCount" },
       { key: "catalog", label: "Catalog", icon: "menu_book", view: true },
       { key: "inventory", label: "Inventory", icon: "inventory_2", view: true },
+      { key: "store", label: "Store manager", icon: "storefront" },
     ] },
     { label: "Customer work", items: [
       { key: "mailbox", label: "Mailbox", icon: "mail", view: true, count: "mailNavCount" },
@@ -35,7 +36,7 @@
     activity: ["ADMINISTRATION", "Activity log"],
     profile: ["ADMINISTRATION", "Admin access"],
     settings: ["ADMINISTRATION", "Settings"],
-    store: ["BOOKSTORE", "Bookstore manager"],
+    store: ["BOOKSTORE", "Store manager"],
   };
   const drawer = document.querySelector("[data-admin-shell-drawer]");
   const header = document.querySelector("[data-admin-shell-header]");
@@ -60,8 +61,7 @@
             "</span><span>" + item.label + "</span>" + (item.count ? '<span class="nav-count" id="' + item.count + '"></span>' : "") + "</a>";
         }).join("") + "</nav>";
     }).join("") +
-    '<div class="drawer-bottom"><a href="/admin/store.html" class="manage-store-link" data-shell-page="store" title="Bookstore manager" aria-label="Bookstore manager">' +
-    icon("storefront") + '<span>Bookstore Manager</span></a>' +
+    '<div class="drawer-bottom">' +
     '<div class="account-row"><span class="avatar" id="viewerInitials">J</span><span class="account-copy"><b id="viewerName">Loading account</b>' +
     '<small id="viewerEmail">Checking secure session...</small></span></div><button type="button" class="signout" id="signOutBtn" title="Sign out" aria-label="Sign out">' +
     icon("logout") + "<span>Sign out</span></button></div>";

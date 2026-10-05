@@ -15,7 +15,7 @@
     "proxy:deploy": "wrangler deploy --config cloudflare-proxy/wrangler.jsonc",
     "maintenance:run": "node scripts/monthly-maintenance.mjs --trigger local",
     "maintenance:dry-run": "node scripts/monthly-maintenance.mjs --trigger local --dry-run",
-    "test:maintenance": "node --test scripts/maintenance/tests/*.test.mjs",
+    "test:maintenance": "node --test scripts/maintenance/tests/*.test.mjs scripts/admin-shell.test.mjs",
     "review-data:generate": "node scripts/generate-review-data.mjs"
   },
   "dependencies": {
