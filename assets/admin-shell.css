@@ -6,7 +6,7 @@ button,input,select,textarea{font:inherit}
 button,a,select{touch-action:manipulation}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #bd9adc;outline-offset:2px}
 .app-shell{min-height:100vh}
-.drawer{position:fixed;inset:0 auto 0 0;width:248px;padding:16px 12px 12px;background:var(--navy);color:#fff;display:flex;flex-direction:column;z-index:20;overflow-y:auto;transition:width .2s ease}
+.drawer{position:fixed;inset:0 auto 0 0;width:248px;padding:16px 12px 12px;background:var(--navy);color:#fff;display:flex;flex-direction:column;z-index:20;overflow-x:hidden;overflow-y:auto;transition:width .2s ease}
 .brand-row{display:flex;align-items:center;gap:10px;padding:2px 6px 19px;border-bottom:1px solid rgba(255,255,255,.13)}
 .brand-row img{object-fit:contain;flex:0 0 42px}
 .brand-name{font:700 15px Georgia,serif;line-height:1.25}
@@ -59,7 +59,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .signout{display:flex;align-items:center;gap:10px;padding-inline:12px}
 .nav-item{padding-inline:12px}
 @media(min-width:681px){
-.drawer-collapsed .drawer{width:68px;overflow:hidden}
+.drawer-collapsed .drawer{width:68px;overflow-x:hidden;overflow-y:auto}
 .drawer-collapsed .workspace{margin-left:68px}
 .drawer-collapsed .brand-name,.drawer-collapsed .nav-label,.drawer-collapsed .nav-item>span:nth-child(n+2),.drawer-collapsed .account-copy,.drawer-collapsed .signout>span:last-child{opacity:0;pointer-events:none;transition-delay:0s}
 }
