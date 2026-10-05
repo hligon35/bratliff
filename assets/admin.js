@@ -91,17 +91,35 @@
   };
 
   const adminNavItems = [
-    { key: "dashboard", href: "admin/index.html", label: "Dashboard", icon: "overview" },
-    { key: "mailbox", href: "admin/index.html?view=mailbox", label: "Mailbox", icon: "newsletter" },
-    { key: "store", href: "admin/store.html", label: "Book Store", icon: "books" },
-    { key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "newsletter" },
-    { key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "contacts" },
-    { key: "author", href: "admin/author.html", label: "Featured Author", icon: "featured-author" },
-    { key: "analytics", href: "admin/analytics.html", label: "Analytics", icon: "analytics", roles: ["developer", "owner"] },
-    { key: "activity", href: "admin/activity.html", label: "Activity Log", icon: "activity-log", roles: ["developer", "owner"] },
-    { key: "profile", href: "admin/profile.html", label: "Access Management", icon: "access-management", roles: ["developer", "owner"] },
-    { key: "settings", href: "admin/settings.html", label: "Settings", icon: "settings" },
+    { group: "Bookstore", key: "orders", href: "admin/index.html?view=orders", label: "Orders", icon: "orders" },
+    { group: "Bookstore", key: "catalog", href: "admin/index.html?view=catalog", label: "Catalog", icon: "books" },
+    { group: "Bookstore", key: "inventory", href: "admin/index.html?view=inventory", label: "Inventory", icon: "inventory" },
+    { group: "Customer Work", key: "mailbox", href: "admin/index.html?view=mailbox", label: "Mailbox", icon: "mail" },
+    { group: "Publishing", key: "author", href: "admin/author.html", label: "Featured Author", icon: "featured-author" },
+    { group: "Publishing", key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "sponsors" },
+    { group: "Publishing", key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "newsletter" },
+    { group: "Administration", key: "analytics", href: "admin/analytics.html", label: "Analytics", icon: "analytics", roles: ["developer", "owner"] },
+    { group: "Administration", key: "activity", href: "admin/activity.html", label: "Activity log", icon: "activity-log", roles: ["developer", "owner"] },
+    { group: "Administration", key: "profile", href: "admin/profile.html", label: "Admin access", icon: "access-management", roles: ["developer", "owner"] },
+    { group: "Administration", key: "settings", href: "admin/settings.html", label: "Settings", icon: "settings" },
+    { group: "Bookstore", key: "store", href: "admin/store.html", label: "Bookstore manager", icon: "books" },
   ];
+
+  function renderAdminNavigation() {
+    const nav = qs(".jrpp-admin-nav");
+    if (!nav) return;
+    const role = state.viewer && state.viewer.role ? state.viewer.role : "";
+    let group = "";
+    nav.innerHTML = adminNavItems
+      .filter(function (item) { return !item.roles || item.roles.indexOf(role) >= 0; })
+      .map(function (item) {
+        const heading = item.group !== group ? '<div class="jrpp-admin-nav-label">' + escapeHtml(item.group) + "</div>" : "";
+        group = item.group;
+        const active = item.key === state.page;
+        return heading + '<a class="' + (active ? "active" : "") + '" href="' + item.href + '" data-admin-nav="' + item.key + '" data-icon="' + item.icon + '" title="' + escapeHtml(item.label) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(item.label) + "</a>";
+      })
+      .join("");
+  }
 
   function renderAdminNavigation() {
     const nav = qs(".jrpp-admin-nav");
@@ -126,7 +144,7 @@
       toggle.className = "jrpp-admin-drawer-toggle";
       toggle.setAttribute("data-admin-drawer-toggle", "");
       toggle.setAttribute("aria-label", "Collapse admin navigation");
-      toggle.innerHTML = "<span aria-hidden=\"true\">☰</span><span class=\"drawer-toggle-label\">Collapse menu</span>";
+      toggle.innerHTML = '<span class="jrpp-icon material-icons-round" aria-hidden="true">menu</span><span class="drawer-toggle-label">Collapse menu</span>';
       drawer.insertBefore(toggle, drawer.firstChild);
     }
     // Class is already applied to <html> by the inline head script; mirror it on <body>
@@ -262,6 +280,8 @@
     "menu": "menu",
     "newsletter": "mail",
     "contacts": "contacts",
+    "sponsors": "volunteer_activism",
+    "mail": "mail",
     "featured-author": "person",
     "analytics": "analytics",
     "activity-log": "history",

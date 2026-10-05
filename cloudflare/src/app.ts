@@ -1317,6 +1317,9 @@ async function handleAdminApi(
   if (request.method === "GET" && path === "mail/failed") {
     return json(request, env, { ok: true, ...(await listFailedMailboxEmail(env, admin, url.searchParams)) });
   }
+  if (request.method === "GET" && path === "mail/sent") {
+    return json(request, env, { ok: true, ...(await listFailedMailboxEmail(env, admin, url.searchParams, true)) });
+  }
   if (request.method === "GET" && path === "mail/item") {
     const itemKey = text(url.searchParams.get("key"), 240);
     return json(request, env, { ok: true, item: await getMailboxItem(env, admin, itemKey) });
@@ -1326,8 +1329,7 @@ async function handleAdminApi(
     return json(request, env, { ok: true, ...(await updateMailboxState(env, admin, await parseBody(request))) });
   }
   if (request.method === "GET" && path === "mail/item/draft") {
-    const itemKey = text(url.searchParams.get("key"), 240);
-    await assertMailboxItemExists(env, itemKey, admin.email);
+    const itemKey = await resolveMailboxDraftKey(env, url.searchParams.get("key"), admin.email);
     const draft = await env.DB.prepare("SELECT body, updated_at AS updatedAt FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2")
       .bind(admin.email, itemKey).first<Record<string, unknown>>();
     return json(request, env, { ok: true, draft: draft ? { body: text(draft.body, 20000), updatedAt: draft.updatedAt } : null });
@@ -1335,9 +1337,8 @@ async function handleAdminApi(
   if (request.method === "PUT" && path === "mail/item/draft") {
     requireRole(admin, "manager");
     const body = await parseBody(request);
-    const itemKey = text(body.itemKey, 240);
+    const itemKey = await resolveMailboxDraftKey(env, body.itemKey, admin.email);
     const draftBody = typeof body.body === "string" ? body.body.slice(0, 20000) : "";
-    await assertMailboxItemExists(env, itemKey, admin.email);
     await env.DB.prepare(
       "INSERT INTO mailbox_drafts (admin_email, item_key, body, updated_at) VALUES (?1, ?2, ?3, datetime('now')) ON CONFLICT(admin_email, item_key) DO UPDATE SET body = excluded.body, updated_at = datetime('now')",
     ).bind(admin.email, itemKey, draftBody).run();
@@ -1345,8 +1346,7 @@ async function handleAdminApi(
   }
   if (request.method === "DELETE" && path === "mail/item/draft") {
     requireRole(admin, "manager");
-    const itemKey = text(url.searchParams.get("key"), 240);
-    await assertMailboxItemExists(env, itemKey, admin.email);
+    const itemKey = await resolveMailboxDraftKey(env, url.searchParams.get("key"), admin.email);
     await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, itemKey).run();
     return json(request, env, { ok: true, deleted: true });
   }
@@ -1632,6 +1632,12 @@ function parseMailboxSourceKey(value: unknown): MailboxSourceKey {
   return { sourceType: sourceType as "order" | "submission" | "outbound", id, itemKey };
 }
 
+async function resolveMailboxDraftKey(env: Env, value: unknown, adminEmail: string): Promise<string> {
+  const itemKey = text(value, 240);
+  if (/^draft:[a-f0-9-]{36}$/i.test(itemKey)) return itemKey;
+  return (await assertMailboxItemExists(env, itemKey, adminEmail)).itemKey;
+}
+
 async function assertMailboxItemExists(env: Env, value: unknown, adminEmail = ""): Promise<MailboxSourceKey> {
   const key = parseMailboxSourceKey(value);
   const row = key.sourceType === "order"
@@ -1723,21 +1729,21 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   };
 }
 
-async function listFailedMailboxEmail(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams) {
+async function listFailedMailboxEmail(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams, sent = false) {
   const page = clampInt(search.get("page"), 1, 5000, 1);
   const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
   const term = text(search.get("search"), 120).toLowerCase();
-  const bindings: unknown[] = [admin.email];
-  let where = " WHERE o.admin_email = ?1 AND o.status = 'Failed' AND o.item_key = '' AND COALESCE(ms.folder, 'inbox') = 'inbox'";
+  const bindings: unknown[] = [admin.email, sent ? "Accepted" : "Failed"];
+  let where = " WHERE o.admin_email = ?1 AND o.status = ?2 AND o.item_key = '' AND COALESCE(ms.folder, 'inbox') = 'inbox'";
   if (term) {
     bindings.push("%" + term + "%");
-    where += " AND (lower(o.subject) LIKE ?2 OR lower(o.recipient) LIKE ?2 OR lower(o.error) LIKE ?2)";
+    where += " AND (lower(o.subject) LIKE ?3 OR lower(o.recipient) LIKE ?3 OR lower(o.error) LIKE ?3 OR lower(o.body) LIKE ?3)";
   }
   const from = " FROM mailbox_outbound o LEFT JOIN mailbox_state ms ON ms.admin_email = o.admin_email AND ms.item_key = 'outbound:' || o.id";
   const count = await env.DB.prepare("SELECT COUNT(*) AS count" + from + where).bind(...bindings).first<{ count: number }>();
   bindings.push(pageSize, (page - 1) * pageSize);
   const rows = await env.DB.prepare(
-    "SELECT 'outbound' AS sourceType, 'outbound:' || o.id AS itemKey, o.id AS id, o.created_at AS createdAt, o.recipient AS name, o.recipient AS email, o.subject, o.error AS preview, o.body, 'Failed email' AS formTypeLabel, o.status, o.idempotency_key AS idempotencyKey, o.error, COALESCE(ms.folder, 'inbox') AS folder, COALESCE(ms.is_read, 0) AS isRead, COALESCE(ms.starred, 0) AS starred" +
+    "SELECT 'outbound' AS sourceType, 'outbound:' || o.id AS itemKey, o.id AS id, o.created_at AS createdAt, o.recipient AS name, o.recipient AS email, o.subject, COALESCE(NULLIF(o.error, ''), substr(o.body, 1, 180)) AS preview, o.body, 'Outbound email' AS formTypeLabel, o.status, o.idempotency_key AS idempotencyKey, o.error, COALESCE(ms.folder, 'inbox') AS folder, COALESCE(ms.is_read, 0) AS isRead, COALESCE(ms.starred, 0) AS starred" +
     from + where + " ORDER BY datetime(o.created_at) DESC LIMIT ?" + (bindings.length - 1) + " OFFSET ?" + bindings.length,
   ).bind(...bindings).all<Record<string, unknown>>();
   return {
@@ -1745,7 +1751,7 @@ async function listFailedMailboxEmail(env: Env, admin: AuthenticatedAdmin, searc
     total: Number(count?.count || 0),
     page,
     pageSize,
-    counts: { failed: Number(count?.count || 0) },
+    counts: sent ? { sent: Number(count?.count || 0) } : { failed: Number(count?.count || 0) },
   };
 }
 
@@ -1826,6 +1832,7 @@ async function updateMailboxState(env: Env, admin: AuthenticatedAdmin, body: Rec
     "INSERT INTO mailbox_state (admin_email, item_key, folder, is_read, starred, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now')) " +
     "ON CONFLICT(admin_email, item_key) DO UPDATE SET folder = excluded.folder, is_read = excluded.is_read, starred = excluded.starred, updated_at = datetime('now')",
   ).bind(admin.email, key.itemKey, folder, isRead ? 1 : 0, starred ? 1 : 0).run();
+  await writeAuditLog(env, admin, "mailbox_" + action, "mail_item", key.itemKey, "Mailbox state changed to " + folder + ".");
   return { itemKey: key.itemKey, folder, isRead, starred };
 }
 
@@ -1833,7 +1840,9 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
   const to = text(body.to, 320).toLowerCase();
   const subject = text(body.subject, 240);
   const content = typeof body.body === "string" ? body.body.slice(0, 20000) : "";
-  const itemKey = body.itemKey ? (await assertMailboxItemExists(env, body.itemKey, admin.email)).itemKey : "";
+  const requestedItemKey = text(body.itemKey, 240);
+  const draftKey = /^draft:[a-f0-9-]{36}$/i.test(requestedItemKey) ? requestedItemKey : "";
+  const itemKey = draftKey ? "" : requestedItemKey ? (await assertMailboxItemExists(env, requestedItemKey, admin.email)).itemKey : "";
   const idempotencyKey = text(body.idempotencyKey, 120);
   if (!isValidEmail(to)) throw new HttpError(400, "Enter a valid recipient email address.");
   if (!subject || !content.trim()) throw new HttpError(400, "Subject and message are required.");
@@ -1842,6 +1851,7 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
     "SELECT id, status, error FROM mailbox_outbound WHERE idempotency_key = ?1 AND admin_email = ?2",
   ).bind(idempotencyKey, admin.email).first<Record<string, unknown>>();
   if (prior && ["Accepted", "Sending"].includes(text(prior.status, 40))) {
+    if (draftKey && text(prior.status, 40) === "Accepted") await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, draftKey).run();
     return json(request, env, { ok: true, status: prior.status, message: prior.status === "Accepted" ? "Accepted by email service." : "This message is already being processed." });
   }
   const outboundId = text(prior?.id, 120) || "MAIL-" + crypto.randomUUID();
@@ -1879,7 +1889,7 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
     });
     await env.DB.prepare("UPDATE mailbox_outbound SET status = 'Accepted', error = '', updated_at = datetime('now') WHERE id = ?1")
       .bind(outboundId).run();
-    if (itemKey) await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, itemKey).run();
+    if (itemKey || draftKey) await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, draftKey || itemKey).run();
     await writeAuditLog(env, admin, "mail_sent", "mail_item", itemKey || outboundId, "Email accepted by provider for " + to + ".");
     return json(request, env, { ok: true, status: "Accepted", message: "Accepted by email service." });
   } catch (error) {
