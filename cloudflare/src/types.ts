@@ -80,6 +80,8 @@ export interface Env {
   SQUARE_API_VERSION: string;
   MAIL_FROM_EMAIL: string;
   ADMIN_NOTIFICATION_EMAIL: string;
+  NAMECHEAP_EMAIL_ADDRESS?: string;
+  NAMECHEAP_EMAIL_PASSWORD?: string;
   TURNSTILE_SECRET_KEY: string;
   CUSTOMER_SESSION_SECRET?: string;
 }
