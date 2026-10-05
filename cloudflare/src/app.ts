@@ -1315,10 +1315,10 @@ async function handleAdminApi(
     return json(request, env, { ok: true, ...(await listMailboxItems(env, admin, url.searchParams)) });
   }
   if (request.method === "GET" && path === "mail/failed") {
-    return json(request, env, { ok: true, ...(await listFailedMailboxEmail(env, admin, url.searchParams)) });
+    return json(request, env, { ok: true, ...(await listStandaloneMailboxEmail(env, admin, url.searchParams)) });
   }
   if (request.method === "GET" && path === "mail/sent") {
-    return json(request, env, { ok: true, ...(await listFailedMailboxEmail(env, admin, url.searchParams, true)) });
+    return json(request, env, { ok: true, ...(await listStandaloneMailboxEmail(env, admin, url.searchParams, true)) });
   }
   if (request.method === "GET" && path === "mail/item") {
     const itemKey = text(url.searchParams.get("key"), 240);
@@ -1729,7 +1729,7 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   };
 }
 
-async function listFailedMailboxEmail(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams, sent = false) {
+async function listStandaloneMailboxEmail(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams, sent = false) {
   const page = clampInt(search.get("page"), 1, 5000, 1);
   const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
   const term = text(search.get("search"), 120).toLowerCase();
@@ -1832,7 +1832,7 @@ async function updateMailboxState(env: Env, admin: AuthenticatedAdmin, body: Rec
     "INSERT INTO mailbox_state (admin_email, item_key, folder, is_read, starred, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now')) " +
     "ON CONFLICT(admin_email, item_key) DO UPDATE SET folder = excluded.folder, is_read = excluded.is_read, starred = excluded.starred, updated_at = datetime('now')",
   ).bind(admin.email, key.itemKey, folder, isRead ? 1 : 0, starred ? 1 : 0).run();
-  await writeAuditLog(env, admin, "mailbox_" + action, "mail_item", key.itemKey, "Mailbox state changed to " + folder + ".");
+  if (action !== "read" && action !== "unread") await writeAuditLog(env, admin, "mailbox_" + action, "mail_item", key.itemKey, "Mailbox state changed to " + folder + ".");
   return { itemKey: key.itemKey, folder, isRead, starred };
 }
 
