@@ -8,56 +8,21 @@
   <meta name="description" content="Jackrabbit Punkin Publishing secure admin workspace.">
   <link rel="manifest" href="/admin/manifest.webmanifest">
   <link rel="icon" type="image/png" href="/assets/icons/jrppLogo.png">
+  <link rel="stylesheet" href="/assets/admin-shell.css">
   <link rel="stylesheet" href="/assets/admin-workspace.css">
   <title>Admin Workspace | Jackrabbit Punkin Publishing</title>
   <script>try{if(localStorage.getItem("jrpp-workspace-drawer")==="collapsed")document.documentElement.classList.add("drawer-collapsed")}catch(e){}</script>
   <script src="/assets/site-config.js" defer></script>
+  <script src="/assets/admin-shell.js" defer></script>
   <script src="/assets/admin-workspace.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#workspaceMain">Skip to main content</a>
   <div class="app-shell">
-    <aside class="drawer" id="workspaceDrawer" aria-label="Admin workspace navigation">
-      <div class="brand-row">
-        <img src="/assets/icons/jrppLogo2.png" alt="" width="42" height="42">
-        <span class="brand-name">Jackrabbit Punkin<small>Publisher workspace</small></span>
-        <button class="icon-button drawer-close" type="button" data-drawer-toggle aria-label="Collapse navigation" title="Collapse navigation">‹</button>
-      </div>
-      <div class="nav-label">BOOKSTORE</div>
-      <nav class="primary-nav" aria-label="Bookstore">
-        <button type="button" class="nav-item active" data-view="orders"><span class="nav-icon material-icons-round" aria-hidden="true">receipt_long</span><span>Orders</span><span class="nav-count" id="orderNavCount">—</span></button>
-        <button type="button" class="nav-item" data-view="catalog"><span class="nav-icon material-icons-round" aria-hidden="true">menu_book</span><span>Catalog</span></button>
-        <button type="button" class="nav-item" data-view="inventory"><span class="nav-icon material-icons-round" aria-hidden="true">inventory_2</span><span>Inventory</span></button>
-      </nav>
-      <div class="nav-label">CUSTOMER WORK</div>
-      <nav class="primary-nav" aria-label="Customer work">
-        <button type="button" class="nav-item" data-view="mailbox"><span class="nav-icon material-icons-round" aria-hidden="true">mail</span><span>Mailbox</span><span class="nav-count" id="mailNavCount">—</span></button>
-      </nav>
-      <div class="nav-label">PUBLISHING</div>
-      <nav class="primary-nav" aria-label="Publishing">
-        <a class="nav-item" href="/admin/author.html"><span class="nav-icon material-icons-round" aria-hidden="true">person</span><span>Featured Author</span></a>
-        <a class="nav-item" href="/admin/sponsors.html"><span class="nav-icon material-icons-round" aria-hidden="true">volunteer_activism</span><span>Sponsors</span></a>
-        <a class="nav-item" href="/admin/newsletter.html"><span class="nav-icon material-icons-round" aria-hidden="true">campaign</span><span>Newsletter</span></a>
-      </nav>
-      <div class="nav-label">ADMINISTRATION</div>
-      <nav class="primary-nav" aria-label="Administration">
-        <a class="nav-item" href="/admin/analytics.html"><span class="nav-icon material-icons-round" aria-hidden="true">analytics</span><span>Analytics</span></a>
-        <a class="nav-item" href="/admin/activity.html"><span class="nav-icon material-icons-round" aria-hidden="true">history</span><span>Activity log</span></a>
-        <a class="nav-item" href="/admin/profile.html"><span class="nav-icon material-icons-round" aria-hidden="true">admin_panel_settings</span><span>Admin access</span></a>
-        <a class="nav-item" href="/admin/settings.html"><span class="nav-icon material-icons-round" aria-hidden="true">settings</span><span>Settings</span></a>
-      </nav>
-      <div class="drawer-bottom">
-        <a href="/admin/store.html" class="manage-store-link">Open full bookstore manager <span aria-hidden="true">↗</span></a>
-        <div class="account-row"><span class="avatar" id="viewerInitials">J</span><span class="account-copy"><b id="viewerName">Loading account</b><small id="viewerEmail">Checking secure session…</small></span></div>
-        <button type="button" class="signout" id="signOutBtn">Sign out</button>
-      </div>
-    </aside>
+    <aside class="drawer" id="workspaceDrawer" data-admin-shell-drawer aria-label="Admin workspace navigation"></aside>
 
-    <main class="workspace">
-      <header class="workspace-header">
-        <button class="icon-button mobile-menu" type="button" data-drawer-toggle aria-label="Open navigation"><span class="material-icons-round" aria-hidden="true">menu</span></button>
-        <div><p class="eyebrow" id="moduleEyebrow">BOOKSTORE OPERATIONS</p><h1 id="moduleTitle">Orders</h1></div>
-        <div class="header-actions"><span class="connection-state" id="connectionState"><i></i> Connecting</span><button class="button secondary" id="refreshBtn" type="button"><span class="material-icons-round" aria-hidden="true">refresh</span><span>Refresh</span></button></div>
-      </header>
+    <main class="workspace" id="workspaceMain" tabindex="-1">
+      <header class="workspace-header" data-admin-shell-header></header>
       <div class="notice" id="workspaceNotice" role="status" aria-live="polite" hidden></div>
 
       <section class="module-view active" data-module="orders" aria-label="Bookstore orders">
@@ -121,6 +86,5 @@
       <footer><span id="draftStatus">Draft saves automatically</span><div><button class="button secondary" type="button" id="discardDraft">Discard</button><button class="button primary" type="submit" id="sendMessageBtn">Send message</button></div></footer>
     </form>
   </dialog>
-  <div class="mobile-backdrop" id="mobileBackdrop" hidden></div>
 </body>
 </html>

@@ -90,96 +90,12 @@
     selectedSponsorId: "",
   };
 
-  const adminNavItems = [
-    { group: "Bookstore", key: "orders", href: "admin/index.html?view=orders", label: "Orders", icon: "orders" },
-    { group: "Bookstore", key: "catalog", href: "admin/index.html?view=catalog", label: "Catalog", icon: "books" },
-    { group: "Bookstore", key: "inventory", href: "admin/index.html?view=inventory", label: "Inventory", icon: "inventory" },
-    { group: "Customer Work", key: "mailbox", href: "admin/index.html?view=mailbox", label: "Mailbox", icon: "mail" },
-    { group: "Publishing", key: "author", href: "admin/author.html", label: "Featured Author", icon: "featured-author" },
-    { group: "Publishing", key: "sponsors", href: "admin/sponsors.html", label: "Sponsors", icon: "sponsors" },
-    { group: "Publishing", key: "newsletter", href: "admin/newsletter.html", label: "Newsletter", icon: "newsletter" },
-    { group: "Administration", key: "analytics", href: "admin/analytics.html", label: "Analytics", icon: "analytics", roles: ["developer", "owner"] },
-    { group: "Administration", key: "activity", href: "admin/activity.html", label: "Activity log", icon: "activity-log", roles: ["developer", "owner"] },
-    { group: "Administration", key: "profile", href: "admin/profile.html", label: "Admin access", icon: "access-management", roles: ["developer", "owner"] },
-    { group: "Administration", key: "settings", href: "admin/settings.html", label: "Settings", icon: "settings" },
-    { group: "Bookstore", key: "store", href: "admin/store.html", label: "Bookstore manager", icon: "books" },
-  ];
-
-  function renderAdminNavigation() {
-    const nav = qs(".jrpp-admin-nav");
-    if (!nav) return;
-    const role = state.viewer && state.viewer.role ? state.viewer.role : "";
-    let group = "";
-    nav.innerHTML = adminNavItems
-      .filter(function (item) { return !item.roles || item.roles.indexOf(role) >= 0; })
-      .map(function (item) {
-        const heading = item.group !== group ? '<div class="jrpp-admin-nav-label">' + escapeHtml(item.group) + "</div>" : "";
-        group = item.group;
-        const active = item.key === state.page;
-        return heading + '<a class="' + (active ? "active" : "") + '" href="' + item.href + '" data-admin-nav="' + item.key + '" data-icon="' + item.icon + '" title="' + escapeHtml(item.label) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(item.label) + "</a>";
-      })
-      .join("");
-  }
-
-  function renderAdminNavigation() {
-    const nav = qs(".jrpp-admin-nav");
-    if (!nav) return;
-    const role = state.viewer && state.viewer.role ? state.viewer.role : "";
-    nav.innerHTML = adminNavItems
-      .filter(function (item) { return !item.roles || item.roles.indexOf(role) >= 0; })
-      .map(function (item) {
-        const active = item.key === state.page;
-        return '<a class="' + (active ? "active" : "") + '" href="' + item.href + '" data-admin-nav="' + item.key + '" data-icon="' + item.icon + '" title="' + escapeHtml(item.label) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(item.label) + "</a>";
-      })
-      .join("");
-  }
-
-  function initAdminDrawer() {
-    const drawer = qs(".jrpp-admin-switcher");
-    if (!drawer) return;
-    let toggle = drawer.querySelector("[data-admin-drawer-toggle]");
-    if (!toggle) {
-      toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "jrpp-admin-drawer-toggle";
-      toggle.setAttribute("data-admin-drawer-toggle", "");
-      toggle.setAttribute("aria-label", "Collapse admin navigation");
-      toggle.innerHTML = '<span class="jrpp-icon material-icons-round" aria-hidden="true">menu</span><span class="drawer-toggle-label">Collapse menu</span>';
-      drawer.insertBefore(toggle, drawer.firstChild);
-    }
-    // Class is already applied to <html> by the inline head script; mirror it on <body>
-    // without touching the DOM if it's already collapsed, so no layout shift occurs here.
-    const collapsed = document.documentElement.classList.contains("admin-drawer-collapsed");
-    if (collapsed && !document.body.classList.contains("admin-drawer-collapsed")) {
-      document.body.classList.add("admin-drawer-collapsed");
-    }
-    const syncToggleLabel = function (isCollapsed) {
-      toggle.setAttribute("aria-expanded", String(!isCollapsed));
-      const navigationLabel = isCollapsed ? "Expand admin navigation" : "Collapse admin navigation";
-      toggle.setAttribute("aria-label", navigationLabel);
-      toggle.setAttribute("title", navigationLabel);
-      const label = toggle.querySelector(".drawer-toggle-label");
-      if (label) label.textContent = isCollapsed ? "Expand menu" : "Collapse menu";
-    };
-    const update = function () {
-      const isCollapsed = document.body.classList.toggle("admin-drawer-collapsed");
-      document.documentElement.classList.toggle("admin-drawer-collapsed", isCollapsed);
-      syncToggleLabel(isCollapsed);
-      try { window.localStorage.setItem("jrpp-admin-drawer-collapsed", isCollapsed ? "1" : "0"); } catch {}
-    };
-    syncToggleLabel(collapsed);
-    toggle.addEventListener("click", update);
-    renderAdminNavigation();
-  }
-
   function initStoreActionRow() {
     if (state.page !== "store") return;
     const tools = qs("[data-store-tools]");
     const setupButton = qs("#setupBtn");
-    const refreshButton = qs("#globalRefreshBtn");
     if (!tools) return;
     if (setupButton && setupButton.parentElement !== tools) tools.appendChild(setupButton);
-    if (refreshButton && refreshButton.parentElement !== tools) tools.appendChild(refreshButton);
   }
 
   function resolveApiRoot(configuredValue, defaultPath) {
@@ -300,14 +216,13 @@
   }
 
   function initAdminIcons() {
-    qsa("[data-icon], button, .btn, .jrpp-admin-action").forEach(function (element) {
+    qsa(".page-content [data-icon], .page-content button, .page-content .btn").forEach(function (element) {
       const isControl = (element.tagName && element.tagName.toLowerCase() === "button") || element.matches(".settings-avatar-button");
       const explicit = element.getAttribute("data-icon");
       const existingAriaLabel = element.getAttribute("aria-label") || "";
       const visibleLabel = String(element.textContent || "").replace(/\s+/g, " ").trim();
       const label = (existingAriaLabel || visibleLabel).toLowerCase();
-      const iconName = explicit
-        || (element.matches("[data-admin-drawer-toggle]") ? "menu" : adminButtonIcons[label]);
+      const iconName = explicit || adminButtonIcons[label];
 
       if (!element.querySelector(".jrpp-icon") && iconName) {
         const icon = createAdminIcon(iconName);
@@ -617,7 +532,7 @@
     qsa("[data-viewer-email]").forEach(function (node) {
       node.textContent = text;
     });
-    renderAdminNavigation();
+    if (state.viewer) window.adminShell.setViewer(state.viewer);
   }
 
   function hydrateCachedViewer() {
@@ -1669,6 +1584,7 @@
       state.activities = [];
       renderActivityLog();
       setStatus("#activityLogStatus", error.message || "Activity could not be loaded.", false);
+      if (options && options.throwOnError) throw error;
     }
   }
 
@@ -1741,12 +1657,8 @@
   }
 
   async function loadAdmins() {
-    try {
-      const data = await api("admins");
-      state.admins = Array.isArray(data.admins) ? data.admins : [];
-    } catch {
-      state.admins = [];
-    }
+    const data = await api("admins");
+    state.admins = Array.isArray(data.admins) ? data.admins : [];
     renderAdmins();
   }
 
@@ -2495,10 +2407,15 @@
 
   async function refreshCurrentPage(options) {
     const force = Boolean(options && options.force);
+    const notice = qs("#workspaceNotice");
+    notice.hidden = true;
+    window.adminShell.setConnection("Refreshing", "");
+    qs("#refreshBtn").disabled = true;
     try {
       if (state.page === "dashboard" && !force) hydrateCachedDashboard();
       else hydrateCachedViewer();
       state.viewer = await ensureSession();
+      renderViewer();
       writeCache(cacheKeys.viewer, state.viewer);
       if (state.page === "dashboard") {
         await loadDashboard({ force: force });
@@ -2516,18 +2433,24 @@
       } else if (state.page === "analytics") {
         await loadAnalytics();
       } else if (state.page === "activity") {
-        await loadActivity({ force: force });
+        await loadActivity({ force: force, throwOnError: true });
       } else if (state.page === "settings") {
         await loadSettings();
       }
       renderViewer();
       initAdminIcons();
+      window.adminShell.setConnection("Connected", "connected");
     } catch (error) {
+      window.adminShell.setConnection("Connection issue", "error");
+      notice.textContent = error.message || "Could not load the admin console.";
+      notice.hidden = false;
       const dashboardEmail = qs("#dashboardViewerEmail");
       if (dashboardEmail) dashboardEmail.textContent = error.message || "Could not load the admin console.";
       setStatus("#bookStatus", error.message || "Could not load the admin console.", false);
       setStatus("#adminStatus", error.message || "Could not load the admin console.", false);
       setStatus("#status", error.message || "Could not load the admin console.", false);
+    } finally {
+      qs("#refreshBtn").disabled = false;
     }
   }
 
@@ -2660,11 +2583,11 @@
     }
   });
 
-  qs("#globalRefreshBtn")?.addEventListener("click", function () {
+  qs("#refreshBtn")?.addEventListener("click", function () {
     clearCache(cacheKeys.dashboard);
     refreshCurrentPage({ force: true });
   });
-  qs("#globalLogoutBtn")?.addEventListener("click", logout);
+  qs("#signOutBtn")?.addEventListener("click", logout);
   qs("#setupBtn")?.addEventListener("click", function () {
     refreshCurrentPage().then(function () {
       window.alert("Publisher Store Manager is ready.");
@@ -2873,7 +2796,6 @@
     if (event.key === "Escape") closeCampaignLibrary();
   });
 
-  initAdminDrawer();
   initStoreActionRow();
   initAdminIcons();
 

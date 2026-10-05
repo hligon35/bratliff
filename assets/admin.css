@@ -32,98 +32,6 @@ textarea {
   font: inherit;
 }
 
-.jrpp-admin-switcher {
-  position: sticky;
-  top: 0;
-  z-index: 10000;
-  background: #0a1628;
-  border-bottom: 4px solid #d4ad55;
-  padding: 12px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.jrpp-admin-home {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-right: auto;
-  text-decoration: none;
-}
-
-.jrpp-admin-logo {
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
-  flex: 0 0 56px;
-}
-
-.jrpp-admin-brandcopy {
-  color: #fff;
-  font: 700 18px Georgia, serif;
-}
-
-.jrpp-admin-brandcopy small {
-  display: block;
-  color: #d4ad55;
-  font: 700 10px Arial, sans-serif;
-  letter-spacing: 1.3px;
-  text-transform: uppercase;
-  margin-top: 2px;
-}
-
-.jrpp-admin-nav,
-.jrpp-admin-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.jrpp-admin-nav a,
-.jrpp-admin-profile-link,
-.jrpp-admin-action {
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: transparent;
-  color: #fff;
-  border-radius: 999px;
-  padding: 9px 14px;
-  font: 700 13px Arial, sans-serif;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.jrpp-admin-profile-link {
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.jrpp-admin-profile-link svg {
-  width: 36px;
-  height: 36px;
-  fill: currentColor;
-}
-
-.jrpp-admin-nav a.active,
-.jrpp-admin-nav a:hover,
-.jrpp-admin-profile-link.active,
-.jrpp-admin-profile-link:hover,
-.jrpp-admin-action:hover {
-  background: #d4ad55;
-  border-color: #d4ad55;
-  color: #0a1628;
-}
-
-.jrpp-admin-actions {
-  margin-left: auto;
-}
-
 .jrpp-workspace {
   display: none;
 }
@@ -165,7 +73,7 @@ textarea {
   letter-spacing: 1.6px;
 }
 
-.dashboard-header h1 {
+.dashboard-header h2 {
   margin: 10px 0 8px;
   font: 700 34px/1.1 Georgia, serif;
 }
@@ -377,7 +285,7 @@ textarea {
   margin-bottom: 24px;
 }
 
-.hero h1 {
+.hero h2 {
   margin: 0;
   font: 700 clamp(28px, 4vw, 44px) Georgia, serif;
   color: var(--navy);
@@ -729,7 +637,7 @@ textarea {
   flex-wrap: wrap;
 }
 
-.nl-title-row h1 {
+.nl-title-row h2 {
   margin: 0;
   font: 700 clamp(28px, 4vw, 42px) Georgia, serif;
   color: #0a1628;
@@ -1334,20 +1242,6 @@ textarea {
 }
 
 @media (max-width: 640px) {
-  .jrpp-admin-switcher {
-    align-items: flex-start;
-    padding: 12px 14px;
-  }
-
-  .jrpp-admin-nav {
-    width: 100%;
-  }
-
-  .jrpp-admin-nav a,
-  .jrpp-admin-profile-link {
-    flex: 1;
-    justify-content: center;
-  }
 
   #jrppStoreWorkspace .metrics {
     grid-template-columns: 1fr !important;
@@ -1435,7 +1329,7 @@ textarea {
   letter-spacing: 1.3px;
 }
 
-.activity-log-head h1,
+.activity-log-head h2,
 .activity-log-head h2 {
   margin: 6px 0 0;
   color: #0a1628;
@@ -1609,102 +1503,6 @@ textarea {
     grid-column: auto;
   }
 }
-
-/* Persistent admin drawer */
-body {
-  padding-left: 248px;
-}
-.jrpp-admin-switcher {
-  position: fixed;
-  inset: 0 auto 0 0;
-  width: 248px;
-  min-height: 100vh;
-  padding: 16px 12px;
-  border: 0;
-  border-right: 4px solid var(--gold);
-  border-radius: 0;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-  overflow-y: auto;
-}
-.jrpp-admin-drawer-toggle {
-  order: -1;
-  align-self: flex-end;
-  border: 1px solid rgba(255,255,255,.28);
-  border-radius: 999px;
-  background: transparent;
-  color: #fff;
-  padding: 7px 10px;
-  cursor: pointer;
-}
-.jrpp-admin-home {
-  width: 100%;
-  margin: 0;
-}
-.jrpp-admin-nav,
-.jrpp-admin-actions {
-  width: 100%;
-  flex-direction: column;
-  align-items: stretch;
-  margin: 0;
-}
-.jrpp-admin-nav a,
-.jrpp-admin-action {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-  border-radius: 10px;
-}
-.jrpp-admin-nav a::before {
-  content: attr(data-icon);
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  flex: 0 0 22px;
-  font-size: 17px;
-}
-.jrpp-admin-actions {
-  margin-top: auto;
-}
-body.admin-drawer-collapsed {
-  padding-left: 100px;
-}
-.admin-drawer-collapsed .jrpp-admin-switcher {
-  width: 100px;
-  padding-inline: 10px;
-}
-.admin-drawer-collapsed .jrpp-admin-brandcopy,
-.admin-drawer-collapsed .drawer-toggle-label,
-.admin-drawer-collapsed .jrpp-admin-nav a,
-.admin-drawer-collapsed .jrpp-admin-action {
-  font-size: 0;
-}
-.admin-drawer-collapsed .jrpp-admin-home {
-  justify-content: center;
-}
-.admin-drawer-collapsed .jrpp-admin-logo {
-  width: 64px;
-  height: 64px;
-  flex-basis: 64px;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a,
-.admin-drawer-collapsed .jrpp-admin-action {
-  justify-content: center;
-  padding-inline: 8px;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a::before {
-  font-size: 17px;
-}
-.admin-drawer-collapsed .jrpp-admin-action:first-child::before { content: "↻"; font-size: 18px; }
-.admin-drawer-collapsed .jrpp-admin-action:last-child::before { content: "↪"; font-size: 18px; }
-.jrpp-admin-drawer-toggle:hover,
-.admin-drawer-collapsed .jrpp-admin-drawer-toggle:hover {
-  background: var(--gold);
-  color: var(--navy);
-}
 #analyticsMetrics {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -1798,54 +1596,6 @@ body.admin-drawer-collapsed {
   }
 }
 @media (max-width: 720px) {
-  body,
-  body.admin-drawer-collapsed {
-    padding-left: 0;
-  }
-  .jrpp-admin-switcher,
-  .admin-drawer-collapsed .jrpp-admin-switcher {
-    position: sticky;
-    inset: auto;
-    width: 100%;
-    min-height: 0;
-    padding: 10px 12px;
-    border-right: 0;
-    border-bottom: 4px solid var(--gold);
-    flex-direction: row;
-    align-items: center;
-    overflow: visible;
-  }
-  .jrpp-admin-drawer-toggle {
-    order: 0;
-    align-self: auto;
-  }
-  .jrpp-admin-home {
-    width: auto;
-  }
-  .jrpp-admin-brandcopy,
-  .admin-drawer-collapsed .jrpp-admin-brandcopy {
-    display: none;
-  }
-  .jrpp-admin-nav,
-  .jrpp-admin-actions,
-  .admin-drawer-collapsed .jrpp-admin-nav,
-  .admin-drawer-collapsed .jrpp-admin-actions {
-    width: auto;
-    flex-direction: row;
-    align-items: center;
-    overflow-x: auto;
-  }
-  .jrpp-admin-nav a,
-  .jrpp-admin-action,
-  .admin-drawer-collapsed .jrpp-admin-nav a,
-  .admin-drawer-collapsed .jrpp-admin-action {
-    width: auto;
-    white-space: nowrap;
-    font-size: 12px;
-  }
-  .jrpp-admin-nav a::before {
-    display: none;
-  }
   .settings-layout {
     grid-template-columns: 1fr;
   }
@@ -1887,32 +1637,6 @@ body.admin-drawer-collapsed {
     margin-top: 20px;
   }
 }
-
-
-/* Keep the collapsed drawer control and logo in separate, visible rows. */
-.jrpp-admin-drawer-toggle {
-  flex: 0 0 auto;
-  min-height: 36px;
-}
-.admin-drawer-collapsed .jrpp-admin-drawer-toggle {
-  align-self: stretch;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 36px;
-  padding: 0;
-}
-.admin-drawer-collapsed .jrpp-admin-home {
-  flex: 0 0 auto;
-  min-height: 66px;
-  padding: 8px 0 12px;
-  position: relative;
-  z-index: 1;
-}
-.admin-drawer-collapsed .jrpp-admin-logo {
-  position: relative;
-  z-index: 2;
-}
 .analytics-main {
   display: flex;
   flex-direction: column;
@@ -1920,40 +1644,6 @@ body.admin-drawer-collapsed {
 }
 .analytics-main .hero {
   margin-bottom: 0;
-}
-
-
-@media (max-width: 720px) {
-  .admin-drawer-collapsed .jrpp-admin-drawer-toggle {
-    width: auto;
-    min-width: 36px;
-    flex: 0 0 36px;
-  }
-  .admin-drawer-collapsed .jrpp-admin-home {
-    min-height: 0;
-    padding: 0;
-  }
-}
-
-
-/* Collapsed drawer is icon-only, with a logo sized to the available rail. */
-.admin-drawer-collapsed .jrpp-admin-brandcopy,
-.admin-drawer-collapsed .jrpp-admin-brandcopy small,
-.admin-drawer-collapsed .drawer-toggle-label {
-  display: none;
-}
-.admin-drawer-collapsed .jrpp-admin-logo {
-  width: 52px;
-  height: 52px;
-  flex: 0 0 52px;
-}
-
-
-/* Apply the persisted collapsed state before deferred admin JavaScript runs. */
-@media (min-width: 721px) {
-  html.admin-drawer-collapsed body {
-    padding-left: 78px;
-  }
 }
 
 
@@ -1967,27 +1657,16 @@ body.admin-drawer-collapsed {
   fill: none;
   vertical-align: -0.18em;
 }
-.jrpp-admin-nav a,
-.jrpp-admin-action,
+
 .btn,
-[data-store-tab] {
+[data-store-tab]{
   align-items: center;
   gap: 0.5em;
 }
-.jrpp-admin-nav a,
-.jrpp-admin-action,
+
 .btn,
-[data-store-tab] {
+[data-store-tab]{
   display: inline-flex;
-}
-.jrpp-admin-nav a::before,
-.admin-drawer-collapsed .jrpp-admin-action::before {
-  content: none !important;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
-.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-  width: 66px;
-  height: 66px;
 }
 
 
@@ -1995,159 +1674,6 @@ body.admin-drawer-collapsed {
 .jrpp-icon {
   width: 4.3125em;
   height: 4.3125em;
-}
-.jrpp-admin-nav,
-.jrpp-admin-actions {
-  gap: 10px;
-}
-.jrpp-admin-nav a,
-.jrpp-admin-action {
-  min-width: 0;
-  min-height: 70px;
-  padding: 8px 10px;
-  gap: 8px;
-  line-height: 1.25;
-}
-.jrpp-admin-nav a .jrpp-icon,
-.jrpp-admin-action .jrpp-icon {
-  width: 4.3125em;
-  height: 4.3125em;
-}
-body.admin-drawer-collapsed {
-  padding-left: 112px;
-}
-.admin-drawer-collapsed .jrpp-admin-switcher {
-  width: 112px;
-  padding-inline: 10px;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a,
-.admin-drawer-collapsed .jrpp-admin-action {
-  min-height: 84px;
-  padding: 0;
-  gap: 0;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
-.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-  width: 82px;
-  height: 82px;
-}
-@media (max-width: 720px) {
-  body.admin-drawer-collapsed {
-    padding-left: 0;
-  }
-  .admin-drawer-collapsed .jrpp-admin-switcher {
-    width: auto;
-    padding-inline: 10px;
-  }
-  .jrpp-admin-nav,
-  .jrpp-admin-actions {
-    gap: 8px;
-  }
-  .jrpp-admin-nav a,
-  .jrpp-admin-action,
-  .admin-drawer-collapsed .jrpp-admin-nav a,
-  .admin-drawer-collapsed .jrpp-admin-action {
-    min-height: 52px;
-    padding: 7px 10px;
-    gap: 6px;
-  }
-  .admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
-  .admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-    width: 4.3125em;
-    height: 4.3125em;
-  }
-}
-
-
-/* Compact drawer rows: preserve the larger icons without wasting vertical space. */
-.jrpp-admin-switcher {
-  padding: 10px 12px;
-  gap: 6px;
-}
-.jrpp-admin-home {
-  gap: 8px;
-}
-.jrpp-admin-logo {
-  width: 44px;
-  height: 44px;
-  flex-basis: 44px;
-}
-.jrpp-admin-drawer-toggle {
-  min-height: 30px;
-  padding: 3px 8px;
-}
-.jrpp-admin-nav,
-.jrpp-admin-actions {
-  gap: 4px;
-}
-.jrpp-admin-nav a {
-  height: 54px;
-  min-height: 54px;
-  padding: 0 8px;
-  gap: 5px;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-.jrpp-admin-nav a .jrpp-icon {
-  width: 54px;
-  height: 54px;
-}
-.jrpp-admin-actions {
-  margin-top: 4px;
-}
-.jrpp-admin-action {
-  height: 58px;
-  min-height: 58px;
-  padding: 0 8px;
-  gap: 5px;
-  line-height: 1.1;
-}
-.jrpp-admin-action .jrpp-icon {
-  width: 58px;
-  height: 58px;
-}
-body.admin-drawer-collapsed {
-  padding-left: 80px;
-}
-.admin-drawer-collapsed .jrpp-admin-switcher {
-  width: 80px;
-  padding-inline: 8px;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a,
-.admin-drawer-collapsed .jrpp-admin-action {
-  width: 100%;
-  height: 54px;
-  min-height: 54px;
-  padding: 0;
-  gap: 0;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
-.admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-  width: 56px;
-  height: 56px;
-}
-@media (max-width: 720px) {
-  body.admin-drawer-collapsed {
-    padding-left: 0;
-  }
-  .admin-drawer-collapsed .jrpp-admin-switcher {
-    width: auto;
-    padding-inline: 10px;
-  }
-  .jrpp-admin-nav a,
-  .jrpp-admin-action,
-  .admin-drawer-collapsed .jrpp-admin-nav a,
-  .admin-drawer-collapsed .jrpp-admin-action {
-    height: auto;
-    min-height: 52px;
-    padding: 7px 10px;
-    gap: 6px;
-  }
-  .admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon,
-  .admin-drawer-collapsed .jrpp-admin-action .jrpp-icon {
-    width: 4.3125em;
-    height: 4.3125em;
-  }
 }
 
 
@@ -2232,23 +1758,8 @@ body.admin-drawer-collapsed {
   fill: initial;
   vertical-align: middle;
 }
-.jrpp-admin-nav a .material-icons-round.jrpp-icon {
-  font-size: 40px;
-}
-.jrpp-admin-action .material-icons-round.jrpp-icon {
-  font-size: 42px;
-}
-.admin-drawer-collapsed .jrpp-admin-nav a .material-icons-round.jrpp-icon,
-.admin-drawer-collapsed .jrpp-admin-action .material-icons-round.jrpp-icon {
-  font-size: 40px;
-}
 .icon-only .material-icons-round.jrpp-icon {
   font-size: 24px;
-}
-@media (max-width: 720px) {
-  .admin-drawer-collapsed .jrpp-admin-action .material-icons-round.jrpp-icon {
-    font-size: 42px;
-  }
 }
 
 
@@ -2339,39 +1850,12 @@ button.admin-icon-only {
   line-height: 1 !important;
 }
 
-button.admin-icon-only .drawer-toggle-label {
-  display: none !important;
-}
-
 button.admin-icon-only .material-icons-round.jrpp-icon {
   width: 54px !important;
   height: 54px !important;
   margin: 0 !important;
   font-size: 40px !important;
   line-height: 1 !important;
-}
-
-button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
-  width: 58px !important;
-  height: 58px !important;
-  font-size: 42px !important;
-}
-
-button.jrpp-admin-drawer-toggle.admin-icon-only {
-  width: 54px;
-  min-width: 54px;
-  height: 54px;
-  min-height: 54px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
-  width: 48px !important;
-  height: 48px !important;
-  font-size: 40px !important;
 }
 
 button.btn.admin-icon-only,
@@ -2385,14 +1869,6 @@ button.activity-filter-chip.admin-icon-only {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-
-@media (max-width: 720px) {
-  button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
-    width: 58px !important;
-    height: 58px !important;
-    font-size: 42px !important;
-  }
 }
 
 
@@ -2441,12 +1917,6 @@ button.activity-filter-chip.admin-icon-only {
   background: var(--purple);
   border-color: var(--purple);
   color: #fff;
-}
-
-.store-tabs-tools .jrpp-admin-action.admin-icon-only {
-  border: 0;
-  background: transparent;
-  color: var(--navy);
 }
 
 .store-tabs-tools button.admin-icon-only:hover,
@@ -2499,25 +1969,6 @@ button.admin-icon-only .material-icons-round.jrpp-icon,
   font-size: 32px !important;
 }
 
-button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
-  width: 46px !important;
-  height: 46px !important;
-  font-size: 34px !important;
-}
-
-button.jrpp-admin-drawer-toggle.admin-icon-only {
-  width: 43px;
-  min-width: 43px;
-  height: 43px;
-  min-height: 43px;
-}
-
-button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
-  width: 38px !important;
-  height: 38px !important;
-  font-size: 32px !important;
-}
-
 button.btn.admin-icon-only,
 button.activity-filter-chip.admin-icon-only,
 button.nl-preview-pill.admin-icon-only,
@@ -2567,29 +2018,6 @@ button.admin-icon-only .material-icons-round.jrpp-icon,
   font-size: 24px !important;
 }
 
-button.jrpp-admin-action.admin-icon-only .material-icons-round.jrpp-icon {
-  font-size: 24px !important;
-}
-
-button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon {
-  font-size: 24px !important;
-}
-
-
-/* Final icon and label alignment corrections from admin review. */
-.jrpp-admin-nav a .material-icons-round.jrpp-icon {
-  width: 43px !important;
-  height: 43px !important;
-  font-size: 24px !important;
-  vertical-align: middle;
-}
-
-.admin-drawer-collapsed .jrpp-admin-nav a .material-icons-round.jrpp-icon {
-  width: 43px !important;
-  height: 43px !important;
-  font-size: 24px !important;
-}
-
 .settings-avatar-button.admin-icon-only {
   width: auto;
   min-width: 145px;
@@ -2622,19 +2050,6 @@ button.jrpp-admin-drawer-toggle.admin-icon-only .material-icons-round.jrpp-icon 
   width: max-content;
 }
 
-
-/* Keep the Sign Out label visible in the expanded drawer; collapsed mode remains icon-only. */
-.jrpp-admin-actions .jrpp-admin-action.admin-icon-only {
-  font-size: 13px !important;
-  white-space: nowrap;
-  justify-content: flex-start;
-}
-
-.admin-drawer-collapsed .jrpp-admin-actions .jrpp-admin-action.admin-icon-only {
-  font-size: 0 !important;
-  justify-content: center;
-}
-
 /* Access editor overlay and stable drawer control. */
 body[data-admin-page="profile"] .dashboard-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
 body[data-admin-page="profile"] .dashboard-access-grid { grid-template-columns: minmax(0, 1fr); }
@@ -2643,50 +2058,48 @@ body[data-admin-page="profile"] .dashboard-access-grid { grid-template-columns: 
 .admin-access-dialog::backdrop { background: rgba(10, 22, 40, .7); }
 .admin-dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
 .admin-dialog-header h2 { margin: 0; }
-.jrpp-admin-switcher, .admin-drawer-collapsed .jrpp-admin-switcher { padding-top: 66px; }
-button.jrpp-admin-drawer-toggle, .admin-drawer-collapsed button.jrpp-admin-drawer-toggle { position: absolute; top: 10px; left: 12px; right: auto; margin: 0; align-self: flex-start; width: 43px !important; min-width: 43px !important; height: 43px; padding: 0; }
-@media (max-width: 720px) {
-  .jrpp-admin-switcher, .admin-drawer-collapsed .jrpp-admin-switcher { padding: 10px 12px; }
-  button.jrpp-admin-drawer-toggle, .admin-drawer-collapsed button.jrpp-admin-drawer-toggle { position: relative; top: auto; left: auto; flex: 0 0 43px; align-self: center; }
-}
 
 
 .material-icons-round,.jrpp-icon{font-family:'Material Icons Round';font-weight:normal;font-style:normal;font-size:20px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-feature-settings:'liga'}
-.jrpp-admin-switcher{position:fixed;inset:0 auto 0 0;width:248px;height:100dvh;z-index:10000;overflow:auto;padding:14px 12px;background:var(--navy);border:0;display:flex;align-items:stretch;flex-direction:column;flex-wrap:nowrap;gap:0}
-.jrpp-admin-home{margin:0;padding:2px 6px 16px;border-bottom:1px solid rgba(255,255,255,.14)}
-.jrpp-admin-logo{width:42px;height:42px;flex-basis:42px}
-.jrpp-admin-brandcopy{font-size:15px;line-height:1.25}
-.jrpp-admin-brandcopy small{font-size:9px}
-.jrpp-admin-drawer-toggle{order:2;align-self:flex-end;margin:-47px 0 10px;width:32px;height:32px;border:1px solid rgba(255,255,255,.25);border-radius:7px;background:transparent;color:#fff;cursor:pointer}
-.jrpp-admin-nav{order:3;width:100%;display:grid;grid-template-columns:1fr;align-items:stretch;gap:3px;margin-top:10px}
-.jrpp-admin-nav-label{padding:13px 9px 4px;color:#a9b0bf;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
-.jrpp-admin-nav a{display:flex;align-items:center;gap:10px;min-height:39px;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:#e7eaf0;font-size:13px}
-.jrpp-admin-nav a .jrpp-icon{width:20px;font-size:18px;text-align:center}
-.jrpp-admin-nav a.active{background:var(--gold);color:var(--navy)}
-.jrpp-admin-actions{order:4;width:100%;display:grid;grid-template-columns:1fr;margin: auto 0 0;padding-top:12px;border-top:1px solid rgba(255,255,255,.14)}
-.jrpp-admin-action{border:0;border-radius:7px;text-align:left}
-body{padding-left:248px}
 .shell,.dashboard-page,#newsletterAdminRoot,.activity-log{max-width:none;margin-left:0;margin-right:0}
 .topbar{top:0}
 .main{max-width:none}
-.admin-drawer-collapsed .jrpp-admin-switcher{width:74px}
-.admin-drawer-collapsed .jrpp-admin-brandcopy,.admin-drawer-collapsed .jrpp-admin-nav-label{display:none}
-.admin-drawer-collapsed .jrpp-admin-home{justify-content:center;padding-inline:0}
-.admin-drawer-collapsed .jrpp-admin-drawer-toggle{margin-top:-48px}
-.admin-drawer-collapsed .jrpp-admin-nav a{justify-content:center;padding-inline:6px;font-size:0}
-.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon{font-size:19px}
-body.admin-drawer-collapsed{padding-left:74px}
 @media(max-width:760px){
- body,body.admin-drawer-collapsed{padding-left:0}
- .jrpp-admin-switcher{position:sticky;inset:auto;width:100%;height:auto;max-height:none;padding:8px 10px;display:flex;flex-direction:row;align-items:center;overflow:visible;border-bottom:3px solid var(--gold)}
- .jrpp-admin-home{padding:0;border:0}.jrpp-admin-logo{width:36px;height:36px;flex-basis:36px}.jrpp-admin-brandcopy{font-size:12px}.jrpp-admin-brandcopy small{font-size:8px}
- .jrpp-admin-drawer-toggle{order:0;margin:0 0 0 auto;align-self:center}
- .jrpp-admin-nav{order:3;flex-basis:100%;display:flex;gap:4px;margin-top:8px;overflow-x:auto;flex-wrap:nowrap}
- .jrpp-admin-nav-label{display:none}
- .jrpp-admin-nav a{min-height:34px;flex:0 0 auto;padding:7px 9px;font-size:11px}
- .jrpp-admin-actions{order:2;width:auto;margin:0 0 0 8px;padding:0;border:0}
- .jrpp-admin-actions .jrpp-admin-action{padding:7px 9px;font-size:11px}
- .admin-drawer-collapsed .jrpp-admin-nav a:not(.active){display:flex}
- .admin-drawer-collapsed .jrpp-admin-brandcopy{display:block}
  .main,.dashboard-page{padding-top:18px}
+}
+
+.page-content {
+  padding-top: 18px;
+  min-width: 0;
+}
+
+.page-content .shell {
+  min-height: 0;
+}
+
+.page-content .main,
+.page-content .dashboard-page,
+.page-content .nl-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-content .split,
+.page-content .nl-workspace {
+  align-items: start;
+}
+
+.page-content .panel,
+.page-content .nl-panel,
+.page-content .split > *,
+.page-content .nl-workspace > * {
+  min-width: 0;
+}
+
+@media (max-width: 1050px) {
+  .page-content .split,
+  .page-content .nl-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

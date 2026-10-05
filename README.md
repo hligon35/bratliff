@@ -130,6 +130,8 @@ The public homepage temporarily redirects visitors to `coming-soon.html`, while 
 
 The website footer shows an `Admin` link to the website admin route. The static admin console now lives at [admin/index.html](admin/index.html) and calls the Worker at `/api/admin/*`.
 
+All admin routes share the mailbox-style drawer and header from [assets/admin-shell.js](assets/admin-shell.js) and [assets/admin-shell.css](assets/admin-shell.css). Publishing, administration, and the full bookstore manager retain their existing page workflows in [assets/admin.js](assets/admin.js); orders, catalog, inventory, and mailbox use [assets/admin-workspace.js](assets/admin-workspace.js). Update navigation only in the shared shell. Analytics, activity, and admin-access links are shown only for owner/developer sessions; the API remains responsible for authorization. The `jrpp-workspace-drawer` preference is shared across pages, and the mobile drawer supports Escape, keyboard focus containment, and backdrop dismissal. Run `node --test scripts/admin-shell.test.mjs` for shell regression checks.
+
 The branded publisher login lives at [login/index.html](login/index.html). It uses Google Identity Services in the page, posts the returned Google credential to the Worker, and the Worker issues an HttpOnly admin session cookie after validating the Google account and the admin role.
 
 The Worker confirms the Google account against the `admins` table in D1 before each admin request.

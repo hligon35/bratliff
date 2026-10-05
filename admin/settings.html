@@ -2,23 +2,19 @@
 <html lang="en"><head>
     <link rel="icon" type="image/png" href="/assets/icons/jrppLogo.png" /><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow" /><base href="../"><title>Settings | Publisher Admin</title>
-    <script>
-      try {
-        if (window.localStorage.getItem("jrpp-admin-drawer-collapsed") === "1") {
-          document.documentElement.classList.add("admin-drawer-collapsed");
-        }
-      } catch (error) {}
-    </script>
-    <link rel="stylesheet" href="assets/admin.css" /><script src="assets/site-config.js" defer></script><script src="assets/admin.js" defer></script></head>
-<body data-page="admin" data-admin-page="settings"><div class="jrpp-admin-switcher"><button type="button" class="jrpp-admin-drawer-toggle" data-admin-drawer-toggle aria-label="Collapse admin navigation" aria-expanded="true"><span class="jrpp-icon material-icons-round" aria-hidden="true">menu</span><span class="drawer-toggle-label">Collapse menu</span></button>
-      <a class="jrpp-admin-home" href="index.html" aria-label="Jackrabbit Punkin Publishing home">
-        <img class="jrpp-admin-logo" src="assets/icons/jrppLogo2.png" alt="Jackrabbit Punkin Publishing" />
-        <span class="jrpp-admin-brandcopy">Jackrabbit Punkin Publishing<small>Secure Admin System</small></span>
-      </a>
-      <div class="jrpp-admin-nav" role="navigation" aria-label="Admin pages"></div>
-      <div class="jrpp-admin-actions">
-                <button type="button" class="jrpp-admin-action" id="globalLogoutBtn">Sign Out</button>
-      </div>
+    <script>try{if(localStorage.getItem("jrpp-workspace-drawer")==="collapsed")document.documentElement.classList.add("drawer-collapsed")}catch(e){}</script>
+    <link rel="stylesheet" href="assets/admin.css" />
+    <link rel="stylesheet" href="assets/admin-shell.css" /><script src="assets/site-config.js" defer></script>
+    <script src="assets/admin-shell.js" defer></script><script src="assets/admin.js" defer></script></head>
+<body data-page="admin" data-admin-page="settings">
+    <a class="skip-link" href="/admin/settings.html#workspaceMain">Skip to main content</a><div class="app-shell">
+      <aside class="drawer" id="workspaceDrawer" data-admin-shell-drawer aria-label="Admin workspace navigation"></aside>
+      <main class="workspace" id="workspaceMain" tabindex="-1">
+        <header class="workspace-header" data-admin-shell-header></header>
+        <div class="notice" id="workspaceNotice" role="status" aria-live="polite" hidden></div>
+        <div class="page-content">
+<div class="main"><header class="page-head"><div><p class="eyebrow">ACCOUNT</p><h2>Settings</h2><p>Update your profile and sign-in email.</p></div></header>
+<section class="panel settings-panel"><div class="panel-head"><h2>Profile</h2></div><div class="panel-body"><form id="settingsForm"><div class="settings-layout"><div class="settings-avatar-column"><div class="settings-avatar-preview" id="settingsAvatarPreview"><span>No avatar</span></div><div class="settings-avatar-actions"><label class="btn alt settings-avatar-button" data-icon="edit" aria-label="Change avatar" title="Change avatar">Change avatar<input type="file" id="settingsAvatar" name="avatar" accept="image/png,image/jpeg,image/webp" hidden></label><button class="btn" type="submit">Save Settings</button></div></div><div class="form-grid"><div class="field"><label>Display Name</label><input name="displayName" id="settingsDisplayName"></div><div class="field"><label>Name</label><input name="name" id="settingsName"></div><div class="field full"><label>Email</label><input type="email" name="email" id="settingsEmail" required></div></div></div><div class="status" id="settingsStatus"></div></form></div></section></div>        </div>
+      </main>
     </div>
-<main class="main"><header class="page-head"><div><p class="eyebrow">ACCOUNT</p><h1>Settings</h1><p>Update your profile and sign-in email.</p></div></header>
-<section class="panel settings-panel"><div class="panel-head"><h2>Profile</h2></div><div class="panel-body"><form id="settingsForm"><div class="settings-layout"><div class="settings-avatar-column"><div class="settings-avatar-preview" id="settingsAvatarPreview"><span>No avatar</span></div><div class="settings-avatar-actions"><label class="btn alt settings-avatar-button" data-icon="edit" aria-label="Change avatar" title="Change avatar">Change avatar<input type="file" id="settingsAvatar" name="avatar" accept="image/png,image/jpeg,image/webp" hidden></label><button class="btn" type="submit">Save Settings</button></div></div><div class="form-grid"><div class="field"><label>Display Name</label><input name="displayName" id="settingsDisplayName"></div><div class="field"><label>Name</label><input name="name" id="settingsName"></div><div class="field full"><label>Email</label><input type="email" name="email" id="settingsEmail" required></div></div></div><div class="status" id="settingsStatus"></div></form></div></section></main></body></html>
+  </body></html>
