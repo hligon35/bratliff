@@ -373,6 +373,15 @@ async function handleAdminSessionRequest(request: Request, env: Env) {
   if (request.method !== "GET") {
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
   }
+  if (new URL(request.url).searchParams.get("probe") === "1") {
+    // Public pages probe for an admin session; answer 200 so visitors do not see 401 errors in the console.
+    try {
+      return json(request, env, { ok: true, viewer: await authorizeAdmin(request, env) });
+    } catch (error) {
+      if (error instanceof HttpError && (error.status === 401 || error.status === 403)) return json(request, env, { ok: false, viewer: null });
+      throw error;
+    }
+  }
   const viewer = await authorizeAdmin(request, env);
   return json(request, env, { ok: true, viewer });
 }

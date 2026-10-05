@@ -8,3 +8,5 @@ review-data-digest-*.txt
 review-data-digest-*.html
 .secrets.sandbox
 .env.local2
+maintenance-summary.*
+monthlyReport.md

@@ -26,9 +26,10 @@ export async function checkCodePatterns({ cwd }) {
     {
       id: "sql-concat",
       severity: "High",
-      pattern: /(SELECT|INSERT|UPDATE|DELETE)[^`'"]*(\$\{|"\s*\+\s*|'\s*\+\s*)/i,
-      finding: "SQL statement appears to be built with string concatenation/template interpolation instead of bound parameters.",
-      recommendedAction: "Confirm the query uses prepared statement bindings (?1, ?2, ...) rather than concatenated values.",
+      appliesTo: (file) => /^cloudflare\/src\/.*\.ts$/.test(file),
+      test: sqlLooksInterpolated,
+      finding: "A D1 query appears to include an interpolated value instead of a bound parameter.",
+      recommendedAction: "Bind the value with ?1, ?2, ... Only fixed SQL fragments (UPPER_CASE constants or names ending in Sql/Clause) may be interpolated.",
     },
     {
       id: "target-blank",
@@ -59,7 +60,7 @@ export async function checkCodePatterns({ cwd }) {
     for (const rule of rules) {
       const lines = content.split(/\r?\n/);
       lines.forEach((line, index) => {
-        if (rule.pattern.test(line)) {
+        if (matchesRule(rule, file, line)) {
           hitCounts[rule.id] += 1;
           findings.push({
             id: `CODE-${rule.id}-${file}-${index + 1}`,
@@ -87,4 +88,20 @@ export async function checkCodePatterns({ cwd }) {
     ],
     findings,
   };
+}
+
+const SAFE_FRAGMENT = /^(?:[A-Z][A-Z0-9_]*|\w*(?:Sql|SQL|Clause|Bind|Placeholders|placeholders))$/;
+
+function sqlLooksInterpolated(line) {
+  if (!/\b(?:prepare|exec|batch)\(|\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*`|`\s*(?:SELECT|INSERT|UPDATE|DELETE)\b/.test(line) && !/\b(?:SELECT|INSERT INTO|UPDATE \w+ SET|DELETE FROM)\b/.test(line)) return false;
+  for (const match of line.matchAll(/\$\{([^}]*)\}/g)) {
+    if (!SAFE_FRAGMENT.test(match[1].trim())) return true;
+  }
+  const stripped = line.replace(/\+\s*(?:slots|where|from|\w*Sql|\w*Clause|\w*Bind)\b/g, "").replace(/\b(?:slots|where|from|\w*Sql|\w*Clause|\w*Bind)\s*\+/g, "");
+  return /["\x27`]\s+\+\s+[A-Za-z_(]/.test(stripped) && /\b(?:SELECT|INSERT INTO|UPDATE \w+ SET|DELETE FROM)\b/.test(stripped);
+}
+
+function matchesRule(rule, file, line) {
+  if (rule.appliesTo && !rule.appliesTo(file)) return false;
+  return rule.test ? rule.test(line) : rule.pattern.test(line);
 }

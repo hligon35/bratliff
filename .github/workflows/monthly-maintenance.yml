@@ -1,18 +1,20 @@
 name: Monthly Maintenance
 
-# Runs monthly, applies only low-risk deterministic updates, always writes
-# monthlyReport.md, and opens/updates a PR from `monthlyUpdate` into the
-# default branch for human review. This workflow NEVER deploys production,
-# NEVER applies D1 migrations to production, NEVER touches production R2
-# objects or Cloudflare/DNS/Access/WAF settings, and NEVER merges the PR.
+# Monthly check-up. By default it only LOOKS (scan, no changes) and emails a plain-English
+# summary. Safe fixes are applied only when a person starts this workflow manually with
+# "Apply the safe fixes" ticked; that run opens/updates a PR from `monthlyUpdate` for human
+# review. This workflow NEVER deploys production, NEVER applies D1 migrations to production,
+# NEVER touches production R2 objects or Cloudflare/DNS/Access/WAF settings, and NEVER merges.
+# Email needs the repository secrets RESEND_API_KEY, MAINTENANCE_EMAIL_TO and
+# MAINTENANCE_EMAIL_FROM (see docs/maintenance.md).
 
 on:
-  # Automatic schedule and push triggers are paused while this workflow is being repaired.
-  # Use the Actions UI to run it manually when a maintenance check is intentional.
+  schedule:
+    - cron: "0 13 1 * *"
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Dry run: scan and report only, do not update dependencies or push changes."
+      apply_fixes:
+        description: "Apply the safe fixes (in-range dependency updates) and open a pull request for review."
         type: boolean
         default: false
 
@@ -48,16 +50,19 @@ jobs:
           git config user.name "jpp-maintenance-bot"
           git config user.email "actions@users.noreply.github.com"
 
-      - name: Determine dry-run mode
+      - name: Determine mode (scan only unless fixes were approved)
         id: mode
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
-            echo "flag=--dry-run" >> "$GITHUB_OUTPUT"
-          else
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.apply_fixes }}" = "true" ]; then
             echo "flag=" >> "$GITHUB_OUTPUT"
+            echo "apply=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=--dry-run" >> "$GITHUB_OUTPUT"
+            echo "apply=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create or safely reuse the monthlyUpdate branch
+        if: steps.mode.outputs.apply == 'true'
         run: node scripts/maintenance/sync-branch.mjs --default-branch "${{ github.event.repository.default_branch }}"
 
       - name: Run monthly maintenance checks
@@ -71,10 +76,20 @@ jobs:
             --default-branch "${{ github.event.repository.default_branch }}" \
             ${{ steps.mode.outputs.flag }}
 
-      - name: Commit maintenance changes (if any)
+      - name: Email the plain-English summary
+        id: email
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAINTENANCE_EMAIL_TO: ${{ secrets.MAINTENANCE_EMAIL_TO }}
+          MAINTENANCE_EMAIL_FROM: ${{ secrets.MAINTENANCE_EMAIL_FROM }}
+        run: node scripts/maintenance/send-summary.mjs
+
+      - name: Commit maintenance changes (approved fixes only)
         id: commit
+        if: steps.mode.outputs.apply == 'true'
         run: |
-          git add -A -- . ':!node_modules'
+          git add -A -- . ':!node_modules' ':!maintenance-summary.*'
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -113,15 +128,23 @@ Maintenance-Bot: true"
               --label security-review
           fi
 
-      - name: Upload monthlyReport.md as a workflow artifact
+      - name: Upload reports as a workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: monthly-report-${{ github.run_id }}
-          path: monthlyReport.md
+          path: |
+            monthlyReport.md
+            maintenance-summary.txt
           retention-days: 90
+
+      - name: Fail the job if the email could not be sent
+        if: steps.email.outcome == 'failure'
+        run: |
+          echo "The summary email was not sent (see the 'Email the plain-English summary' step)."
+          exit 1
 
       - name: Fail the job if critical/blocking findings were reported
         if: steps.maintenance.outcome == 'failure'
         run: |
-          echo "Maintenance run reported critical or blocking findings — see monthlyReport.md / the PR body."
+          echo "Maintenance run reported critical or blocking findings; see monthlyReport.md and maintenance-summary.txt."
           exit 1

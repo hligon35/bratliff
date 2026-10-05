@@ -32,10 +32,15 @@ test("the workflow has a concurrency guard to prevent overlapping runs", () => {
   assert.match(workflow, /concurrency:/);
 });
 
-test("the workflow supports manual dispatch while automatic schedules stay paused", () => {
+test("the workflow runs monthly, is look-only by default, and applies fixes only when approved", () => {
   const workflow = read(".github/workflows/monthly-maintenance.yml");
   assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /^\s*schedule:/m);
+  assert.match(workflow, /^\s*schedule:/m);
+  assert.match(workflow, /apply_fixes:/);
+  assert.match(workflow, /apply=false/);
+  assert.match(workflow, /Create or safely reuse the monthlyUpdate branch\r?\n\s+if: steps\.mode\.outputs\.apply == .true./);
+  assert.match(workflow, /Commit maintenance changes[^\n]*\r?\n\s+id: commit\r?\n\s+if: steps\.mode\.outputs\.apply == .true./);
+  assert.match(workflow, /send-summary\.mjs/);
 });
 
 test("the workflow requests least-privilege token permissions and never merges the PR automatically", () => {
@@ -54,4 +59,11 @@ test("sync-branch.mjs never force-pushes over commits that lack the automation m
   const syncBranch = read("scripts/maintenance/sync-branch.mjs");
   assert.match(syncBranch, /Maintenance-Bot: true/);
   assert.match(syncBranch, /Refusing to reset or force-push/);
+});
+
+test("public pages probe the admin session without producing 401 console errors, while admin routes still return 401", () => {
+  assert.match(read("assets/site.js"), /\/api\/auth\/session\?probe=1/);
+  const app = read("cloudflare/src/app.ts");
+  assert.match(app, /searchParams\.get\("probe"\) === "1"/);
+  assert.match(app, /const viewer = await authorizeAdmin\(request, env\);\s+return json\(request, env, \{ ok: true, viewer \}\);/);
 });

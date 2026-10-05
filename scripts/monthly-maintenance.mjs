@@ -14,6 +14,7 @@ import path from "node:path";
 
 import { runCommand } from "./maintenance/lib/exec.mjs";
 import { renderReport, computeOverallResult } from "./maintenance/lib/report.mjs";
+import { buildPlainSummary, renderPlainText, renderHtml } from "./maintenance/lib/eli10.mjs";
 import { checkDependencies } from "./maintenance/checks/dependencies.mjs";
 import { checkSecurityAudit } from "./maintenance/checks/security.mjs";
 import { checkTypeScript, checkWranglerBuild } from "./maintenance/checks/build.mjs";
@@ -163,6 +164,16 @@ async function main() {
   const reportMarkdown = renderReport(model);
   writeFileSync(path.join(REPO_ROOT, "monthlyReport.md"), reportMarkdown, "utf8");
   console.log(`monthlyReport.md written. Overall result: ${overallResult}`);
+
+  const summary = buildPlainSummary(model);
+  const summaryOptions = {
+    runUrl: workflowRunUrl === true ? "" : workflowRunUrl,
+    approveUrl: `https://github.com/${repository}/actions/workflows/monthly-maintenance.yml`,
+    dryRun,
+  };
+  writeFileSync(path.join(REPO_ROOT, "maintenance-summary.txt"), renderPlainText(summary, summaryOptions), "utf8");
+  writeFileSync(path.join(REPO_ROOT, "maintenance-summary.html"), renderHtml(summary, summaryOptions), "utf8");
+  writeFileSync(path.join(REPO_ROOT, "maintenance-summary.json"), JSON.stringify({ verdict: summary.verdict, headline: summary.headline }), "utf8");
 
   const hasCritical = allFindings.some((f) => f.severity === "Critical");
   const hasHardFailure = allChecks.some((c) => c.status === "fail" && c.required !== false);

@@ -5,6 +5,13 @@ on a schedule, records everything it finds/does in `monthlyReport.md`, commits
 its work to a dedicated `monthlyUpdate` branch, and opens a pull request for
 human review. **It never merges its own PR and never deploys to production.**
 
+## Monthly check-up, plain-English email, and approved fixes
+
+- **When:** the first day of every month at 13:00 UTC (and any time from Actions > Monthly Maintenance > Run workflow).
+- **Default mode is look-only.** It scans, then emails a plain-English ("explain it like I'm 10") summary through Resend. It changes nothing.
+- **Approving fixes:** start the workflow manually and tick **Apply the safe fixes**. That run installs only in-range dependency updates, commits to `monthlyUpdate`, and opens a pull request for review. It never merges, deploys, or touches production data. Starting a manual run requires repository write access, which is the confirmation step.
+- **Email setup (repository secrets, Settings > Secrets and variables > Actions):** `RESEND_API_KEY`, `MAINTENANCE_EMAIL_TO`, `MAINTENANCE_EMAIL_FROM` (an address on a Resend-verified domain). If any is missing, or Resend rejects the send (for example an unverified domain), the workflow's email step fails visibly instead of pretending it worked.
+- **Reports:** `monthlyReport.md` and `maintenance-summary.txt` are generated, not committed to `main`; they are attached to each run as an artifact.
 ## What is checked
 
 Each run executes these checks and records the results:

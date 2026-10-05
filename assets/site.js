@@ -557,7 +557,7 @@ function initCustomerAccount() {
     const version = ++sessionVersion;
     const [reader, admin] = await Promise.allSettled([
       fetch(resolvePublicApiBase() + "/api/customer/auth/session", { credentials: "include", cache: "no-store", redirect: "error" }).then(async (response) => response.ok ? response.json() : null),
-      fetch(resolvePublicApiBase() + "/api/auth/session", { credentials: "include", cache: "no-store", redirect: "error" }).then(async (response) => response.ok ? response.json() : null),
+      fetch(resolvePublicApiBase() + "/api/auth/session?probe=1", { credentials: "include", cache: "no-store", redirect: "error" }).then(async (response) => response.ok ? response.json() : null),
     ]);
     if (version !== sessionVersion) return;
     currentUser = reader.status === "fulfilled" && reader.value?.authenticated ? reader.value.user : null;
