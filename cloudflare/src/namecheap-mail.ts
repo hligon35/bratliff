@@ -206,7 +206,7 @@ export async function syncNamecheapInbox(env: Env): Promise<{ configured: boolea
     const maxUid = Number(last?.maxUid || 0);
     const fresh = maxUid > 0 ? allUids.filter((uid) => uid > maxUid).slice(0, 50) : allUids.slice(-50);
     // Messages stored before HTML support are re-read a few at a time so they gain their styled view.
-    const legacy = await env.DB.prepare("SELECT uid FROM mailbox_external_messages WHERE body_format = '' ORDER BY datetime(received_at) DESC LIMIT 10").all<{ uid: string }>();
+    const legacy = await env.DB.prepare("SELECT uid FROM mailbox_external_messages WHERE body_format = '' ORDER BY datetime(received_at) DESC LIMIT 40").all<{ uid: string }>();
     const onServer = new Set(allUids);
     const candidates = [...new Set([...fresh, ...(legacy.results || []).map((row) => Number(row.uid)).filter((uid) => onServer.has(uid))])];
     if (!candidates.length) {

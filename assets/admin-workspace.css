@@ -4,8 +4,8 @@
 .metric-card{padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .metric-card span{display:block;color:var(--muted);font-size:10px;font-weight:700;letter-spacing:.65px;text-transform:uppercase}
 .metric-card strong{display:block;margin-top:4px;color:var(--navy);font:700 22px Georgia,serif}
-.split-view{height:calc(100vh - 198px);min-height:470px;display:grid;grid-template-columns:minmax(280px,36%) minmax(0,1fr);overflow:hidden;border:1px solid #e3e1dc;border-radius:9px;background:#fff;box-shadow:0 2px 8px rgba(10,22,40,.035)}
-.list-pane{min-width:0;display:flex;flex-direction:column;background:#fff;border-right:1px solid var(--line)}
+.split-view{height:calc(100vh - 198px);min-height:470px;display:grid;grid-template-columns:minmax(280px,36%) minmax(0,1fr);grid-template-rows:minmax(0,1fr);overflow:hidden;border:1px solid #e3e1dc;border-radius:9px;background:#fff;box-shadow:0 2px 8px rgba(10,22,40,.035)}
+.list-pane{min-width:0;min-height:0;display:flex;flex-direction:column;background:#fff;border-right:1px solid var(--line)}
 .pane-tools{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--line)}
 .search{min-width:0;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #dedbd5;border-radius:7px;background:#fff;color:#666}
 .search span{font-size:19px}

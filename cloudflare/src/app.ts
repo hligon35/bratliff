@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import { sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
+import { cleanLegacyEmailText } from "./email-html";
 import type {
   AdminRole,
   AdminUser,
@@ -1758,7 +1759,7 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   const limitBind = bind(pageSize);
   const offsetBind = bind((page - 1) * pageSize);
   const pageRows = await env.DB.prepare(
-    sourceSql + " SELECT sourceType, itemKey, id, createdAt, name, email, subject, substr(preview, 1, 220) AS preview, substr(body, 1, 1200) AS body, formTypeLabel, status, paymentStatus, fulfillmentStatus, total, shippingAddress, organization, phone, pageUrl, folder, isRead, starred FROM mailbox_items" + whereSql + " ORDER BY datetime(createdAt) DESC, itemKey DESC LIMIT " + limitBind + " OFFSET " + offsetBind,
+    sourceSql + " SELECT sourceType, itemKey, id, createdAt, name, email, subject, substr(preview, 1, 220) AS preview, substr(body, 1, CASE WHEN sourceType = 'email' THEN 6000 ELSE 1200 END) AS body, formTypeLabel, status, paymentStatus, fulfillmentStatus, total, shippingAddress, organization, phone, pageUrl, folder, isRead, starred FROM mailbox_items" + whereSql + " ORDER BY datetime(createdAt) DESC, itemKey DESC LIMIT " + limitBind + " OFFSET " + offsetBind,
   ).bind(...bindings).all<Record<string, unknown>>();
 
   const countRowByFolder = await env.DB.prepare(
@@ -1766,7 +1767,12 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
     " SUM(CASE WHEN folder = 'inbox' THEN 1 ELSE 0 END) AS inbox, SUM(CASE WHEN folder = 'archive' THEN 1 ELSE 0 END) AS archive, " +
     " SUM(CASE WHEN folder = 'trash' THEN 1 ELSE 0 END) AS trash FROM mailbox_items",
   ).bind(admin.email).first<Record<string, unknown>>();
-  const rows = (pageRows.results || []).map((row): Record<string, unknown> => ({ ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 }));
+  const rows = (pageRows.results || []).map((row): Record<string, unknown> => {
+    const base = { ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 };
+    if (row.sourceType !== "email") return base;
+    const body = cleanLegacyEmailText(text(row.body, 6000));
+    return { ...base, body: body.slice(0, 1200), preview: body.replace(/\s+/g, " ").slice(0, 220) };
+  });
   const orderNumbers = rows.filter((row) => row.sourceType === "order").map((row) => text(row.id, 180));
   if (orderNumbers.length) {
     const slots = orderNumbers.map((_, index) => "?" + (index + 1)).join(",");
@@ -1849,7 +1855,7 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
     const found = await env.DB.prepare(
       "SELECT uid AS id, message_id AS messageId, from_name AS name, from_email AS email, to_email AS toEmail, subject, body, body_html AS bodyHtml, preview, received_at AS createdAt FROM mailbox_external_messages WHERE uid = ?1",
     ).bind(key.id).first<Record<string, unknown>>();
-    if (found) item = { ...found, itemKey: key.itemKey, sourceType: "email", status: "Received", formTypeLabel: "Email message" };
+    if (found) item = { ...found, body: cleanLegacyEmailText(text(found.body, 60000)), itemKey: key.itemKey, sourceType: "email", status: "Received", formTypeLabel: "Email message" };
   } else {
     const found = await env.DB.prepare(
       "SELECT id, recipient, subject, body, status, idempotency_key AS idempotencyKey, created_at AS createdAt, error FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2",

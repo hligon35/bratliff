@@ -169,6 +169,15 @@
     });
   }
 
+  var scrollTimers = new WeakMap();
+  document.addEventListener("scroll", function (event) {
+    var node = event.target === document ? document.documentElement : event.target;
+    if (!node || !node.classList) return;
+    node.classList.add("is-scrolling");
+    clearTimeout(scrollTimers.get(node));
+    scrollTimers.set(node, setTimeout(function () { node.classList.remove("is-scrolling"); }, 900));
+  }, { capture: true, passive: true });
+
   window.adminShell = { setActive: setActive, setViewer: setViewer, setConnection: setConnection, closeMobile: closeMobile };
   setActive(page);
   syncDrawer();

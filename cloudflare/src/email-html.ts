@@ -120,3 +120,16 @@ export function htmlToText(html: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
+const CSS_RULE = /[^{}\n]*\{[^{}]*\}/g;
+
+/** Removes stylesheet text that older syncs left inside plain-text bodies. */
+export function cleanLegacyEmailText(value: string): string {
+  if (!/\{[^}]*:[^}]*;[^}]*\}/.test(value)) return value;
+  let out = value.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\*[\s\S]*$/, " ");
+  for (let pass = 0; pass < 6; pass += 1) {
+    const next = out.replace(CSS_RULE, " ");
+    if (next === out) break;
+    out = next;
+  }
+  return out.replace(/[^{}\n]*\{[^}]*$/, " ").replace(/[ \t]+/g, " ").replace(/\n[ \t]*/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}

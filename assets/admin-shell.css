@@ -107,3 +107,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
   .workspace-header h1{overflow-wrap:anywhere}
   .mobile-backdrop[hidden]{display:none}
 }
+
+* {scrollbar-width:thin;scrollbar-color:transparent transparent}
+*.is-scrolling{scrollbar-color:rgba(10,22,40,.45) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-thumb{background:transparent;border-radius:8px}
+*.is-scrolling::-webkit-scrollbar-thumb{background:rgba(10,22,40,.45)}
