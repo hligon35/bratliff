@@ -236,6 +236,9 @@ const app: AppHandler = {
   async scheduled(_controller, env, ctx) {
     if (!env.DB) return;
     ctx.waitUntil(runScheduledTasks(env));
+    if (env.NAMECHEAP_EMAIL_ADDRESS && env.NAMECHEAP_EMAIL_PASSWORD) {
+      ctx.waitUntil(syncNamecheapInbox(env));
+    }
   },
 };
 
