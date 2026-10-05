@@ -208,7 +208,7 @@ test("connection failures remain explicit, and incomplete shell markup is reject
 
 test("the service worker cache includes the shared shell and has a new version", () => {
   const sw = read("admin/service-worker.js");
-  assert.match(sw, /jrpp-admin-shell-v5/);
+  assert.match(sw, /jrpp-admin-shell-v6/);
   assert.match(sw, /"\/assets\/admin-shell\.css"/);
   assert.match(sw, /"\/assets\/admin-shell\.js"/);
 });

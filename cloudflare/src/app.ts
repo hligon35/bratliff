@@ -1847,7 +1847,7 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
     };
   } else if (key.sourceType === "email") {
     const found = await env.DB.prepare(
-      "SELECT uid AS id, message_id AS messageId, from_name AS name, from_email AS email, to_email AS toEmail, subject, body, preview, received_at AS createdAt FROM mailbox_external_messages WHERE uid = ?1",
+      "SELECT uid AS id, message_id AS messageId, from_name AS name, from_email AS email, to_email AS toEmail, subject, body, body_html AS bodyHtml, preview, received_at AS createdAt FROM mailbox_external_messages WHERE uid = ?1",
     ).bind(key.id).first<Record<string, unknown>>();
     if (found) item = { ...found, itemKey: key.itemKey, sourceType: "email", status: "Received", formTypeLabel: "Email message" };
   } else {

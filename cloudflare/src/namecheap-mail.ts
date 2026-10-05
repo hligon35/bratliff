@@ -1,3 +1,4 @@
+import { htmlToText, sanitizeEmailHtml } from "./email-html";
 import { connect } from "cloudflare:sockets";
 import type { Env } from "./types";
 
@@ -118,26 +119,13 @@ function decodeTransfer(body: string, encoding: string, charset: string): string
   return body;
 }
 
-function stripHtml(value: string): string {
-  return value
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<\/(p|div|li|br|tr|h[1-6])\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n[ \t]+/g, "\n")
-    .trim();
-}
+interface MessageParts { text: string; html: string }
 
-function extractTextPart(raw: string, depth = 0): string {
-  if (depth > 6) return "";
+function extractParts(raw: string, depth = 0): MessageParts {
+  const empty: MessageParts = { text: "", html: "" };
+  if (depth > 6) return empty;
   const separator = raw.search(/\r?\n\r?\n/);
-  if (separator < 0) return "";
+  if (separator < 0) return empty;
   const headerText = raw.slice(0, separator);
   const bodyStart = raw.slice(separator).match(/^\r?\n\r?\n/)?.[0].length || 2;
   const body = raw.slice(separator + bodyStart).replace(/\r?\n--[^\r\n]+--?[ \t]*$/, "");
@@ -146,20 +134,20 @@ function extractTextPart(raw: string, depth = 0): string {
   const boundary = contentType.match(/boundary=(?:"([^"]+)"|([^;\s]+))/i);
   if (/multipart\//i.test(contentType) && boundary) {
     const marker = "--" + (boundary[1] || boundary[2]);
-    const parts = body.split(marker).slice(1).map((part) => part.replace(/^\r?\n/, "").replace(/\r?\n--?$/, ""));
-    let html = "";
-    for (const part of parts) {
-      const content = extractTextPart(part, depth + 1);
-      if (/content-type:\s*text\/plain/i.test(part.slice(0, 5000)) && content) return content;
-      if (/content-type:\s*text\/html/i.test(part.slice(0, 5000)) && content) html = content;
+    const combined: MessageParts = { text: "", html: "" };
+    for (const part of body.split(marker).slice(1).map((value) => value.replace(/^\r?\n/, "").replace(/\r?\n--?$/, ""))) {
+      if (/content-disposition:\s*attachment/i.test(part.slice(0, 2000))) continue;
+      const parts = extractParts(part, depth + 1);
+      if (!combined.text && parts.text) combined.text = parts.text;
+      if (!combined.html && parts.html) combined.html = parts.html;
     }
-    return html ? stripHtml(html) : "";
+    return combined;
   }
   const charset = contentType.match(/charset=(?:"([^"]+)"|([^;\s]+))/i);
   const decoded = decodeTransfer(body, headers["content-transfer-encoding"] || "", charset?.[1] || charset?.[2] || "utf-8");
-  return /text\/html/i.test(contentType) ? stripHtml(decoded) : decoded.trim();
+  if (/text\/html/i.test(contentType)) return { text: htmlToText(decoded), html: decoded };
+  return /text\/plain/i.test(contentType) ? { text: decoded.trim(), html: "" } : empty;
 }
-
 function parseEmail(rawBytes: Uint8Array, uid: string): Record<string, string> | null {
   const raw = utf8.decode(rawBytes);
   const separator = raw.search(/\r?\n\r?\n/);
@@ -170,7 +158,9 @@ function parseEmail(rawBytes: Uint8Array, uid: string): Record<string, string> |
   const email = from.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] || from.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
   const name = from.replace(/<[^>]*>/g, "").replace(/\s*\\?["']/g, "").trim() || email || "Unknown sender";
   const subject = decodeEncodedWords(headers.subject || "(no subject)").replace(/[\r\n]+/g, " ").slice(0, 240);
-  const body = extractTextPart(raw).slice(0, 20000);
+  const parts = extractParts(raw);
+  const body = parts.text.slice(0, 20000);
+  const bodyHtml = parts.html ? sanitizeEmailHtml(parts.html) : "";
   const preview = body.replace(/\s+/g, " ").trim().slice(0, 220);
   const parsedDate = headers.date ? new Date(headers.date) : new Date();
   const receivedAt = Number.isNaN(parsedDate.getTime()) ? new Date().toISOString() : parsedDate.toISOString();
@@ -214,7 +204,11 @@ export async function syncNamecheapInbox(env: Env): Promise<{ configured: boolea
     const allUids = (uidLine.match(/\d+/g) || []).map(Number).filter((uid) => Number.isSafeInteger(uid) && uid > 0).sort((a, b) => a - b);
     const last = await env.DB.prepare("SELECT MAX(CAST(uid AS INTEGER)) AS maxUid FROM mailbox_external_messages").first<{ maxUid: number | null }>();
     const maxUid = Number(last?.maxUid || 0);
-    const candidates = maxUid > 0 ? allUids.filter((uid) => uid > maxUid).slice(0, 50) : allUids.slice(-50);
+    const fresh = maxUid > 0 ? allUids.filter((uid) => uid > maxUid).slice(0, 50) : allUids.slice(-50);
+    // Messages stored before HTML support are re-read a few at a time so they gain their styled view.
+    const legacy = await env.DB.prepare("SELECT uid FROM mailbox_external_messages WHERE body_format = '' ORDER BY datetime(received_at) DESC LIMIT 10").all<{ uid: string }>();
+    const onServer = new Set(allUids);
+    const candidates = [...new Set([...fresh, ...(legacy.results || []).map((row) => Number(row.uid)).filter((uid) => onServer.has(uid))])];
     if (!candidates.length) {
       await imapCommand(reader, writer, "C004", "LOGOUT");
       writer.releaseLock();
@@ -229,8 +223,8 @@ export async function syncNamecheapInbox(env: Env): Promise<{ configured: boolea
         const email = parseEmail(literal.bytes, literal.uid);
         if (!email) continue;
         await env.DB.prepare(
-          "INSERT INTO mailbox_external_messages (uid, message_id, from_name, from_email, to_email, subject, body, preview, received_at, synced_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now')) ON CONFLICT(uid) DO UPDATE SET message_id = excluded.message_id, from_name = excluded.from_name, from_email = excluded.from_email, to_email = excluded.to_email, subject = excluded.subject, body = excluded.body, preview = excluded.preview, received_at = excluded.received_at, synced_at = datetime('now')",
-        ).bind(email.uid, email.messageId, email.fromName, email.fromEmail, email.toEmail, email.subject, email.body, email.preview, email.receivedAt).run();
+          "INSERT INTO mailbox_external_messages (uid, message_id, from_name, from_email, to_email, subject, body, preview, received_at, body_html, body_format, synced_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, datetime('now')) ON CONFLICT(uid) DO UPDATE SET message_id = excluded.message_id, from_name = excluded.from_name, from_email = excluded.from_email, to_email = excluded.to_email, subject = excluded.subject, body = excluded.body, preview = excluded.preview, received_at = excluded.received_at, body_html = excluded.body_html, body_format = excluded.body_format, synced_at = datetime('now')",
+        ).bind(email.uid, email.messageId, email.fromName, email.fromEmail, email.toEmail, email.subject, email.body, email.preview, email.receivedAt, email.bodyHtml, email.bodyFormat).run();
         synced++;
       }
     }
