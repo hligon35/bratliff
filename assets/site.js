@@ -183,10 +183,10 @@ function header() {
     "<a class=\"brand brand-with-logo\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\">" +
     "<img class=\"brand-logo\" src=\"" + artwork.brandLogo + "\" alt=\"\" aria-hidden=\"true\">" +
     "<span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
-    "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\">☰</button>" +
+    "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\"><span class=\"material-icons-round\" aria-hidden=\"true\">menu</span></button>" +
     "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Login</a></nav>" +
     "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><span class=\"jrpp-public-icon\" data-account-trigger-icon aria-hidden=\"true\">person</span><span data-account-trigger-label>Login</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
-    "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\">×</button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
+    "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\"><span class=\"material-icons-round\" aria-hidden=\"true\">close</span></button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
     "</div></header>";
 }
 function socialLinks() {
@@ -1088,7 +1088,7 @@ function initFeaturedAuthor() {
     if (introEl) introEl.textContent = author.shortIntro || "";
     if (bioEl) bioEl.textContent = author.biography || "";
     if (socialsEl) {
-      const icons = { facebook: "f", instagram: "◎", linkedin: "in", tiktok: "♪", youtube: "▶" };
+      const icons = { facebook: "public", instagram: "photo_camera", linkedin: "work", tiktok: "music_note", youtube: "play_arrow" };
       let links = author.socialLinks && typeof author.socialLinks === "object" ? author.socialLinks : {};
       if (Array.isArray(author.socialLinks)) {
         links = {};
@@ -1100,7 +1100,7 @@ function initFeaturedAuthor() {
       }
       const allowed = ["facebook", "instagram", "linkedin", "tiktok", "youtube"];
       socialsEl.innerHTML = allowed.filter((key) => links[key]).map((key) =>
-        `<a class="author-social-icon author-social-${key}" href="${escapeHtmlSponsor(links[key])}" target="_blank" rel="noopener" aria-label="${key}"><span aria-hidden="true">${icons[key]}</span></a>`,
+        `<a class="author-social-icon author-social-${key}" href="${escapeHtmlSponsor(links[key])}" target="_blank" rel="noopener" aria-label="${key}"><span class="material-icons-round" aria-hidden="true">${icons[key]}</span></a>`,
       ).join("");
       socialsEl.hidden = !socialsEl.children.length;
     }

@@ -62,7 +62,7 @@ const CUSTOMER_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const CUSTOMER_PASSWORD_ITERATIONS = 120000;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
-const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/documents/JPP_Certificate_of_Appreciation_09222026.pdf";
+const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/documents/JPP_Certificate_of_Appreciation_v1.pdf";
 const SPONSOR_CERTIFICATE_TIME_ZONE = "America/New_York"; // Atlanta, GA
 const SPONSOR_CERTIFICATE_PACKAGES = new Set<SponsorPackageKey>([
   "literacyTrailblazer",
@@ -3481,7 +3481,7 @@ async function sendSponsorCertificateIfEligible(
       fromName: "Jackrabbit Punkin Publishing LLC",
       idempotencyKey: "sponsor-certificate-admin-" + sponsorId,
       attachments: [{
-        filename: "JPP_Certificate_of_Appreciation_09222026.pdf",
+        filename: "JPP_Certificate_of_Appreciation_v1.pdf",
         content: pdfBytesToBase64(certificate),
       }],
     });

@@ -115,7 +115,7 @@
     if (!document.querySelector('.store-cart-backdrop')) {
       document.body.insertAdjacentHTML('beforeend', `<div class="store-cart-backdrop" aria-hidden="true">
         <aside class="store-cart" role="dialog" aria-modal="true" aria-label="Shopping cart">
-          <div class="store-cart-head"><h2>Your Cart</h2><button class="store-cart-close" type="button" aria-label="Close cart">×</button></div>
+          <div class="store-cart-head"><h2>Your Cart</h2><button class="store-cart-close" type="button" aria-label="Close cart"><span class="material-icons-round" aria-hidden="true">close</span></button></div>
           <div class="store-cart-items" data-cart-items></div>
           <div class="store-cart-foot"><div class="store-cart-total"><span>Subtotal</span><span data-cart-total>$0.00</span></div><button class="button ink" style="width:100%" type="button" data-checkout>Checkout</button></div>
         </aside></div><div class="store-toast" role="status" aria-live="polite"></div>`);

@@ -2702,15 +2702,13 @@ body.document-viewer-open {
 }
 
 
-/* Material Icons Round for explicitly approved public controls. */
+/* Material Icons Round: one local subset shared by the public site and admin. */
 @font-face {
   font-family: "Material Icons Round";
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: local("Material Icons Round"),
-       local("Material Icons Round Regular"),
-       url("./MaterialIconsRound-Regular.otf") format("opentype");
+  src: url("./material-icons.woff2") format("woff2");
 }
 
 .jrpp-public-icon {
@@ -2825,3 +2823,7 @@ body.document-viewer-open {
 }
 
 .material-icons-round{font-family:'Material Icons Round';font-weight:normal;font-style:normal;font-size:20px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-feature-settings:'liga'}
+
+.menu-toggle .material-icons-round{font-size:1.6rem}
+.account-overlay-close .material-icons-round,.document-viewer-close .material-icons-round,.store-cart-close .material-icons-round{font-size:1.4rem}
+.author-social-icon .material-icons-round{font-size:1.1rem}

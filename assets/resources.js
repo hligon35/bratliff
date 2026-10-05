@@ -81,7 +81,9 @@
     details.querySelector("[data-resource-details-list]").replaceChildren(...resource.inside.map((item) => element("li", "", item)));
     const link = details.querySelector("[data-resource-details-link]");
     link.href = resource.relatedHref;
-    link.textContent = resource.relatedLabel + " → " + resource.relatedText;
+    const arrow = element("span", "material-icons-round", "arrow_forward");
+    arrow.setAttribute("aria-hidden", "true");
+    link.replaceChildren(document.createTextNode(resource.relatedLabel + " " + resource.relatedText + " "), arrow);
     details.showModal();
   }
 

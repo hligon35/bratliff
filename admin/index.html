@@ -8,14 +8,14 @@
   <meta name="description" content="Jackrabbit Punkin Publishing secure admin workspace.">
   <link rel="manifest" href="/admin/manifest.webmanifest">
   <link rel="icon" type="image/png" href="/assets/icons/jrppLogo.png">
-  <link rel="preload" href="/assets/admin-icons.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/admin-shell.css">
+  <link rel="preload" href="/assets/material-icons.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/admin-shell.css">
   <link rel="stylesheet" href="/assets/admin-workspace.css">
   <title>Admin Workspace | Jackrabbit Punkin Publishing</title>
   <script>try{if(localStorage.getItem("jrpp-workspace-drawer")==="collapsed")document.documentElement.classList.add("drawer-collapsed")}catch(e){}</script>
   <script src="/assets/site-config.js" defer></script>
   <script src="/assets/admin-shell.js" defer></script>
   <script src="/assets/admin-workspace.js" defer></script>
-</head>
+<link rel="apple-touch-icon" href="/assets/icons/jppIcon-180.png" /></head>
 <body>
   <a class="skip-link" href="#workspaceMain">Skip to main content</a>
   <div class="app-shell">
@@ -59,7 +59,7 @@
         <div class="split-view mailbox-split" id="mailboxSplit">
           <section class="list-pane" aria-label="Mailbox messages">
             <div class="record-list" id="mailList" aria-live="polite"><div class="loading">Loading mailbox…</div></div>
-            <div class="pagination"><button class="button secondary small" id="mailPrev" type="button">← Newer</button><span id="mailPageLabel">Page 1</span><button class="button secondary small" id="mailNext" type="button">Older →</button></div>
+            <div class="pagination"><button class="button secondary small" id="mailPrev" type="button"><span class="material-icons-round" aria-hidden="true">arrow_back</span>Newer</button><span id="mailPageLabel">Page 1</span><button class="button secondary small" id="mailNext" type="button">Older<span class="material-icons-round" aria-hidden="true">arrow_forward</span></button></div>
           </section>
           <section class="detail-pane message-detail" id="mailDetail" aria-label="Selected message"><div class="empty-detail"><span class="material-icons-round" aria-hidden="true">mail</span><h2>Choose a message</h2><p>Submissions and orders stay in their original records. Mailbox actions only organize your view.</p></div></section>
         </div>
@@ -78,7 +78,7 @@
 
   <dialog class="compose-dialog" id="composeDialog" aria-labelledby="composeTitle">
     <form id="composeForm" method="dialog">
-      <header><div><p class="eyebrow">JACKRABBIT PUNKIN PUBLISHING</p><h2 id="composeTitle">New message</h2></div><button class="icon-button" type="button" id="closeCompose" aria-label="Close compose">×</button></header>
+      <header><div><p class="eyebrow">JACKRABBIT PUNKIN PUBLISHING</p><h2 id="composeTitle">New message</h2></div><button class="icon-button" type="button" id="closeCompose" aria-label="Close compose"><span class="material-icons-round" aria-hidden="true">close</span></button></header>
       <label>To<input id="composeTo" name="to" type="email" required autocomplete="email" maxlength="320"></label>
       <label>Subject<input id="composeSubject" name="subject" required maxlength="240"></label>
       <label>Message<textarea id="composeBody" name="body" rows="10" required maxlength="20000"></textarea></label>

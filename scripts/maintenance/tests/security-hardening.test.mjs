@@ -83,9 +83,9 @@ test("admin pages do not depend on external font hosts and preload the local ico
   for (const css of ["assets/admin-shell.css", "assets/admin.css"]) {
     assert.doesNotMatch(read(css), /fonts\.googleapis\.com|@import/);
   }
-  assert.match(read("assets/admin-shell.css"), /admin-icons\.woff2/);
+  assert.match(read("assets/admin-shell.css"), /material-icons\.woff2/);
   for (const page of ["index", "store", "author", "sponsors", "newsletter", "analytics", "activity", "profile", "settings"]) {
-    assert.match(read(`admin/${page}.html`), /rel="preload" href="\/assets\/admin-icons\.woff2"/, page);
+    assert.match(read(`admin/${page}.html`), /rel="preload" href="\/assets\/material-icons\.woff2"/, page);
   }
 });
 

@@ -42,11 +42,17 @@ for (const entry of staticEntries) {
   fs.cpSync(source, destination, { recursive: true });
 }
 
-for (const filename of [
-  'JPP_Battles_Beyond_the_Waves_Discussion_Guide_2.0_09222026.pdf',
-  'JPP_Publisher_Resource_Guide_Website_Edition.pdf'
-]) {
-  clearDestinationEntry(path.join(targetDir, 'assets', 'documents', filename));
+// Resource guides are served from private R2 only; publish just the documents the public pages and Worker fetch.
+const publicDocuments = new Set([
+  'JPP_Media_Press_Kit_v1.pdf',
+  'JPP_Certificate_of_Appreciation_v1.pdf',
+  'S2CEO.png'
+]);
+const stagedDocumentsDir = path.join(targetDir, 'assets', 'documents');
+if (fs.existsSync(stagedDocumentsDir)) {
+  for (const filename of fs.readdirSync(stagedDocumentsDir)) {
+    if (!publicDocuments.has(filename)) clearDestinationEntry(path.join(stagedDocumentsDir, filename));
+  }
 }
 clearDestinationEntry(path.join(targetDir, 'resources-blocked.html'));
 
