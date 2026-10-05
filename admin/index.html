@@ -24,26 +24,26 @@
       </div>
       <div class="nav-label">BOOKSTORE</div>
       <nav class="primary-nav" aria-label="Bookstore">
-        <button type="button" class="nav-item active" data-view="orders"><span class="nav-icon">▤</span><span>Orders</span><span class="nav-count" id="orderNavCount">—</span></button>
-        <button type="button" class="nav-item" data-view="catalog"><span class="nav-icon">▣</span><span>Catalog</span></button>
-        <button type="button" class="nav-item" data-view="inventory"><span class="nav-icon">▥</span><span>Inventory</span></button>
+        <button type="button" class="nav-item active" data-view="orders"><span class="nav-icon material-icons-round" aria-hidden="true">receipt_long</span><span>Orders</span><span class="nav-count" id="orderNavCount">—</span></button>
+        <button type="button" class="nav-item" data-view="catalog"><span class="nav-icon material-icons-round" aria-hidden="true">menu_book</span><span>Catalog</span></button>
+        <button type="button" class="nav-item" data-view="inventory"><span class="nav-icon material-icons-round" aria-hidden="true">inventory_2</span><span>Inventory</span></button>
       </nav>
       <div class="nav-label">CUSTOMER WORK</div>
       <nav class="primary-nav" aria-label="Customer work">
-        <button type="button" class="nav-item" data-view="mailbox"><span class="nav-icon">✉</span><span>Mailbox</span><span class="nav-count" id="mailNavCount">—</span></button>
+        <button type="button" class="nav-item" data-view="mailbox"><span class="nav-icon material-icons-round" aria-hidden="true">mail</span><span>Mailbox</span><span class="nav-count" id="mailNavCount">—</span></button>
       </nav>
       <div class="nav-label">PUBLISHING</div>
       <nav class="primary-nav" aria-label="Publishing">
-        <a class="nav-item" href="/admin/author.html"><span class="nav-icon">♙</span><span>Featured Author</span></a>
-        <a class="nav-item" href="/admin/sponsors.html"><span class="nav-icon">✦</span><span>Sponsors</span></a>
-        <a class="nav-item" href="/admin/newsletter.html"><span class="nav-icon">▧</span><span>Newsletter</span></a>
+        <a class="nav-item" href="/admin/author.html"><span class="nav-icon material-icons-round" aria-hidden="true">person</span><span>Featured Author</span></a>
+        <a class="nav-item" href="/admin/sponsors.html"><span class="nav-icon material-icons-round" aria-hidden="true">volunteer_activism</span><span>Sponsors</span></a>
+        <a class="nav-item" href="/admin/newsletter.html"><span class="nav-icon material-icons-round" aria-hidden="true">campaign</span><span>Newsletter</span></a>
       </nav>
       <div class="nav-label">ADMINISTRATION</div>
       <nav class="primary-nav" aria-label="Administration">
-        <a class="nav-item" href="/admin/analytics.html"><span class="nav-icon">◫</span><span>Reports</span></a>
-        <a class="nav-item" href="/admin/activity.html"><span class="nav-icon">◷</span><span>Activity log</span></a>
-        <a class="nav-item" href="/admin/profile.html"><span class="nav-icon">♧</span><span>Access management</span></a>
-        <a class="nav-item" href="/admin/settings.html"><span class="nav-icon">⚙</span><span>Settings</span></a>
+        <a class="nav-item" href="/admin/analytics.html"><span class="nav-icon material-icons-round" aria-hidden="true">analytics</span><span>Analytics</span></a>
+        <a class="nav-item" href="/admin/activity.html"><span class="nav-icon material-icons-round" aria-hidden="true">history</span><span>Activity log</span></a>
+        <a class="nav-item" href="/admin/profile.html"><span class="nav-icon material-icons-round" aria-hidden="true">admin_panel_settings</span><span>Admin access</span></a>
+        <a class="nav-item" href="/admin/settings.html"><span class="nav-icon material-icons-round" aria-hidden="true">settings</span><span>Settings</span></a>
       </nav>
       <div class="drawer-bottom">
         <a href="/admin/store.html" class="manage-store-link">Open full bookstore manager <span aria-hidden="true">↗</span></a>
@@ -54,9 +54,9 @@
 
     <main class="workspace">
       <header class="workspace-header">
-        <button class="icon-button mobile-menu" type="button" data-drawer-toggle aria-label="Open navigation">☰</button>
+        <button class="icon-button mobile-menu" type="button" data-drawer-toggle aria-label="Open navigation"><span class="material-icons-round" aria-hidden="true">menu</span></button>
         <div><p class="eyebrow" id="moduleEyebrow">BOOKSTORE OPERATIONS</p><h1 id="moduleTitle">Orders</h1></div>
-        <div class="header-actions"><span class="connection-state" id="connectionState"><i></i> Connecting</span><button class="button secondary" id="refreshBtn" type="button">↻ <span>Refresh</span></button></div>
+        <div class="header-actions"><span class="connection-state" id="connectionState"><i></i> Connecting</span><button class="button secondary" id="refreshBtn" type="button"><span class="material-icons-round" aria-hidden="true">refresh</span><span>Refresh</span></button></div>
       </header>
       <div class="notice" id="workspaceNotice" role="status" aria-live="polite" hidden></div>
 
@@ -64,13 +64,13 @@
         <div class="metrics-row" id="orderMetrics"></div>
         <div class="split-view">
           <section class="list-pane" aria-label="Orders list">
-            <div class="pane-tools"><label class="search"><span aria-hidden="true">⌕</span><input id="orderSearch" type="search" placeholder="Search orders or customers" aria-label="Search orders"></label>
+            <div class="pane-tools"><label class="search"><span class="material-icons-round" aria-hidden="true">search</span><input id="orderSearch" type="search" placeholder="Search orders or customers" aria-label="Search orders"></label>
               <select id="orderStatusFilter" aria-label="Filter orders"><option value="">All orders</option><option>Unfulfilled</option><option>Processing</option><option>Fulfilled</option><option>Cancelled</option></select>
             </div>
             <div class="list-heading"><b>Recent orders</b><span id="orderListCount"></span></div>
             <div class="record-list" id="orderList" aria-live="polite"><div class="loading">Loading orders…</div></div>
           </section>
-          <section class="detail-pane" id="orderDetail" aria-label="Order details"><div class="empty-detail"><span>▤</span><h2>Select an order</h2><p>Order items, payment and fulfillment details will appear here.</p></div></section>
+          <section class="detail-pane" id="orderDetail" aria-label="Order details"><div class="empty-detail"><span class="material-icons-round" aria-hidden="true">receipt_long</span><h2>Select an order</h2><p>Order items, payment and fulfillment details will appear here.</p></div></section>
         </div>
       </section>
 
@@ -78,11 +78,13 @@
         <div class="mail-toolbar">
           <div class="folder-tabs" role="tablist" aria-label="Mailbox folders">
             <button type="button" class="folder-tab active" data-folder="inbox">Inbox <span id="inboxCount"></span></button>
-            <button type="button" class="folder-tab" data-folder="starred">Starred</button>
-            <button type="button" class="folder-tab" data-folder="archive">Archive</button>
-            <button type="button" class="folder-tab" data-folder="trash">Trash</button>
+            <button type="button" class="folder-tab" data-folder="starred"><span class="material-icons-round" aria-hidden="true">star</span>Starred</button>
+            <button type="button" class="folder-tab" data-folder="archive"><span class="material-icons-round" aria-hidden="true">archive</span>Archive</button>
+            <button type="button" class="folder-tab" data-folder="trash"><span class="material-icons-round" aria-hidden="true">delete</span>Trash</button>
+            <button type="button" class="folder-tab" data-folder="failed">Failed <span id="failedCount"></span></button>
+            <button type="button" class="folder-tab" data-folder="sent"><span class="material-icons-round" aria-hidden="true">send</span>Sent <span id="sentCount"></span></button>
           </div>
-          <button class="button primary" id="composeBtn" type="button">＋ New message</button>
+          <button class="button primary" id="composeBtn" type="button"><span class="material-icons-round" aria-hidden="true">edit</span>New message</button>
         </div>
         <div class="mail-filters">
           <label class="search"><span aria-hidden="true">⌕</span><input id="mailSearch" type="search" placeholder="Search messages, customers, orders" aria-label="Search mailbox"></label>
@@ -94,7 +96,7 @@
             <div class="record-list" id="mailList" aria-live="polite"><div class="loading">Loading mailbox…</div></div>
             <div class="pagination"><button class="button secondary small" id="mailPrev" type="button">← Newer</button><span id="mailPageLabel">Page 1</span><button class="button secondary small" id="mailNext" type="button">Older →</button></div>
           </section>
-          <section class="detail-pane message-detail" id="mailDetail" aria-label="Selected message"><div class="empty-detail"><span>✉</span><h2>Choose a message</h2><p>Submissions and orders stay in their original records. Mailbox actions only organize your view.</p></div></section>
+          <section class="detail-pane message-detail" id="mailDetail" aria-label="Selected message"><div class="empty-detail"><span class="material-icons-round" aria-hidden="true">mail</span><h2>Choose a message</h2><p>Submissions and orders stay in their original records. Mailbox actions only organize your view.</p></div></section>
         </div>
       </section>
 

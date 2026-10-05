@@ -2,7 +2,7 @@ name: Quality Checks
 
 on:
   push:
-    branches: [major-update]
+    branches: [major-update, mailbox]
   pull_request:
     branches: [major-update]
 

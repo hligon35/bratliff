@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons+Round');
 :root {
   --navy: #0a1628;
   --purple: #542476;
@@ -2647,4 +2648,45 @@ button.jrpp-admin-drawer-toggle, .admin-drawer-collapsed button.jrpp-admin-drawe
 @media (max-width: 720px) {
   .jrpp-admin-switcher, .admin-drawer-collapsed .jrpp-admin-switcher { padding: 10px 12px; }
   button.jrpp-admin-drawer-toggle, .admin-drawer-collapsed button.jrpp-admin-drawer-toggle { position: relative; top: auto; left: auto; flex: 0 0 43px; align-self: center; }
+}
+
+
+.material-icons-round,.jrpp-icon{font-family:'Material Icons Round';font-weight:normal;font-style:normal;font-size:20px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;font-feature-settings:'liga'}
+.jrpp-admin-switcher{position:fixed;inset:0 auto 0 0;width:248px;height:100dvh;z-index:10000;overflow:auto;padding:14px 12px;background:var(--navy);border:0;display:flex;align-items:stretch;flex-direction:column;flex-wrap:nowrap;gap:0}
+.jrpp-admin-home{margin:0;padding:2px 6px 16px;border-bottom:1px solid rgba(255,255,255,.14)}
+.jrpp-admin-logo{width:42px;height:42px;flex-basis:42px}
+.jrpp-admin-brandcopy{font-size:15px;line-height:1.25}
+.jrpp-admin-brandcopy small{font-size:9px}
+.jrpp-admin-drawer-toggle{order:2;align-self:flex-end;margin:-47px 0 10px;width:32px;height:32px;border:1px solid rgba(255,255,255,.25);border-radius:7px;background:transparent;color:#fff;cursor:pointer}
+.jrpp-admin-nav{order:3;width:100%;display:grid;grid-template-columns:1fr;align-items:stretch;gap:3px;margin-top:10px}
+.jrpp-admin-nav-label{padding:13px 9px 4px;color:#a9b0bf;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.jrpp-admin-nav a{display:flex;align-items:center;gap:10px;min-height:39px;padding:8px 10px;border:0;border-radius:7px;background:transparent;color:#e7eaf0;font-size:13px}
+.jrpp-admin-nav a .jrpp-icon{width:20px;font-size:18px;text-align:center}
+.jrpp-admin-nav a.active{background:var(--gold);color:var(--navy)}
+.jrpp-admin-actions{order:4;width:100%;display:grid;grid-template-columns:1fr;margin: auto 0 0;padding-top:12px;border-top:1px solid rgba(255,255,255,.14)}
+.jrpp-admin-action{border:0;border-radius:7px;text-align:left}
+body{padding-left:248px}
+.shell,.dashboard-page,#newsletterAdminRoot,.activity-log{max-width:none;margin-left:0;margin-right:0}
+.topbar{top:0}
+.main{max-width:none}
+.admin-drawer-collapsed .jrpp-admin-switcher{width:74px}
+.admin-drawer-collapsed .jrpp-admin-brandcopy,.admin-drawer-collapsed .jrpp-admin-nav-label{display:none}
+.admin-drawer-collapsed .jrpp-admin-home{justify-content:center;padding-inline:0}
+.admin-drawer-collapsed .jrpp-admin-drawer-toggle{margin-top:-48px}
+.admin-drawer-collapsed .jrpp-admin-nav a{justify-content:center;padding-inline:6px;font-size:0}
+.admin-drawer-collapsed .jrpp-admin-nav a .jrpp-icon{font-size:19px}
+body.admin-drawer-collapsed{padding-left:74px}
+@media(max-width:760px){
+ body,body.admin-drawer-collapsed{padding-left:0}
+ .jrpp-admin-switcher{position:sticky;inset:auto;width:100%;height:auto;max-height:none;padding:8px 10px;display:flex;flex-direction:row;align-items:center;overflow:visible;border-bottom:3px solid var(--gold)}
+ .jrpp-admin-home{padding:0;border:0}.jrpp-admin-logo{width:36px;height:36px;flex-basis:36px}.jrpp-admin-brandcopy{font-size:12px}.jrpp-admin-brandcopy small{font-size:8px}
+ .jrpp-admin-drawer-toggle{order:0;margin:0 0 0 auto;align-self:center}
+ .jrpp-admin-nav{order:3;flex-basis:100%;display:flex;gap:4px;margin-top:8px;overflow-x:auto;flex-wrap:nowrap}
+ .jrpp-admin-nav-label{display:none}
+ .jrpp-admin-nav a{min-height:34px;flex:0 0 auto;padding:7px 9px;font-size:11px}
+ .jrpp-admin-actions{order:2;width:auto;margin:0 0 0 8px;padding:0;border:0}
+ .jrpp-admin-actions .jrpp-admin-action{padding:7px 9px;font-size:11px}
+ .admin-drawer-collapsed .jrpp-admin-nav a:not(.active){display:flex}
+ .admin-drawer-collapsed .jrpp-admin-brandcopy{display:block}
+ .main,.dashboard-page{padding-top:18px}
 }
