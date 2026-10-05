@@ -114,14 +114,14 @@ test("every admin page loads exactly one shared shell before its controller", ()
     assert.match(html, /id="workspaceMain" tabindex="-1"/);
     if (page !== "index") assert.ok(html.includes(`href="/admin/${page}.html#workspaceMain"`), page);
     assert.match(html, /admin-shell\.css/);
-    assert.ok(html.indexOf("admin-shell.js") < html.indexOf(page === "index" ? "admin-workspace.js" : "admin.js"), page);
+    assert.ok(html.indexOf("admin-shell.js") < html.indexOf(page === "index" ? "admin-workspace.js" : `admin-${page}.js`), page);
     assert.ok(!/jrpp-admin-switcher|jrpp-admin-nav|admin-drawer-collapsed/.test(html), page);
   }
 });
 
 test("legacy navigation styles and duplicate controllers are removed", () => {
-  assert.doesNotMatch(read("assets/admin.css"), /jrpp-admin-switcher|jrpp-admin-nav|admin-drawer-collapsed/);
-  assert.doesNotMatch(read("assets/admin.js"), /renderAdminNavigation|initAdminDrawer|adminNavItems|globalLogoutBtn|globalRefreshBtn/);
+  assert.doesNotMatch(read("assets/admin-src/admin.css"), /jrpp-admin-switcher|jrpp-admin-nav|admin-drawer-collapsed/);
+  assert.doesNotMatch(read("assets/admin-src/core.js"), /renderAdminNavigation|initAdminDrawer|adminNavItems|globalLogoutBtn|globalRefreshBtn/);
   assert.doesNotMatch(read("assets/admin-workspace.js"), /localStorage\.setItem\("jrpp-workspace-drawer"/);
   assert.match(read("assets/admin-shell.css"), /\.nav-item\[hidden\]\{display:none\}/);
   assert.match(read("assets/admin-shell.css"), /\.mobile-backdrop:not\(\[hidden\]\)\{display:block\}/);

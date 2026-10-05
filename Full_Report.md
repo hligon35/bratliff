@@ -41,7 +41,7 @@ Needed scripts: `worker:deploy`, `worker:deploy:sandbox`, `worker:prepare`, `pre
 8. `assets/photos/barbaraRatliff2.png` is unreferenced; keep or delete.
 
 ### Engineering follow-ups
-10. `assets/admin.js` (116 KB) and `admin.css` (38 KB) are still monoliths loaded on every non-workspace admin page; splitting is a refactor.
+10. DONE: admin.js/admin.css split into per-page bundles generated from `assets/admin-src/` (`npm run admin:build`). Mailbox HTML rendering and migration 0013 are also done and applied to both D1 databases.
 11. To add icons later, rebuild `material-icons.woff2` from the original OTF (retrievable from git history, `HEAD~` before commit `753cacc`) with the new names; the tooling lives in the gitignored `.venv`.
 
 After any removal run `npm run worker:check` and `npm run test:maintenance`; the static-guard tests reference the workflow and `monthlyReport.md`.

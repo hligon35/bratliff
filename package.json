@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "prepare:config": "node scripts/write-site-config.js",
+    "admin:build": "node scripts/build-admin-assets.mjs",
     "worker:prepare": "node scripts/stage-cloudflare-assets.js",
     "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
     "worker:deploy": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc",

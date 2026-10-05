@@ -80,7 +80,7 @@ test("newsletter sends are idempotent per recipient and refuse duplicate campaig
 });
 
 test("admin pages do not depend on external font hosts and preload the local icon font", () => {
-  for (const css of ["assets/admin-shell.css", "assets/admin.css"]) {
+  for (const css of ["assets/admin-shell.css", "assets/admin-src/admin.css"]) {
     assert.doesNotMatch(read(css), /fonts\.googleapis\.com|@import/);
   }
   assert.match(read("assets/admin-shell.css"), /material-icons\.woff2/);
