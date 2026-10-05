@@ -1,5 +1,6 @@
 {
 	"name": "bratliff-platform",
+	"account_id": "a66d8ad6d673f957cc07a4499662d694",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-31",
 	"compatibility_flags": [
