@@ -25,7 +25,7 @@ export function loadWorker(fetchMock = () => { throw new Error('Unexpected netwo
     if (cache.has(filename)) return cache.get(filename).exports;
     const mod = { exports: {} }; cache.set(filename, mod);
     let source = readFileSync(filename, 'utf8');
-    if (/[\\/]app\.ts$/.test(filename)) source += '\nexport const review = { recordPaidOrderFromSquarePayment, recordRefundFromSquareEvent, recordPaidSponsorFromSquarePayment, queueNewsletterCampaign, processNewsletterQueue, saveNewsletterCampaign, validateOrderItems, enforcePublicRateLimit, syncBookInventoryFromSquare, getUnsubscribeUrl, deriveCustomerPassword, verifyCustomerPassword, issueCustomerSessionCookie, handleCustomerApi, sendMailboxEmail, listMailboxItems, listStandaloneMailboxEmail, getMailboxItem, updateMailboxState, resolveMailboxDraftKey, listSubmissionRecords, getSubmissionRecord, updateCorrespondenceState, sendSponsorCertificateIfEligible };';
+    if (/[\\/]app\.ts$/.test(filename)) source += '\nexport const review = { processSubmissionEmails, recordPaidOrderFromSquarePayment, recordRefundFromSquareEvent, recordPaidSponsorFromSquarePayment, queueNewsletterCampaign, processNewsletterQueue, saveNewsletterCampaign, validateOrderItems, enforcePublicRateLimit, syncBookInventoryFromSquare, getUnsubscribeUrl, deriveCustomerPassword, verifyCustomerPassword, issueCustomerSessionCookie, handleCustomerApi, sendMailboxEmail, listMailboxItems, listStandaloneMailboxEmail, getMailboxItem, updateMailboxState, resolveMailboxDraftKey, listSubmissionRecords, getSubmissionRecord, updateCorrespondenceState, sendSponsorCertificateIfEligible };';
     if (/[\\/]namecheap-mail\.ts$/.test(filename)) source += '\nexport const review = { parseEmail, ProtocolReader };';
     const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     function requireLocal(name) {
@@ -59,12 +59,15 @@ export function database() {
       bind(...values) { args = values; return this; },
       async first() { return sqlite.prepare(sql).get(...args) || null; },
       async all() { return { results: sqlite.prepare(sql).all(...args) }; },
-      async run() { const result = sqlite.prepare(sql).run(...args); return { success: true, meta: { changes: Number(result.changes) } }; },
+      runSync() { const result = sqlite.prepare(sql).run(...args); return { success: true, meta: { changes: Number(result.changes) } }; },
+      async run() { return this.runSync(); },
     };
   }
+  // Do not yield inside a SQLite transaction: D1 serializes each batch, while
+  // interleaving mock awaits would incorrectly nest simultaneous transactions.
   const DB = { prepare, async batch(statements) {
     sqlite.exec('BEGIN');
-    try { const result = []; for (const statement of statements) result.push(await statement.run()); sqlite.exec('COMMIT'); return result; }
+    try { const result = []; for (const statement of statements) result.push(statement.runSync()); sqlite.exec('COMMIT'); return result; }
     catch (error) { sqlite.exec('ROLLBACK'); throw error; }
   } };
   return { sqlite, DB };

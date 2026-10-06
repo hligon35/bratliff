@@ -20,10 +20,6 @@ window.siteConfig = (function freeze(value) {
   "adminEmail": "hligon@getsparqd.com",
   "turnstileSiteKey": "0x4AAAAAAExBb3u_5n7T_HN9",
   "squareLinks": {
-    "books": {
-      "battlesHardcover": "",
-      "battlesPaperback": "https://square.link/u/llSOK4s4"
-    },
     "sponsorships": {
       "pagePal": "https://square.link/u/kDcU50U8",
       "chapterChampion": "https://square.link/u/NvctrNSJ",

@@ -11,13 +11,78 @@ function workspace(handler = () => ({draft:null})) {
   const location={href:'https://example.org/admin/index.html?view=mailbox',origin:'https://example.org',pathname:'/admin/index.html',search:'?view=mailbox',hash:'',replace(){}};
   const window={siteConfig:{},adminShell:{setActive(){},setConnection(){},setViewer(){},closeMobile(){}},addEventListener(){},confirm:()=>true};
   const document={body:{classList:{add(){},remove(){}}},querySelector(s){return /^#[\w]+$/.test(s)?element(s.slice(1)):null},querySelectorAll(){return []},addEventListener(){}};
-  const source=readFileSync(path.join(root,'assets/admin-workspace.js'),'utf8').replace(/bootstrap\(\);\r?\n\}\)\(\);/,'window.testWorkspace={state,setView,openCompose,loadMail,loadMailDetail,applyLocation,loadSubmissionDetail,sendMessage,checkSession,logout};\n})();');
+  const source=readFileSync(path.join(root,'assets/admin-workspace.js'),'utf8').replace(/bootstrap\(\);\r?\n\}\)\(\);/,'window.testWorkspace={state,setView,openCompose,loadMail,loadMailDetail,applyLocation,loadSubmissionDetail,sendMessage,checkSession,logout,flushDraftSave,discardDraft,closeCompose};\n})();');
   const fetch=async (url, options={})=>{requests.push({url:String(url),options});return Response.json(await handler(String(url),options))};
-  vm.runInNewContext(source,{window,document,location,history:{pushState(...args){historyCalls.push(args)},replaceState(...args){historyCalls.push(args)}},navigator:{},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto:globalThis.crypto,fetch,URL,URLSearchParams,Intl,Date,console,setTimeout:(fn)=>{timers.push(fn);return timers.length},clearTimeout(){},innerWidth:1000});
+  vm.runInNewContext(source,{window,document,location,history:{pushState(...args){historyCalls.push(args)},replaceState(...args){historyCalls.push(args)}},navigator:{},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto:globalThis.crypto,fetch,URL,URLSearchParams,Intl,Date,console,setTimeout:(fn)=>{timers.push(fn);return timers.length},clearTimeout(id){if(id)timers[id-1]=null},innerWidth:1000});
   return {...window.testWorkspace,element,storage,requests,historyCalls,location,timers};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const received={itemKey:'email:1',sourceType:'email',email:'sender@example.org',name:'Sender',subject:'Hello',body:'Mail',folder:'inbox',isRead:true,outbound:[]};
+
+test('late draft hydration cannot overwrite typing or a newer compose session',async()=>{
+  const releases=[];const app=workspace((url,o)=>o.method==='GET'&&url.includes('mail/item/draft')?new Promise(resolve=>releases.push(resolve)):{ok:true});
+  app.openCompose(received);await tick();
+  app.element('composeBody').value='New typing';app.element('composeBody').input();
+  releases[0]({draft:{body:'Old saved draft'}});await tick();
+  assert.equal(app.element('composeBody').value,'New typing');
+  await app.flushDraftSave();
+});
+
+test('draft saves are serialized and keep the content captured by each edit',async()=>{
+  let release;const app=workspace((url,o)=>o.method==='PUT'&&!release?new Promise(resolve=>release=resolve):{draft:null});
+  app.openCompose(received);await tick();
+  app.element('composeBody').value='First';app.element('composeBody').input();const first=app.flushDraftSave();await tick();
+  app.element('composeBody').value='Second';app.element('composeBody').input();const second=app.flushDraftSave();await tick();
+  assert.equal(app.requests.filter(r=>r.options.method==='PUT').length,1);
+  release({ok:true});await Promise.all([first,second]);
+  assert.deepEqual(app.requests.filter(r=>r.options.method==='PUT').map(r=>JSON.parse(r.options.body).body),['First','Second']);
+});
+
+test('sending flushes pending saves before POST and DELETE; canceled timers cannot recreate the draft',async()=>{
+  const app=workspace((url)=>url.endsWith('mail/send')?{ok:true,status:'Accepted'}:{draft:null});
+  app.openCompose(null);await tick();
+  app.element('composeTo').value='offline@example.org';app.element('composeSubject').value='Test';app.element('composeBody').value='Fixture';app.element('composeBody').input();
+  await app.sendMessage();
+  assert.deepEqual(app.requests.map(r=>r.options.method||'GET'),['GET','PUT','POST','DELETE']);
+  assert.equal(app.element('composeForm').dataset.itemKey,'');
+  assert.equal(app.element('sendMessageBtn').disabled,true,'cannot send twice during the success delay');
+  for(const fn of app.timers.filter(Boolean))await fn();await tick();
+  assert.equal(app.requests.filter(r=>r.options.method==='PUT').length,1);
+});
+
+test('discard waits for an in-flight save before deleting; failures preserve the draft',async()=>{
+  let release,fail=false;const app=workspace((url,o)=>o.method==='PUT'?new Promise(resolve=>release=resolve):o.method==='DELETE'&&fail?{ok:false,error:'Offline'}:{draft:null});
+  app.openCompose(received);await tick();app.element('composeBody').value='Draft';app.element('composeBody').input();const save=app.flushDraftSave();await tick();
+  const discarded=app.discardDraft();await tick();assert.ok(!app.requests.some(r=>r.options.method==='DELETE'));
+  release({ok:true});await Promise.all([save,discarded]);
+  assert.deepEqual(app.requests.map(r=>r.options.method||'GET'),['GET','PUT','DELETE']);
+  app.openCompose(received);await tick();app.element('composeBody').value='Keep this';fail=true;await app.discardDraft();
+  assert.equal(app.element('composeBody').value,'Keep this');assert.equal(app.element('composeForm').dataset.itemKey,'email:1');
+});
+
+test('closing immediately after typing saves that draft before closing the dialog',async()=>{
+  const app=workspace();app.openCompose(received);await tick();
+  app.element('composeBody').value='Quick edit';app.element('composeBody').input();await app.closeCompose();
+  assert.equal(app.element('composeDialog').open,false);
+  assert.equal(JSON.parse(app.requests.find(r=>r.options.method==='PUT').options.body).body,'Quick edit');
+});
+
+test('a failed draft save keeps the composer open and survives switching compose targets',async()=>{
+  let offline=true;const app=workspace((url,o)=>o.method==='PUT'&&offline?{ok:false,error:'Offline'}:{draft:{body:'Old saved content'}});
+  app.openCompose(received);await tick();app.element('composeBody').value='Unsaved typing';app.element('composeBody').input();
+  await app.closeCompose();assert.equal(app.element('composeDialog').open,true);assert.equal(app.element('composeBody').value,'Unsaved typing');
+  app.openCompose(null);await tick();app.openCompose(received);await tick();
+  assert.equal(app.element('composeBody').value,'Unsaved typing');
+  offline=false;await app.closeCompose();assert.equal(app.element('composeDialog').open,false);
+  assert.equal(JSON.parse(app.requests.filter(r=>r.options.method==='PUT').at(-1).options.body).body,'Unsaved typing');
+});
+
+test('an older hydration response cannot populate a newly opened composer',async()=>{
+  const releases=[];const app=workspace((url,o)=>o.method==='GET'&&url.includes('draft')?new Promise(resolve=>releases.push(resolve)):{ok:true});
+  app.openCompose(received);await tick();app.openCompose(null);await tick();
+  releases[0]({draft:{body:'Wrong session'}});await tick();assert.equal(app.element('composeBody').value,'');
+  releases[1]({draft:null});await tick();
+});
 
 test('mailbox session and logout use the same protected API prefix as its other requests', async()=>{
   const app=workspace(url=>url.endsWith('/session')?{ok:true,viewer:{email:'owner@example.org'}}:{ok:true});
