@@ -186,6 +186,28 @@ button,input,select,textarea{font: inherit;}
 .settings-avatar-button{margin-top: 0;}
 .media-upload-field{align-content: start;}
 .media-upload-field .image-preview{margin-top: 8px;}
+.author-feature-dates,.author-media-grid{display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;}
+.author-feature-dates .field{align-content: start;}
+.author-feature-dates input[type="datetime-local"]{width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;}
+.author-media-divider{grid-column: 1 / -1;
+  width: 100%;
+  margin: 6px 0;
+  border: 0;
+  border-top: 1px solid var(--line);}
+.author-media-grid .media-upload-field{min-width: 0;
+  grid-template-rows: auto auto auto;}
+.author-media-grid input[type="file"]{min-width: 0;
+  width: 100%;}
+.author-media-grid .image-preview{max-width: 100%;}
+@media (max-width: 520px){
+.author-feature-dates,.author-media-grid{grid-template-columns: 1fr;}
+}
 @media (max-width: 520px){
 .form-grid{grid-template-columns: 1fr;}
 }

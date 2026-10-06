@@ -1655,24 +1655,16 @@ body[data-page="books"] .future-title-grid .button {
   display: none;
 }
 
-.download-menu summary::after {
-  content: "expand_more";
-  display: inline-block;
-  margin-left: 0.35rem;
-  font-family: "Material Icons Round";
-  font-style: normal;
-  font-weight: 400;
-  font-size: 1.25rem;
-  line-height: 1;
-  letter-spacing: normal;
-  font-feature-settings: "liga";
-  -webkit-font-feature-settings: "liga";
-  -webkit-font-smoothing: antialiased;
-  vertical-align: middle;
-  transition: transform 0.2s;
+.download-menu summary > .download-menu-chevron {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  transform: rotate(0deg);
+  transform-origin: center;
+  transition: transform 0.2s ease;
 }
 
-.download-menu[open] summary::after {
+.download-menu[open] summary > .download-menu-chevron {
   transform: rotate(180deg);
 }
 

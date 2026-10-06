@@ -46,14 +46,15 @@
             <button type="button" class="folder-tab" data-folder="starred"><span class="material-icons-round" aria-hidden="true">star</span>Starred</button>
             <button type="button" class="folder-tab" data-folder="archive"><span class="material-icons-round" aria-hidden="true">archive</span>Archive</button>
             <button type="button" class="folder-tab" data-folder="trash"><span class="material-icons-round" aria-hidden="true">delete</span>Trash</button>
+            <button type="button" class="folder-tab" data-folder="outbox">Outbox <span id="outboxCount"></span></button>
             <button type="button" class="folder-tab" data-folder="failed">Failed <span id="failedCount"></span></button>
             <button type="button" class="folder-tab" data-folder="sent"><span class="material-icons-round" aria-hidden="true">send</span>Sent <span id="sentCount"></span></button>
           </div>
           <button class="button primary" id="composeBtn" type="button"><span class="material-icons-round" aria-hidden="true">edit</span>New message</button>
         </div>
         <div class="mail-filters">
-          <label class="search"><span aria-hidden="true">⌕</span><input id="mailSearch" type="search" placeholder="Search messages, customers, orders" aria-label="Search mailbox"></label>
-          <select id="mailTypeFilter" aria-label="Filter mailbox"><option value="all">All records</option><option value="email">Email messages</option><option value="orders">Orders</option><option value="submissions">Website submissions</option></select><span id="mailConnectionState" class="muted" role="status" aria-live="polite">Email not synced</span>
+          <label class="search"><span aria-hidden="true">⌕</span><input id="mailSearch" type="search" placeholder="Search sender, subject or message" aria-label="Search mailbox"></label>
+          <span id="mailConnectionState" class="muted" role="status" aria-live="polite">Email not synced</span>
           <span id="mailResultCount" class="muted"></span>
         </div>
         <div class="split-view mailbox-split" id="mailboxSplit">
@@ -61,7 +62,24 @@
             <div class="record-list" id="mailList" aria-live="polite"><div class="loading">Loading mailbox…</div></div>
             <div class="pagination"><button class="button secondary small" id="mailPrev" type="button"><span class="material-icons-round" aria-hidden="true">arrow_back</span>Newer</button><span id="mailPageLabel">Page 1</span><button class="button secondary small" id="mailNext" type="button">Older<span class="material-icons-round" aria-hidden="true">arrow_forward</span></button></div>
           </section>
-          <section class="detail-pane message-detail" id="mailDetail" aria-label="Selected message"><div class="empty-detail"><span class="material-icons-round" aria-hidden="true">mail</span><h2>Choose a message</h2><p>Submissions and orders stay in their original records. Mailbox actions only organize your view.</p></div></section>
+          <section class="detail-pane message-detail" id="mailDetail" aria-label="Selected message"><div class="empty-detail"><span class="material-icons-round" aria-hidden="true">mail</span><h2>Choose a message</h2><p>Received and outgoing email messages only.</p></div></section>
+        </div>
+      </section>
+
+      <section class="module-view" data-module="submissions" aria-label="Website submissions">
+        <div class="module-intro"><div><p class="eyebrow">CUSTOMER WORK</p><h2>Website submissions</h2><p>Contact messages, speaking requests, book club requests and signups submitted through the website.</p></div></div>
+        <div class="mail-toolbar">
+          <label class="search"><span aria-hidden="true">⌕</span><input id="submissionSearch" type="search" placeholder="Search website submissions" aria-label="Search website submissions"></label>
+          <select id="submissionFolder" aria-label="Submission folder"><option value="inbox">Inbox</option><option value="starred">Starred</option><option value="archive">Archive</option><option value="trash">Trash</option><option value="all">All submissions</option></select>
+          <select id="submissionType" aria-label="Submission type"><option value="">All types</option><option value="contact">Contact</option><option value="speaking">Speaking request</option><option value="bookClub">Book club request</option><option value="bookNotification">Book notification</option><option value="newsletter">Newsletter signup</option></select>
+          <span id="submissionResultCount" class="muted" role="status" aria-live="polite"></span>
+        </div>
+        <div class="split-view mailbox-split" id="submissionsSplit">
+          <section class="list-pane" aria-label="Website submissions list">
+            <div class="record-list" id="submissionList" aria-live="polite"><div class="loading">Loading submissions…</div></div>
+            <div class="pagination"><button class="button small" type="button" id="submissionPrev">Previous</button><span id="submissionPageLabel">Page 1</span><button class="button small" type="button" id="submissionNext">Next</button></div>
+          </section>
+          <section class="detail-pane message-detail" id="submissionDetail" aria-label="Selected website submission"></section>
         </div>
       </section>
 

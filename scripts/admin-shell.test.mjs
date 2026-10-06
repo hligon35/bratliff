@@ -133,7 +133,7 @@ test("the shell uses native links and preserves in-page workspace navigation", (
   const editor = createShell();
   assert.doesNotMatch(editor.drawer.markup, /data-view=/);
   assert.match(editor.drawer.markup, /href="\/admin\/index.html\?view=orders"/);
-  assert.equal(editor.links.length, 12);
+  assert.equal(editor.links.length, 13);
 });
 
 test("only owners and developers see restricted links; unknown sessions fail closed", () => {
@@ -208,7 +208,7 @@ test("connection failures remain explicit, and incomplete shell markup is reject
 
 test("the service worker cache includes the shared shell and has a new version", () => {
   const sw = read("admin/service-worker.js");
-  assert.match(sw, /jrpp-admin-shell-v10/);
+  assert.match(sw, /jrpp-admin-shell-v11/);
   assert.match(sw, /"\/assets\/admin-shell\.css"/);
   assert.match(sw, /"\/assets\/admin-shell\.js"/);
 });

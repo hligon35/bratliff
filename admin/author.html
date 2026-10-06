@@ -83,21 +83,26 @@
                   <div class="field"><label>LinkedIn</label><input type="url" id="authorLinkedIn" name="linkedin" placeholder="https://linkedin.com/in/..." /></div>
                   <div class="field"><label>TikTok</label><input type="url" id="authorTikTok" name="tiktok" placeholder="https://tiktok.com/@..." /></div>
                   <div class="field"><label>YouTube</label><input type="url" id="authorYouTube" name="youtube" placeholder="https://youtube.com/@..." /></div>
-                  <div class="field">
-                    <label>Feature Start (optional)</label><input type="datetime-local" name="startAt" title="Feature Start" />
+                  <div class="field full author-feature-dates">
+                    <div class="field">
+                      <label for="authorFeatureStart">Feature Start (optional)</label><input type="datetime-local" id="authorFeatureStart" name="startAt" title="Feature Start" />
+                    </div>
+                    <div class="field">
+                      <label for="authorFeatureEnd">Feature End (optional)</label><input type="datetime-local" id="authorFeatureEnd" name="endAt" title="Feature End" />
+                    </div>
                   </div>
-                  <div class="field">
-                    <label>Feature End (optional)</label><input type="datetime-local" name="endAt" title="Feature End" />
-                  </div>
-                  <div class="field media-upload-field">
-                    <label>Author Image</label>
-                    <input type="file" id="authorPortrait" name="portrait" title="Author Image" accept="image/png,image/jpeg,image/webp" />
-                    <div class="image-preview" id="authorPortraitPreview"><span>No author image</span></div>
-                  </div>
-                  <div class="field media-upload-field">
-                    <label>Book Image</label>
-                    <input type="file" id="authorBookImage" name="bookImage" title="Book Image" accept="image/png,image/jpeg,image/webp" />
-                    <div class="image-preview" id="authorBookImagePreview"><span>No book image</span></div>
+                  <hr class="author-media-divider" />
+                  <div class="field full author-media-grid">
+                    <div class="field media-upload-field">
+                      <label for="authorPortrait">Author Image</label>
+                      <input type="file" id="authorPortrait" name="portrait" title="Author Image" accept="image/png,image/jpeg,image/webp" />
+                      <div class="image-preview" id="authorPortraitPreview"><span>No author image</span></div>
+                    </div>
+                    <div class="field media-upload-field">
+                      <label for="authorBookImage">Book Image</label>
+                      <input type="file" id="authorBookImage" name="bookImage" title="Book Image" accept="image/png,image/jpeg,image/webp" />
+                      <div class="image-preview" id="authorBookImagePreview"><span>No book image</span></div>
+                    </div>
                   </div>
                 </div>
                 <div class="form-actions">
