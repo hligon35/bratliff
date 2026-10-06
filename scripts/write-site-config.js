@@ -5,6 +5,9 @@ const dotenv = require('dotenv');
 const rootDir = path.resolve(__dirname, '..');
 const envPath = path.join(rootDir, '.env');
 const envLocalPath = path.join(rootDir, '.env.local');
+const envLocal2Path = path.join(rootDir, '.env.local2');
+const envProdPath = path.join(rootDir, '.env.production');
+const envProdLocalPath = path.join(rootDir, '.env.production.local');
 const envExamplePath = path.join(rootDir, '.env.example');
 const outputPath = path.join(rootDir, 'assets', 'site-config.js');
 
@@ -40,10 +43,18 @@ function joinUrl(base, pathName) {
   return cleanBase + pathName;
 }
 
+const isProduction = process.argv.includes('--production');
+const isSandbox = process.argv.includes('--sandbox');
 const exampleValues = readEnvFile(envExamplePath);
 const envValues = readEnvFile(envPath);
 const envLocalValues = readEnvFile(envLocalPath);
-const values = { ...exampleValues, ...envValues, ...envLocalValues, ...process.env };
+const productionEnvValues = isProduction
+  ? { ...readEnvFile(envLocal2Path), ...readEnvFile(envProdPath), ...readEnvFile(envProdLocalPath) }
+  : {};
+const values = { ...exampleValues, ...envValues, ...envLocalValues, ...productionEnvValues, ...process.env };
+if (isSandbox && !process.env.SITE_URL) {
+  values.SITE_URL = 'https://sandbox.jackrabbitpunkinpublishing.com';
+}
 
 // A production build must never publish example credentials or a sandbox URL.
 if (process.argv.includes('--production')) {
