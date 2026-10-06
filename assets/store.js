@@ -22,7 +22,7 @@
   const publicApiRoot = pickUrlForCurrentOrigin(siteConfig.publicApiUrl, '').trim().replace(/\/$/, '');
   const booksEndpoint = resolveEndpoint(siteConfig.storeBooksEndpoint, '/api/store/books');
   const checkoutEndpoint = resolveEndpoint(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/checkout');
-  const confirmCheckoutEndpoint = resolveEndpoint(siteConfig.storeConfirmEndpoint || siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/confirm-checkout');
+  const confirmCheckoutEndpoint = resolveEndpoint(siteConfig.storeConfirmEndpoint || '/api/store/confirm-checkout', '/api/store/confirm-checkout');
   const usesLegacyCheckout = /script\.google\.com/i.test(checkoutEndpoint);
   const state = { books: [], cart: loadCart() };
 
@@ -149,16 +149,23 @@
   }
 
   async function checkout() {
+    if (state.checkingOut) return;
     if (!state.cart.length) return toast('Your cart is empty.');
     if (!checkoutEndpoint) return toast('Checkout is not configured yet.');
     const body = new URLSearchParams({ action: 'store-checkout', cart: JSON.stringify(state.cart.map(item => ({ sku: item.sku, quantity: item.quantity }))) });
     try {
+      state.checkingOut = true;
+      document.querySelectorAll('[data-checkout]').forEach(button => { button.disabled = true; });
       const response = await fetch(checkoutEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: body.toString() });
       const data = await response.json();
       if (!data.ok || !data.url) throw new Error(data.error || 'Checkout could not be started.');
       if (typeof trackEvent === 'function') trackEvent('store_checkout_start', { meta: { itemCount: state.cart.length } });
       window.location.href = data.url;
     } catch (error) { toast(error.message); }
+    finally {
+      state.checkingOut = false;
+      document.querySelectorAll('[data-checkout]').forEach(button => { button.disabled = false; });
+    }
   }
 
   async function confirmCheckoutReturn() {
@@ -170,14 +177,10 @@
     }
     if (checkoutState !== 'success') return;
 
-    state.cart = [];
-    saveCart();
-    renderCart();
-
     const orderNumber = String(params.get('orderNumber') || params.get('session_id') || '').trim();
     const confirmationEndpoint = usesLegacyCheckout ? checkoutEndpoint : confirmCheckoutEndpoint;
     if (!orderNumber || !confirmationEndpoint) {
-      toast('Payment complete. Thank you for your order.');
+      toast('We cannot verify this checkout yet. Your cart has been kept.');
       return;
     }
 
@@ -198,9 +201,14 @@
       );
       const data = await response.json();
       if (!data.ok) throw new Error(data.error || 'Order confirmation failed.');
-      toast(data.paid ? 'Payment confirmed. Thank you for your order.' : 'Payment received. It will be confirmed shortly once processed.');
+      if (data.paid) {
+        state.cart = [];
+        saveCart();
+        renderCart();
+      }
+      toast(data.paid ? 'Payment confirmed. Thank you for your order.' : 'Payment confirmation is pending. Your cart has been kept.');
     } catch (error) {
-      toast(error.message || 'Payment completed, but order confirmation failed.');
+      toast(error.message || 'Payment could not be verified yet. Your cart has been kept.');
     }
   }
 

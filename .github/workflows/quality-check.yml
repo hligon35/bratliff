@@ -25,3 +25,8 @@ jobs:
       - run: npm ci
       - run: npm run worker:check
       - run: npm run test:maintenance
+      - run: npm run worker:prepare
+      - name: Validate deployment bundle without publishing
+        run: npx wrangler deploy --dry-run --env="" --config cloudflare/wrangler.jsonc
+        env:
+          WRANGLER_SEND_METRICS: 'false'

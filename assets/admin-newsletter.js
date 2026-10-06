@@ -473,13 +473,19 @@
 
   async function logout() {
     clearCache(cacheKeys.viewer);
+    let destination = '';
     if (authLogoutEndpoint) {
-      await fetch(authLogoutEndpoint, {
+      const response = await fetch(authLogoutEndpoint, {
         method: "POST",
         credentials: "include",
         cache: "no-store",
-      }).catch(function () {});
+      }).catch(function () { return null; });
+      if (response && response.ok) {
+        const data = await response.json().catch(function () { return {}; });
+        destination = String(data.logoutUrl || '');
+      }
     }
+    if (destination === '/cdn-cgi/access/logout') { window.location.assign(destination); return; }
     redirectToLogin("Signed out.");
   }
 
@@ -881,7 +887,7 @@ document.addEventListener("click", function (event) {
             '</td><td><button class="nl-btn secondary" type="button" data-open-campaign="' +
             escapeHtml(campaign.campaignId) +
             '">Open</button>' +
-            (campaign.status === "Scheduled"
+            (["Scheduled", "Queued"].includes(campaign.status)
               ? '<button class="nl-btn danger" type="button" style="margin-left:6px" data-cancel-campaign="' + escapeHtml(campaign.campaignId) + '">Cancel</button>'
               : "") +
             "</td></tr>"
@@ -982,12 +988,12 @@ document.addEventListener("click", function (event) {
         setStatus("#status", "Newsletter scheduled.", true);
         return;
       }
-      setStatus("#status", "Sending newsletter...", null);
+      setStatus("#status", "Queueing newsletter...", null);
       const sendResult = await api("newsletter/send", { method: "POST", body: payload });
       const campaignId = qs("#campaignId");
       if (campaignId && sendResult.campaignId) campaignId.value = sendResult.campaignId;
       await loadNewsletter();
-      setStatus("#status", sendResult.message || "Newsletter sent.", true);
+      setStatus("#status", sendResult.message || "Newsletter queued.", true);
     } catch (error) {
       setStatus("#status", error.message || "Newsletter could not be scheduled.", false);
     }

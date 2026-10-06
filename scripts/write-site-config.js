@@ -31,7 +31,7 @@ function pickPrimaryUrl(value) {
 }
 
 function isPlaceholder(value) {
-  return !value || /your-deployment-id|example\.com/i.test(value);
+  return !value || /your-deployment-id|your-domain|replace-with-|example\.(?:com|net|org)|\.example(?:\/|$)/i.test(value);
 }
 
 function joinUrl(base, pathName) {
@@ -43,7 +43,21 @@ function joinUrl(base, pathName) {
 const exampleValues = readEnvFile(envExamplePath);
 const envValues = readEnvFile(envPath);
 const envLocalValues = readEnvFile(envLocalPath);
-const values = { ...exampleValues, ...envValues, ...envLocalValues };
+const values = { ...exampleValues, ...envValues, ...envLocalValues, ...process.env };
+
+// A production build must never publish example credentials or a sandbox URL.
+if (process.argv.includes('--production')) {
+  const required = ['SITE_URL', 'GOOGLE_CLIENT_ID', 'TURNSTILE_SITE_KEY', 'ADMIN_NOTIFICATION_EMAIL'];
+  for (const key of required) {
+    if (!values[key] || /replace-with-|your-domain|your-google-account|example\.com/i.test(values[key])) {
+      throw new Error(key + ' must be configured for the production build.');
+    }
+  }
+  const configured = pickPrimaryUrl(values.SITE_URL);
+  if (configured !== 'https://jackrabbitpunkinpublishing.com') {
+    throw new Error('Production SITE_URL must be https://jackrabbitpunkinpublishing.com.');
+  }
+}
 
 const PRODUCTION_SITE_URL = 'https://jackrabbitpunkinpublishing.com';
 const configuredSiteUrl = pickPrimaryUrl(process.env.SITE_URL || values.SITE_URL);
@@ -65,6 +79,7 @@ const publicConfig = {
   formEndpoint,
   storeBooksEndpoint,
   storeCheckoutEndpoint,
+  storeConfirmEndpoint: '/api/store/confirm-checkout',
   loginUrl,
   adminUrl,
   adminApiUrl,

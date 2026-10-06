@@ -61,6 +61,7 @@ export interface Env {
   PUBLIC_ADMIN_URL: string;
   PUBLIC_API_URL: string;
   ADMIN_AUTH_MODE?: string;
+  INVENTORY_AUTHORITY?: "local" | "square";
   ADMIN_BOOTSTRAP_EMAILS: string;
   ADMIN_BOOTSTRAP_NAMES?: string;
   ADMIN_DEVELOPER_EMAILS?: string;

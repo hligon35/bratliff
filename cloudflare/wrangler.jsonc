@@ -21,7 +21,7 @@
 	"observability": {
 		"enabled": true,
 		"head_sampling_rate": 1,
-		"redact_query_string": false,
+		"redact_query_string": true,
 		"logs": {
 			"enabled": true,
 			"head_sampling_rate": 1,
@@ -36,7 +36,7 @@
 	},
 	"triggers": {
 		"crons": [
-			"*/15 * * * *"
+			"* * * * *"
 		]
 	},
 	"assets": {
@@ -47,7 +47,9 @@
 		"run_worker_first": [
 			"/api/*",
 			"/square/*",
-			"/healthz"
+			"/healthz",
+			"/index",
+			"/"
 		]
 	},
 	"d1_databases": [
@@ -81,7 +83,9 @@
 		"SQUARE_API_VERSION": "2024-10-17",
 		"SQUARE_ENVIRONMENT": "production",
 		"ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
-		"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}"
+		"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
+		"INVENTORY_AUTHORITY": "local",
+		"ADMIN_AUTH_MODE": "access"
 	},
 	"secrets": {
 		"required": [
@@ -115,7 +119,9 @@
 				"run_worker_first": [
 					"/api/*",
 					"/square/*",
-					"/healthz"
+					"/healthz",
+					"/index",
+					"/"
 				]
 			},
 			"d1_databases": [
@@ -150,7 +156,8 @@
 				"SQUARE_ENVIRONMENT": "sandbox",
 				"ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
 				"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
-				"NAMECHEAP_EMAIL_ADDRESS": "publisher@jackrabbitpunkinpublishing.com"
+				"NAMECHEAP_EMAIL_ADDRESS": "publisher@jackrabbitpunkinpublishing.com",
+				"INVENTORY_AUTHORITY": "local"
 			},
 			"secrets": {
 				"required": [
