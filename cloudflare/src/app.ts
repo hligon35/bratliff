@@ -243,6 +243,18 @@ const app: AppHandler = {
         return await handleSponsorCheckout(request, env);
       }
 
+      if (url.pathname === "/api/sponsors/confirm-checkout") {
+        if (request.method !== "POST") return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        requireTrustedMutationOrigin(request, env);
+        await enforcePublicRateLimit(request, env, "sponsor-confirm", 30, 600);
+        const payload = await parseBody(request);
+        const sponsorId = text(payload.sponsorId, 100);
+        if (!/^SP-[A-F0-9]{8}-[A-F0-9]$/i.test(sponsorId)) throw new HttpError(400, "A valid sponsorship reference is required.");
+        const payment = await env.DB.prepare("SELECT status FROM sponsor_payments WHERE sponsor_id = ?1 ORDER BY created_at DESC LIMIT 1")
+          .bind(sponsorId).first<{status: string}>();
+        return json(request, env, {ok: true, paid: payment?.status === "paid", pending: !payment || payment.status === "pending"});
+      }
+
       if (url.pathname === "/api/authors/featured") {
         if (request.method !== "GET") {
           return json(request, env, { ok: false, error: "Method not allowed." }, 405);
@@ -384,7 +396,8 @@ function hasCloudflareAccessConfig(env: Env) {
 
 function adminAuthMode(env: Env): "access" | "google" {
   const mode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
-  return mode === "access" || (mode !== "google" && hasCloudflareAccessConfig(env)) ? "access" : "google";
+  if (mode && !["access", "google"].includes(mode)) throw new HttpError(503, "Admin authentication mode is invalid.");
+  return mode === "access" || (mode !== "google" && Boolean(text(env.CF_ACCESS_TEAM_DOMAIN, 200) || text(env.CF_ACCESS_AUD, 200))) ? "access" : "google";
 }
 
 const accessJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
@@ -633,6 +646,7 @@ function validateFormPayload(payload: Record<string, string>): FormType {
       throw new HttpError(400, "Missing required field: " + field);
     }
   }
+  if (!isValidEmail(cleanInput(payload.email, 320))) throw new HttpError(400, "Enter a valid email address.");
   if (formType === "speaking") {
     if (!PREFERRED_SPEAKERS.has(cleanInput(payload.preferredSpeaker, 120))) {
       throw new HttpError(400, "Select a valid preferred speaker.");
@@ -667,35 +681,42 @@ async function verifyTurnstile(
 }
 
 async function handleFormSubmission(
-  request: Request,
-  env: Env,
-  payload: Record<string, string>,
+  request: Request, env: Env, payload: Record<string, string>,
 ): Promise<Response> {
   if (payload.website) return json(request, env, { ok: true, emailSent: false });
-  const turnstileToken = text(payload["cf-turnstile-response"], 2000);
-  if (!(await verifyTurnstile(env, turnstileToken, request.headers.get("CF-Connecting-IP"), { action: "turnstile-spin-v1", hostname: new URL(request.url).hostname }))) {
-    throw new HttpError(400, "Verification failed. Please try again.");
-  }
-  const formType = validateFormPayload(payload);
-  const route = FORM_ROUTES[formType];
-
-  const recent = await env.DB.prepare(
-    "SELECT COUNT(*) AS count FROM form_submissions WHERE form_type = ?1 AND identity_key = ?2 AND created_at > datetime('now', ?3)",
-  )
-    .bind(formType, buildIdentityKey(request, payload), "-" + route.rateLimitWindowSeconds + " seconds")
-    .first<{ count: number }>();
-  if (Number(recent?.count || 0) > 0) throw new HttpError(429, "Please wait before submitting again.");
-
+  const formType = validateFormPayload(payload), route = FORM_ROUTES[formType];
   const record = normalizeFormRecord(payload);
+  const suppliedKey = text(payload.requestId, 100);
+  if (suppliedKey && !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(suppliedKey)) throw new HttpError(400, "Invalid submission request ID.");
+  const requestKey = suppliedKey || crypto.randomUUID();
+  const { userAgent: _userAgent, pageUrl: _pageUrl, ...content } = record;
+  const requestHash = bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify({formType, ...content})))));
+  const receipt = async () => {
+    const saved = await env.DB.prepare("SELECT id, request_hash AS hash FROM form_submissions WHERE request_key = ?1 AND request_key != ''").bind(requestKey).first<{id: string; hash: string}>();
+    if (!saved) return null;
+    if (saved.hash !== requestHash) throw new HttpError(409, "This request ID belongs to a different submission. Please submit the edited form again.");
+    return submissionReceipt(request, env, saved.id, true);
+  };
+  // A saved receipt remains retryable even when Turnstile's single-use token
+  // was consumed before the browser lost the original response.
+  if (suppliedKey) { const existing = await receipt(); if (existing) return existing; }
+  if (!(await verifyTurnstile(env, text(payload["cf-turnstile-response"], 2000), request.headers.get("CF-Connecting-IP"), {action: "turnstile-spin-v1", hostname: new URL(request.url).hostname}))) throw new HttpError(400, "Verification failed. Please try again.");
+  await enforcePublicRateLimit(request, env, "form-submit-ip", 10, 600);
   const submissionId = crypto.randomUUID();
-  await env.DB.prepare(
+  const messages = await buildSubmissionEmails(env, formType, record);
+  // INSERT SELECT evaluates deduplication under the database's write lock;
+  // the record, subscriber change and frozen outbox are one transaction.
+  const submission = env.DB.prepare(
     `INSERT INTO form_submissions (
       id, form_type, created_at, identity_key, status,
       name, email, phone, subject, message, organization, event_type,
       event_date, location, audience, details, group_name, group_size,
       preferred_format, request_text, notes, title, page_url, user_agent, consent,
-      preferred_speaker, speaking_budget
-    ) VALUES (?1, ?2, datetime('now'), ?3, 'New', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)`,
+      preferred_speaker, speaking_budget, request_key, request_hash
+    ) SELECT ?1, ?2, datetime('now'), ?3, 'New', ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27
+      WHERE NOT EXISTS (SELECT 1 FROM form_submissions WHERE request_key = ?26 AND request_key != '')
+        AND NOT EXISTS (SELECT 1 FROM form_submissions WHERE form_type = ?2 AND identity_key = ?3
+          AND created_at > datetime('now', ?28))`,
   )
     .bind(
       submissionId,
@@ -723,34 +744,72 @@ async function handleFormSubmission(
       record.consent ? 1 : 0,
       record.preferredSpeaker,
       record.speakingBudget,
-    )
-    .run();
-
+      requestKey, requestHash, "-" + route.rateLimitWindowSeconds + " seconds",
+    );
+  const statements = [submission];
   if (formType === "newsletter") {
-    await env.DB.prepare(
+    statements.push(env.DB.prepare(
       `INSERT INTO newsletter_subscribers (
         email, first_seen_at, last_seen_at, consent, status, source, notes
-      ) VALUES (?1, datetime('now'), datetime('now'), ?2, ?3, ?4, '')
+      ) SELECT ?1, datetime('now'), datetime('now'), ?2, ?3, ?4, '' WHERE EXISTS (SELECT 1 FROM form_submissions WHERE id = ?5)
       ON CONFLICT(email) DO UPDATE SET
         last_seen_at = excluded.last_seen_at,
         consent = excluded.consent,
         status = CASE WHEN excluded.consent = 1 THEN 'active' ELSE newsletter_subscribers.status END,
         source = excluded.source`,
     )
-      .bind(record.email.toLowerCase(), record.consent ? 1 : 0, record.consent ? "active" : "pending", record.pageUrl || firstUrlValue(env.SITE_URL))
-      .run();
+      .bind(record.email.toLowerCase(), record.consent ? 1 : 0, record.consent ? "active" : "pending", record.pageUrl || firstUrlValue(env.SITE_URL), submissionId));
   }
 
-  let emailSent = false;
-  try {
-    await sendSubmissionEmails(env, formType, record);
-    emailSent = true;
-  } catch (error) {
-    console.error(JSON.stringify({ type: "submission_email_failed", formType, error: getErrorMessage(error) }));
-    await writeAuditLog(env, { email: "system@website", role: "developer", displayName: "Website", name: "Website", avatarUrl: "", token: { provider: "worker-form" } }, "email_delivery_failed", "form_submission", submissionId, "Notification email failed for " + formType + ": " + getErrorMessage(error).slice(0, 1500));
+  messages.forEach((message, index) => statements.push(env.DB.prepare(`INSERT INTO submission_email_deliveries (id, submission_id, message_json)
+    SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM form_submissions WHERE id = ?2)`)
+    .bind("submission:" + submissionId + ":" + index, submissionId, JSON.stringify({...message, fromEmail: env.MAIL_FROM_EMAIL, idempotencyKey: "submission:" + submissionId + ":" + index}))));
+  const result = await env.DB.batch(statements);
+  if (Number(result[0].meta?.changes || 0) !== 1) {
+    const existing = await receipt(); if (existing) return existing;
+    throw new HttpError(429, "Please wait before submitting again.");
   }
+  // Provider failure cannot discard a saved form. Cron resumes only unfinished
+  // deliveries, with the original payload and provider idempotency key.
+  try { await processSubmissionEmails(env, submissionId); }
+  catch (error) { console.error(JSON.stringify({type: "submission_queue_failed", submissionId, error: getErrorMessage(error)})); }
+  return submissionReceipt(request, env, submissionId, false);
+}
 
-  return json(request, env, { ok: true, emailSent, submissionId });
+async function processSubmissionEmails(env: Env, submissionId = "") {
+  const started = Date.now();
+  for (let processed = 0; processed < 10 && Date.now() - started < 45000; processed++) {
+    const lock = crypto.randomUUID();
+    const row = await env.DB.prepare(`UPDATE submission_email_deliveries SET status = 'Sending', lock_id = ?1,
+      lock_until = datetime('now', '+3 minutes') WHERE id = (
+        SELECT id FROM submission_email_deliveries WHERE (?2 = '' OR submission_id = ?2)
+          AND ((status = 'Pending' AND datetime(next_attempt_at) <= datetime('now'))
+            OR (status = 'Sending' AND datetime(lock_until) <= datetime('now')))
+        ORDER BY next_attempt_at, id LIMIT 1)
+      RETURNING id, message_json AS messageJson, attempts, first_attempt_at AS firstAttemptAt`)
+      .bind(lock, submissionId).first<{id: string; messageJson: string; attempts: number; firstAttemptAt: string}>();
+    if (!row) return;
+    if (row.attempts >= 6 || (row.firstAttemptAt && Date.now() - Date.parse(row.firstAttemptAt + 'Z') >= 23 * 3600000)) {
+      await env.DB.prepare("UPDATE submission_email_deliveries SET status = 'Failed', last_error = 'Retry window exhausted; verify provider delivery before resending.', lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2").bind(row.id, lock).run();
+      continue;
+    }
+    await env.DB.prepare("UPDATE submission_email_deliveries SET attempts = attempts + 1, first_attempt_at = CASE WHEN first_attempt_at = '' THEN datetime('now') ELSE first_attempt_at END, updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2").bind(row.id, lock).run();
+    try {
+      await sendEmail(env, JSON.parse(row.messageJson) as Parameters<typeof sendEmail>[1]);
+      await env.DB.prepare("UPDATE submission_email_deliveries SET status = 'Sent', last_error = '', lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2").bind(row.id, lock).run();
+    } catch (error) {
+      const transient = !(error instanceof EmailDeliveryError) || error.status === 429 || error.status >= 500 || error.concurrent;
+      const delay = Math.min(3600, Math.max(60 * 2 ** row.attempts, error instanceof EmailDeliveryError ? error.retryAfter : 0));
+      await env.DB.prepare("UPDATE submission_email_deliveries SET status = ?3, next_attempt_at = datetime('now', ?4), last_error = ?5, lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2")
+        .bind(row.id, lock, transient && row.attempts + 1 < 6 ? "Pending" : "Failed", '+' + delay + ' seconds', getErrorMessage(error).slice(0, 1000)).run();
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+
+async function submissionReceipt(request: Request, env: Env, submissionId: string, duplicate: boolean) {
+  const outstanding = await env.DB.prepare("SELECT COUNT(*) AS count FROM submission_email_deliveries WHERE submission_id = ?1 AND status != 'Sent'").bind(submissionId).first<{count: number}>();
+  return json(request, env, {ok: true, submissionId, duplicate, emailSent: Number(outstanding?.count || 0) === 0});
 }
 
 function normalizeFormRecord(payload: Record<string, string>) {
@@ -1712,7 +1771,7 @@ async function handleAdminApi(
   }
   if (request.method === "POST" && path === "admins") {
     requireRole(admin, "owner");
-    return json(request, env, { ok: true, admin: await saveAdmin(env, await parseBody(request)) });
+    return json(request, env, { ok: true, admin: await saveAdmin(env, admin, await parseBody(request)) });
   }
   if (request.method === "DELETE" && path.startsWith("admins/")) {
     requireRole(admin, "owner");
@@ -1724,7 +1783,12 @@ async function handleAdminApi(
       const owners = await env.DB.prepare("SELECT COUNT(*) AS total FROM admins WHERE role = 'owner'").first<{ total: number }>();
       if (Number(owners?.total || 0) <= 1) throw new HttpError(409, "The last owner cannot be removed.");
     }
-    await env.DB.prepare("DELETE FROM admins WHERE lower(email) = ?1").bind(targetEmail).run();
+    try {
+      await env.DB.prepare("DELETE FROM admins WHERE lower(email) = ?1").bind(targetEmail).run();
+    } catch (error) {
+      if (getErrorMessage(error).includes("The last owner cannot be removed")) throw new HttpError(409, "The last owner cannot be removed.");
+      throw error;
+    }
     await writeAuditLog(env, admin, "admin_removed", "admin", targetEmail, "Admin access removed.");
     return json(request, env, { ok: true });
   }
@@ -2067,8 +2131,8 @@ async function serveAdminAvatar(request: Request, url: URL, env: Env): Promise<R
 async function authorizeAdmin(request: Request, env: Env): Promise<AuthenticatedAdmin> {
   // Access remains the default whenever it is configured. The isolated sandbox
   // can opt into the Google session flow used by its login page.
-  const authMode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
-  if (authMode !== "google" && hasCloudflareAccessConfig(env)) {
+  if (adminAuthMode(env) === "access") {
+    if (!hasCloudflareAccessConfig(env)) throw new HttpError(503, "Cloudflare Access configuration is incomplete.");
     // Access only injects its assertion on paths covered by the edge application.
     // Uncovered session/API paths can still validate the application cookie with
     // the same signature, issuer, audience and expiration checks. Never trust email headers.
@@ -2090,44 +2154,27 @@ async function authorizeAdmin(request: Request, env: Env): Promise<Authenticated
 }
 
 async function ensureBootstrapAdmins(env: Env) {
-  const ownerEmails = splitEmails(env.ADMIN_BOOTSTRAP_EMAILS);
-  let bootstrapNames: Record<string, string> = {};
+  if (await env.DB.prepare("SELECT id FROM admin_bootstrap_state WHERE id = 1").first()) return;
+  const owners = splitEmails(env.ADMIN_BOOTSTRAP_EMAILS);
+  const developers = splitEmails(env.ADMIN_DEVELOPER_EMAILS || "").filter(email => !owners.includes(email));
+  if (!owners.length) throw new HttpError(503, "At least one bootstrap owner is required.");
+  let names: Record<string, string> = {};
   if (env.ADMIN_BOOTSTRAP_NAMES) {
-    try { bootstrapNames = JSON.parse(env.ADMIN_BOOTSTRAP_NAMES); }
+    try { names = JSON.parse(env.ADMIN_BOOTSTRAP_NAMES); }
     catch { throw new HttpError(503, "Admin names configuration is invalid."); }
-    if (!bootstrapNames || typeof bootstrapNames !== "object" || Array.isArray(bootstrapNames)) {
-      throw new HttpError(503, "Admin names configuration is invalid.");
-    }
+    if (!names || typeof names !== "object" || Array.isArray(names)) throw new HttpError(503, "Admin names configuration is invalid.");
   }
-  for (const email of ownerEmails) {
-    const name = typeof bootstrapNames[email] === "string" ? text(bootstrapNames[email], 200) : "";
-    await env.DB.prepare(
-      `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
-       VALUES (?1, 'owner', ?2, ?2, datetime('now'), datetime('now'))
-       ON CONFLICT(email) DO UPDATE SET
-         role = 'owner',
-         display_name = CASE WHEN coalesce(admins.display_name, '') = '' OR lower(admins.display_name) = lower(admins.email) THEN excluded.display_name ELSE admins.display_name END,
-         full_name = CASE WHEN coalesce(admins.full_name, '') = '' OR lower(admins.full_name) = lower(admins.email) THEN excluded.full_name ELSE admins.full_name END,
-         updated_at = datetime('now')`,
-    )
-      .bind(email, name)
-      .run();
-  }
-  // Configured developers are reconciled on login, including existing accounts.
-  // Owner bootstrap entries take precedence if an email is listed in both.
-  for (const email of splitEmails(env.ADMIN_DEVELOPER_EMAILS || "")) {
-    if (ownerEmails.includes(email)) continue;
-    const name = typeof bootstrapNames[email] === "string" ? text(bootstrapNames[email], 200) : "";
-    await env.DB.prepare(
-      `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
-       VALUES (?1, 'developer', ?2, ?2, datetime('now'), datetime('now'))
-       ON CONFLICT(email) DO UPDATE SET
-         role = 'developer',
-         display_name = CASE WHEN coalesce(admins.display_name, '') = '' OR lower(admins.display_name) = lower(admins.email) THEN excluded.display_name ELSE admins.display_name END,
-         full_name = CASE WHEN coalesce(admins.full_name, '') = '' OR lower(admins.full_name) = lower(admins.email) THEN excluded.full_name ELSE admins.full_name END,
-         updated_at = datetime('now')`,
-    ).bind(email, name).run();
-  }
+  // Every insert checks the marker inside the same transaction. Overlapping
+  // initial logins cannot reseed after another request completes bootstrap.
+  const statements = [...owners.map(email => ({email, role: "owner"})), ...developers.map(email => ({email, role: "developer"}))].map(({email, role}) => {
+    const name = typeof names[email] === "string" ? text(names[email], 200) : "";
+    return env.DB.prepare(`INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
+      SELECT ?1, ?2, ?3, ?3, datetime('now'), datetime('now')
+      WHERE NOT EXISTS (SELECT 1 FROM admin_bootstrap_state WHERE id = 1)
+      ON CONFLICT(email) DO NOTHING`).bind(email, role, name);
+  });
+  statements.push(env.DB.prepare("INSERT INTO admin_bootstrap_state (id) VALUES (1) ON CONFLICT(id) DO NOTHING"));
+  await env.DB.batch(statements);
 }
 
 function requireRole(admin: AuthenticatedAdmin, required: AdminRole) {
@@ -2181,7 +2228,7 @@ async function listActivity(env: Env, filter: string, limit: number) {
   return rows.results || [];
 }
 
-const submissionSelect = "SELECT f.id, f.name, f.email, f.phone, f.subject, f.message, f.title, f.organization, f.location, f.audience, f.details, f.notes, f.status, f.form_type AS formType, f.created_at AS createdAt, f.event_type AS eventType, f.event_date AS eventDate, f.group_name AS groupName, f.group_size AS groupSize, f.preferred_format AS preferredFormat, f.preferred_speaker AS preferredSpeaker, f.speaking_budget AS speakingBudget, f.request_text AS requestText, f.page_url AS pageUrl, 'submission:' || f.id AS itemKey, COALESCE(m.folder, 'inbox') AS folder, COALESCE(m.is_read, 0) AS isRead, COALESCE(m.starred, 0) AS starred FROM form_submissions f LEFT JOIN mailbox_state m ON m.item_key = 'submission:' || f.id AND m.admin_email = ?1";
+const submissionSelect = "SELECT f.id, f.name, f.email, f.phone, f.subject, f.message, f.title, f.organization, f.location, f.audience, f.details, f.notes, f.status, f.form_type AS formType, f.created_at AS createdAt, f.event_type AS eventType, f.event_date AS eventDate, f.group_name AS groupName, f.group_size AS groupSize, f.preferred_format AS preferredFormat, f.preferred_speaker AS preferredSpeaker, f.speaking_budget AS speakingBudget, f.request_text AS requestText, f.page_url AS pageUrl, (SELECT COUNT(*) FROM submission_email_deliveries d WHERE d.submission_id = f.id) AS emailDeliveries, (SELECT COUNT(*) FROM submission_email_deliveries d WHERE d.submission_id = f.id AND d.status IN ('Pending', 'Sending')) AS emailPending, (SELECT COUNT(*) FROM submission_email_deliveries d WHERE d.submission_id = f.id AND d.status = 'Failed') AS emailFailed, 'submission:' || f.id AS itemKey, COALESCE(m.folder, 'inbox') AS folder, COALESCE(m.is_read, 0) AS isRead, COALESCE(m.starred, 0) AS starred FROM form_submissions f LEFT JOIN mailbox_state m ON m.item_key = 'submission:' || f.id AND m.admin_email = ?1";
 
 function formatSubmissionRecord(row: Record<string, unknown>) {
   return { ...row, itemKey: text(row.itemKey, 240), sourceType: "submission", formTypeLabel: row.formType,
@@ -3378,35 +3425,43 @@ async function listAdmins(env: Env): Promise<AdminUser[]> {
   return rows.results || [];
 }
 
-async function saveAdmin(env: Env, body: Record<string, string>): Promise<AdminUser> {
+async function saveAdmin(env: Env, actor: AuthenticatedAdmin, body: Record<string, string>): Promise<AdminUser> {
   const email = text(body.email, 320).toLowerCase();
   const role = text(body.role, 40) as AdminRole;
   if (!isValidEmail(email)) throw new HttpError(400, "Enter a valid email address.");
   if (!ADMIN_ROLE_ORDER.includes(role)) throw new HttpError(400, "Select a valid admin role.");
-  await env.DB.prepare(
-    `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
+  try {
+    await env.DB.prepare(
+      `INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, datetime('now'), datetime('now'))
      ON CONFLICT(email) DO UPDATE SET role = excluded.role, display_name = excluded.display_name, full_name = excluded.full_name, updated_at = datetime('now')`,
-  )
-    .bind(email, role, text(body.displayName, 200), text(body.name, 200) || text(body.displayName, 200))
-    .run();
+    )
+      .bind(email, role, text(body.displayName, 200), text(body.name, 200) || text(body.displayName, 200))
+      .run();
+  } catch (error) {
+    if (getErrorMessage(error).includes("The last owner cannot be demoted")) throw new HttpError(409, "The last owner cannot be demoted.");
+    throw error;
+  }
   const admin = await env.DB.prepare(
     "SELECT email, role, display_name AS displayName, full_name AS name, avatar_url AS avatarUrl, created_at AS createdAt, updated_at AS updatedAt FROM admins WHERE email = ?1",
   ).bind(email).first<AdminUser>();
   if (!admin) throw new Error("Admin could not be reloaded after saving.");
+  await writeAuditLog(env, actor, "admin_saved", "admin", email, "Admin access saved with role " + role + ".");
   return admin;
 }
 
-async function sendSubmissionEmails(env: Env, formType: FormType, record: ReturnType<typeof normalizeFormRecord>) {
+async function buildSubmissionEmails(env: Env, formType: FormType, record: ReturnType<typeof normalizeFormRecord>) {
+  const messages: Array<Parameters<typeof sendEmail>[1]> = [];
   const submitterEmail = record.email.toLowerCase();
   if (formType !== "bookNotification") {
     const adminMessage = buildAdminMessage(formType, record, firstUrlValue(env.SITE_URL));
-    await sendEmail(env, { to: env.ADMIN_NOTIFICATION_EMAIL, subject: adminMessage.subject, html: adminMessage.html, text: adminMessage.text, replyTo: isValidEmail(submitterEmail) ? submitterEmail : env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing Website" });
+    messages.push({ to: env.ADMIN_NOTIFICATION_EMAIL, subject: adminMessage.subject, html: adminMessage.html, text: adminMessage.text, replyTo: isValidEmail(submitterEmail) ? submitterEmail : env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing Website" });
   }
   if (isValidEmail(submitterEmail)) {
     const userMessage = buildUserMessage(formType, record, firstUrlValue(env.SITE_URL), await getUnsubscribeUrl(env, submitterEmail));
-    await sendEmail(env, { to: submitterEmail, subject: userMessage.subject, html: userMessage.html, text: userMessage.text, replyTo: env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing LLC" });
+    messages.push({ to: submitterEmail, subject: userMessage.subject, html: userMessage.html, text: userMessage.text, replyTo: env.ADMIN_NOTIFICATION_EMAIL, fromName: "Jackrabbit Punkin Publishing LLC" });
   }
+  return messages;
 }
 
 function pdfLatin1ToBytes(value: string): Uint8Array {
@@ -4142,6 +4197,7 @@ function renderUnsubscribePage(success: boolean, message: string) {
 
 async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
   await sendDueCampaigns(env);
+  await processSubmissionEmails(env);
   await processNewsletterQueue(env);
   if (Math.floor(scheduledTime / 60000) % 15 === 0) {
     await rollupAnalyticsEvents(env);

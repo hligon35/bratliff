@@ -101,10 +101,6 @@ const publicConfig = {
   adminEmail: normalizeUrl(values.ADMIN_NOTIFICATION_EMAIL),
   turnstileSiteKey: normalizeUrl(values.TURNSTILE_SITE_KEY),
   squareLinks: {
-    books: {
-      battlesHardcover: normalizeUrl(values.SQUARE_BATTLES_HARDCOVER_URL),
-      battlesPaperback: normalizeUrl(values.SQUARE_BATTLES_PAPERBACK_URL)
-    },
     sponsorships: {
       pagePal: normalizeUrl(values.SQUARE_PAGE_PAL_URL),
       chapterChampion: normalizeUrl(values.SQUARE_CHAPTER_CHAMPION_URL),

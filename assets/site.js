@@ -691,6 +691,16 @@ async function submitLiveForm(form) {
     if (fallbackTitle) payload.set("title", fallbackTitle);
   }
 
+  // Retain the same request ID after a lost response; edits start a new request.
+  const identityPayload = new URLSearchParams(payload);
+  identityPayload.delete("cf-turnstile-response");
+  const fingerprint = identityPayload.toString();
+  if (form.dataset.submissionFingerprint !== fingerprint) {
+    form.dataset.submissionFingerprint = fingerprint;
+    form.dataset.submissionRequestId = crypto.randomUUID();
+  }
+  payload.set("requestId", form.dataset.submissionRequestId);
+
   try {
     if (submitButton) {
       submitButton.disabled = true;
@@ -724,6 +734,8 @@ async function submitLiveForm(form) {
       form.dataset.successMessage || "Thank you. Your request has been sent.",
     );
     trackEvent("form_submit", { meta: { formType: payload.get("formType") } });
+    delete form.dataset.submissionRequestId;
+    delete form.dataset.submissionFingerprint;
     form.reset();
   } catch (error) {
     setFormMessage(
@@ -1150,28 +1162,54 @@ function initSponsorProgram() {
 
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;
-    if (event.data && event.data.type === "jrpp-sponsor-success") {
-      closeSponsorModal();
-      if (recognitionMount) loadSponsorRecognition();
-      window.alert("Thank you! Your sponsorship payment was received.");
+    if (event.data && event.data.type === "jrpp-sponsor-return") {
+      confirmSponsorPayment(event.data.sponsorId);
     }
   });
 
   if (recognitionMount) loadSponsorRecognition();
 
-  // If this page was opened as the Square checkout popup and payment just completed,
-  // notify the original tab and close this one instead of leaving two windows open.
-  function handleSponsorPaymentReturn() {
+  async function confirmSponsorPayment(sponsorId) {
+    if (!sponsorId || !apiBase) {
+      window.alert("We cannot verify this sponsorship yet. Please contact the publisher with your payment receipt.");
+      return false;
+    }
+    try {
+      const response = await fetch(`${apiBase}/api/sponsors/confirm-checkout`, {
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({sponsorId}),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || "Payment verification is unavailable.");
+      if (!data.paid) {
+        window.alert("Your sponsorship payment has not been confirmed yet. If you completed checkout, please allow a moment for confirmation or contact the publisher with your receipt.");
+        return false;
+      }
+      closeSponsorModal();
+      if (recognitionMount) loadSponsorRecognition();
+      window.alert("Thank you! Your sponsorship payment was received.");
+      return true;
+    } catch (error) {
+      window.alert("We could not verify your sponsorship payment. Please keep your receipt and try again or contact the publisher.");
+      return false;
+    }
+  }
+
+  async function handleSponsorPaymentReturn() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("sponsor") !== "success") return;
     const sponsorId = params.get("sponsorId") || "";
+    // The return URL is only a notification. The opener verifies persisted
+    // payment state itself before displaying any payment-received message.
     if (window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: "jrpp-sponsor-success", sponsorId }, window.location.origin);
+      window.opener.postMessage({type: "jrpp-sponsor-return", sponsorId}, window.location.origin);
       window.close();
       return;
     }
-    window.history.replaceState({}, "", window.location.pathname);
-    window.alert("Thank you! Your sponsorship payment was received.");
+    if (await confirmSponsorPayment(sponsorId)) {
+      params.delete("sponsor"); params.delete("sponsorId");
+      const query = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (query ? "?" + query : "") + window.location.hash);
+    }
   }
 
   function ensureSponsorModal() {

@@ -32,11 +32,16 @@
   }
 
   function loadCart() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (_) { return []; }
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (!Array.isArray(saved)) return [];
+      return saved.filter(item => item && typeof item.sku === 'string' && Number.isSafeInteger(item.quantity) && item.quantity > 0)
+        .slice(0, 20).map(item => ({ ...item, quantity: Math.min(item.quantity, 99) }));
+    } catch (_) { return []; }
   }
 
   function saveCart() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.cart));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.cart)); } catch (_) { /* Cart still works when storage is unavailable. */ }
     updateCartCount();
   }
 
@@ -56,7 +61,41 @@
     if (!data.ok) throw new Error(data.error || 'Could not load books.');
     state.books = Array.isArray(data.books) ? data.books : [];
     state.checkout = data.checkout || { available: false };
+    reconcileCart();
+    renderCart();
+    updateDirectPurchaseButtons();
     return state.books;
+  }
+
+  function availableQuantity(book) {
+    if (!book || (book.status !== 'Published' && !book.preorder)) return 0;
+    if (!Number.isFinite(Number(book.price)) || Number(book.price) <= 0) return 0;
+    return book.preorder ? 99 : Math.min(99, Math.max(0, Math.floor(Number(book.stock) || 0)));
+  }
+
+  function reconcileCart() {
+    const previous = JSON.stringify(state.cart), quantities = new Map();
+    state.cart.forEach(item => quantities.set(item.sku, (quantities.get(item.sku) || 0) + item.quantity));
+    state.cart = [...quantities].flatMap(([sku, quantity]) => {
+      const book = state.books.find(item => item.sku === sku), max = availableQuantity(book);
+      return max ? [{ sku: book.sku, title: book.title, price: Number(book.price), imageUrl: book.imageUrl || '', quantity: Math.min(quantity, max), max }] : [];
+    });
+    saveCart();
+    if (JSON.stringify(state.cart) !== previous && previous !== '[]') toast('Your cart was updated to the current prices and availability.');
+  }
+
+  function directPurchaseBook(button) {
+    const normalize = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const matches = state.books.filter(book => button.dataset.storeDirectSku
+      ? book.sku === button.dataset.storeDirectSku
+      : normalize(book.title) === normalize(button.dataset.storeDirectTitle) && normalize(book.format) === normalize(button.dataset.storeDirectFormat));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function updateDirectPurchaseButtons() {
+    document.querySelectorAll('[data-store-direct-title], [data-store-direct-sku]').forEach(button => {
+      button.hidden = !state.checkout.available || !availableQuantity(directPurchaseBook(button));
+    });
   }
 
   function renderStore() {
@@ -68,7 +107,7 @@
     }
 
     grid.innerHTML = state.books.map(book => {
-      const purchasable = book.status === 'Published' || Boolean(book.preorder);
+      const purchasable = availableQuantity(book) > 0;
       const stockClass = book.stock <= book.lowStockThreshold ? 'low' : 'ok';
       const stockLabel = book.preorder ? 'Preorder available' : book.status === 'Out of Stock' ? 'Out of stock' : book.stock <= book.lowStockThreshold ? `Only ${book.stock} left` : 'In stock';
       return `<article class="store-card" data-book-id="${escapeHtml(book.bookId)}">
@@ -91,11 +130,11 @@
 
   function addToCart(sku) {
     const book = state.books.find(item => item.sku === sku);
-    if (!book) return;
+    const max = availableQuantity(book);
+    if (!max) return toast('This book is currently unavailable.');
     const existing = state.cart.find(item => item.sku === sku);
-    const max = book.preorder ? 99 : Math.max(0, Number(book.stock || 0));
-    if (existing) existing.quantity = Math.min(existing.quantity + 1, max || 1);
-    else state.cart.push({ sku: book.sku, title: book.title, price: Number(book.price || 0), imageUrl: book.imageUrl || '', quantity: 1, max: max || 1 });
+    if (existing) existing.quantity = Math.min(existing.quantity + 1, max);
+    else state.cart.push({ sku: book.sku, title: book.title, price: Number(book.price), imageUrl: book.imageUrl || '', quantity: 1, max });
     saveCart(); renderCart(); openCart(); toast(`${book.title} added to cart.`);
   }
 
@@ -139,7 +178,7 @@
   }
 
   function openCart() {
-    ensureCartUi();
+    renderCart();
     const backdrop = document.querySelector('.store-cart-backdrop');
     backdrop.classList.add('open'); backdrop.setAttribute('aria-hidden', 'false');
     document.body.classList.add('store-cart-open');
@@ -226,6 +265,13 @@
   }
 
   document.addEventListener('click', event => {
+    const direct = event.target.closest('[data-store-direct-title], [data-store-direct-sku]');
+    if (direct) {
+      event.preventDefault();
+      const book = directPurchaseBook(direct);
+      if (state.checkout.available && book) addToCart(book.sku);
+      return;
+    }
     const add = event.target.closest('[data-add-sku]'); if (add) return addToCart(add.dataset.addSku);
     const trigger = event.target.closest('[data-store-cart-trigger]'); if (trigger) return openCart();
     if (event.target.closest('.store-cart-close')) return closeCart();

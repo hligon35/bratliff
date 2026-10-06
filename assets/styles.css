@@ -799,6 +799,11 @@ body.account-overlay-open {
 }
 .purchase-button.direct {
   background: var(--purple);
+  border: 0;
+  cursor: pointer;
+}
+.purchase-button[hidden] {
+  display: none;
 }
 
 .hero {
