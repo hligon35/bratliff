@@ -85,7 +85,7 @@
 		"ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
 		"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
 		"INVENTORY_AUTHORITY": "local",
-		"ADMIN_AUTH_MODE": "access"
+		"ADMIN_AUTH_MODE": "google"
 	},
 	"secrets": {
 		"required": [
