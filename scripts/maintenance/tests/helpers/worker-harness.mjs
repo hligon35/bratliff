@@ -11,7 +11,7 @@ const nativeRequire = createRequire(import.meta.url);
 
 // Exercise the actual Worker functions with local SQLite and mock providers.
 // The added exports exist only in this in-memory test module, never in the bundle.
-export function loadWorker(fetchMock = () => { throw new Error('Unexpected network access'); }, socketMock) {
+export function loadWorker(fetchMock = () => { throw new Error('Unexpected network access'); }, socketMock, joseMock) {
   const cache = new Map();
   const sandbox = vm.createContext({
     console, Request, Response, Headers, URL, URLSearchParams, FormData, File,
@@ -30,7 +30,7 @@ export function loadWorker(fetchMock = () => { throw new Error('Unexpected netwo
     const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     function requireLocal(name) {
       if (name === 'cloudflare:sockets') return { connect: socketMock || (() => { throw new Error('Unexpected socket access'); }) };
-      if (name === 'jose') return { createRemoteJWKSet: () => ({}), jwtVerify: () => { throw new Error('JWT provider access is not permitted in offline tests'); } };
+      if (name === 'jose') return joseMock || { createRemoteJWKSet: () => ({}), jwtVerify: () => { throw new Error('JWT provider access is not permitted in offline tests'); } };
       if (name.startsWith('.')) {
         let resolved = path.resolve(path.dirname(filename), name);
         if (resolved.endsWith('.json')) return JSON.parse(readFileSync(resolved, 'utf8'));

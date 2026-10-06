@@ -19,17 +19,9 @@
 
   const publicApiRoot = pickUrlForCurrentOrigin(siteConfig.publicApiUrl, "").replace(/\/$/, "");
   const loginUrl = String(siteConfig.loginUrl || "login/").trim();
-  const authSessionEndpoint = String(
-    publicApiRoot
-      ? publicApiRoot + "/api/auth/session"
-      : siteConfig.authSessionEndpoint || "",
-  ).replace(/\/$/, "");
-  const authLogoutEndpoint = String(
-    publicApiRoot
-      ? publicApiRoot + "/api/auth/logout"
-      : siteConfig.authLogoutEndpoint || "",
-  ).replace(/\/$/, "");
   const adminApiRoot = resolveApiRoot(siteConfig.adminApiUrl, "/api/admin");
+  const authSessionEndpoint = adminApiRoot + "/session";
+  const authLogoutEndpoint = adminApiRoot + "/logout";
   const cacheKeys = {
     viewer: "jrpp-admin-viewer",
   };
@@ -437,7 +429,7 @@
       return {};
     });
     if (response.status === 401) {
-      redirectToLogin("Please sign in with Google to continue.");
+      redirectToLogin(data.error || "Please sign in with Google to continue.");
       throw createError(data.error || "Authentication is required.", response.status);
     }
     if (!response.ok || data.ok === false) {
@@ -457,7 +449,7 @@
       return {};
     });
     if (response.status === 401) {
-      redirectToLogin("Please sign in with Google to continue.");
+      redirectToLogin(data.error || "Please sign in with Google to continue.");
       throw createError(data.error || "Authentication is required.", response.status);
     }
     if (!response.ok || data.ok === false) {

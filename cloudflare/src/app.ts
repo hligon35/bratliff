@@ -107,6 +107,7 @@ const app: AppHandler = {
         return json(request, env, {
           ok: true,
           mode: adminAuthMode(env),
+          adminUrl: new URL(matchOriginUrl(env.PUBLIC_ADMIN_URL, request, "/admin/"), request.url).toString(),
           googleClientId: getGoogleClientId(env),
         });
       }
@@ -164,11 +165,11 @@ const app: AppHandler = {
         return await handleGoogleAuthRequest(request, env);
       }
 
-      if (url.pathname === "/api/auth/session") {
+      if (url.pathname === "/api/auth/session" || url.pathname === "/api/admin/session") {
         return await handleAdminSessionRequest(request, env);
       }
 
-      if (url.pathname === "/api/auth/logout") {
+      if (url.pathname === "/api/auth/logout" || url.pathname === "/api/admin/logout") {
         return await handleAdminLogoutRequest(request, env);
       }
 
@@ -349,14 +350,20 @@ function adminAuthMode(env: Env): "access" | "google" {
   return text(env.ADMIN_AUTH_MODE, 40).toLowerCase() !== "google" && hasCloudflareAccessConfig(env) ? "access" : "google";
 }
 
+const accessJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
 async function verifyCloudflareAccessJwt(token: string, env: Env): Promise<VerifiedAccessIdentity> {
   const teamDomain = text(env.CF_ACCESS_TEAM_DOMAIN, 200).replace(/^https?:\/\//i, "").replace(/\/$/, "");
   const issuer = `https://${teamDomain}`;
-  const jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+  let jwks = accessJwksByIssuer.get(issuer);
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+    accessJwksByIssuer.set(issuer, jwks);
+  }
   let payload: JWTPayload;
   try {
     payload = (
-      await jwtVerify(token, jwks, { audience: text(env.CF_ACCESS_AUD, 200), issuer })
+      await jwtVerify(token, jwks, { audience: text(env.CF_ACCESS_AUD, 200), issuer, algorithms: ["RS256"], requiredClaims: ["exp", "sub", "email"] })
     ).payload;
   } catch (error) {
     throw new HttpError(403, "Invalid Cloudflare Access token: " + getErrorMessage(error));
@@ -379,6 +386,9 @@ function getGoogleClientId(env: Env) {
 async function handleGoogleAuthRequest(request: Request, env: Env) {
   if (request.method !== "POST") {
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+  }
+  if (adminAuthMode(env) === "access") {
+    throw new HttpError(409, "Use Cloudflare Access to sign in to this admin.");
   }
   if (!hasAdminSessionConfig(env)) {
     throw new HttpError(503, "Google sign-in is not configured yet.");
@@ -2003,7 +2013,10 @@ async function authorizeAdmin(request: Request, env: Env): Promise<Authenticated
   // can opt into the Google session flow used by its login page.
   const authMode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
   if (authMode !== "google" && hasCloudflareAccessConfig(env)) {
-    const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion");
+    // Access only injects its assertion on paths covered by the edge application.
+    // Uncovered session/API paths can still validate the application cookie with
+    // the same signature, issuer, audience and expiration checks. Never trust email headers.
+    const accessJwt = request.headers.get("Cf-Access-Jwt-Assertion") || readCookie(request, "CF_Authorization");
     if (!accessJwt) {
       throw new HttpError(401, "Cloudflare Access did not present a verified identity for this request.");
     }

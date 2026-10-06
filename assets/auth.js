@@ -131,9 +131,10 @@
       const button = document.createElement('a');
       button.className = 'button ink';
       button.textContent = 'Continue with Google';
-      button.href = safeTarget;
+      button.href = new URL(safeTarget, configuration.adminUrl || window.location.origin).toString();
       host.replaceChildren(button);
-      setLoginStatus('Continue to secure admin sign-in.');
+      const message = new URLSearchParams(window.location.search).get('message');
+      setLoginStatus(message || 'Continue to secure admin sign-in.', Boolean(message));
       return;
     }
 

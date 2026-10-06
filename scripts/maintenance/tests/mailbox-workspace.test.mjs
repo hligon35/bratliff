@@ -11,13 +11,21 @@ function workspace(handler = () => ({draft:null})) {
   const location={href:'https://example.org/admin/index.html?view=mailbox',origin:'https://example.org',pathname:'/admin/index.html',search:'?view=mailbox',hash:'',replace(){}};
   const window={siteConfig:{},adminShell:{setActive(){},setConnection(){},setViewer(){},closeMobile(){}},addEventListener(){},confirm:()=>true};
   const document={body:{classList:{add(){},remove(){}}},querySelector(s){return /^#[\w]+$/.test(s)?element(s.slice(1)):null},querySelectorAll(){return []},addEventListener(){}};
-  const source=readFileSync(path.join(root,'assets/admin-workspace.js'),'utf8').replace(/bootstrap\(\);\r?\n\}\)\(\);/,'window.testWorkspace={state,setView,openCompose,loadMail,loadMailDetail,applyLocation,loadSubmissionDetail,sendMessage};\n})();');
+  const source=readFileSync(path.join(root,'assets/admin-workspace.js'),'utf8').replace(/bootstrap\(\);\r?\n\}\)\(\);/,'window.testWorkspace={state,setView,openCompose,loadMail,loadMailDetail,applyLocation,loadSubmissionDetail,sendMessage,checkSession,logout};\n})();');
   const fetch=async (url, options={})=>{requests.push({url:String(url),options});return Response.json(await handler(String(url),options))};
   vm.runInNewContext(source,{window,document,location,history:{pushState(...args){historyCalls.push(args)},replaceState(...args){historyCalls.push(args)}},navigator:{},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto:globalThis.crypto,fetch,URL,URLSearchParams,Intl,Date,console,setTimeout:(fn)=>{timers.push(fn);return timers.length},clearTimeout(){},innerWidth:1000});
   return {...window.testWorkspace,element,storage,requests,historyCalls,location,timers};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const received={itemKey:'email:1',sourceType:'email',email:'sender@example.org',name:'Sender',subject:'Hello',body:'Mail',folder:'inbox',isRead:true,outbound:[]};
+
+test('mailbox session and logout use the same protected API prefix as its other requests', async()=>{
+  const app=workspace(url=>url.endsWith('/session')?{ok:true,viewer:{email:'owner@example.org'}}:{ok:true});
+  assert.equal(await app.checkSession(),true);
+  await app.logout();
+  assert.deepEqual(app.requests.map(r=>r.url),['/api/admin/session','/api/admin/logout']);
+  assert.ok(app.requests.every(r=>r.options.credentials==='include'&&r.options.cache==='no-store'));
+});
 
 test('order and website contact compose uses standalone drafts; only received mail uses reply keys', async()=>{
   const app=workspace();
