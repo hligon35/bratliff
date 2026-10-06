@@ -11,7 +11,7 @@
     ] },
     { label: "Customer work", items: [
       { key: "mailbox", label: "Mailbox", icon: "mail", view: true, count: "mailNavCount" },
-      { key: "submissions", label: "Website submissions", icon: "forum", view: true },
+      { key: "submissions", label: "Website submissions", icon: "assignment", view: true },
     ] },
     { label: "Publishing", items: [
       { key: "author", label: "Featured Author", icon: "person" },

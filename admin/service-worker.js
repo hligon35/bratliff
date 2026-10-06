@@ -1,5 +1,5 @@
 "use strict";
-var CACHE="jrpp-admin-shell-v11";
+var CACHE="jrpp-admin-shell-v12";
 var SHELL=["/admin/","/admin/index.html","/assets/admin-shell.css","/assets/material-icons.woff2","/assets/admin-shell.js","/assets/admin-workspace.css","/assets/admin-workspace.js","/assets/site-config.js","/assets/icons-admin-192.svg","/assets/icons-admin-512.svg"];
 self.addEventListener("install",function(event){event.waitUntil(caches.open(CACHE).then(function(cache){return cache.addAll(SHELL)}).then(function(){return self.skipWaiting()}))});
 self.addEventListener("activate",function(event){event.waitUntil(caches.keys().then(function(keys){return Promise.all(keys.filter(function(k){return k!==CACHE}).map(function(k){return caches.delete(k)}))}).then(function(){return self.clients.claim()}))});
