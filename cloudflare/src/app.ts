@@ -62,6 +62,7 @@ const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60;
 const CUSTOMER_SESSION_COOKIE = "__Host-jrpp_customer_session";
 const CUSTOMER_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const SITE_PREVIEW_COOKIE = "__Host-jrpp_site_preview";
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/documents/JPP_Certificate_of_Appreciation_v1.pdf";
@@ -338,12 +339,25 @@ async function handleCompatibilityRoot(
     if (action === "unsubscribe") {
       return handleUnsubscribe(request, env, url.searchParams);
     }
-    if (env.SITE_LAUNCH_STATE !== "open") {
+    if (url.searchParams.get("site-preview") === "1") {
+      const headers = new Headers({
+        Location: new URL("/", url).toString(),
+        "Cache-Control": "no-store",
+        "Set-Cookie": `${SITE_PREVIEW_COOKIE}=1; Path=/; HttpOnly; Secure; SameSite=Lax`,
+      });
+      return withSecurityHeaders(new Response(null, { status: 302, headers }));
+    }
+    const hasSitePreview = readCookie(request, SITE_PREVIEW_COOKIE) === "1";
+    if (env.SITE_LAUNCH_STATE !== "open" && !hasSitePreview) {
       const response = Response.redirect(new URL("/coming-soon", url).toString(), 302);
       const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store");
       return withSecurityHeaders(new Response(null, { status: 302, headers }));
     }
-    return withSecurityHeaders(await env.ASSETS.fetch(request));
+    const response = await env.ASSETS.fetch(request);
+    const headers = new Headers(response.headers);
+    headers.set("Cache-Control", "no-store");
+    if (env.SITE_LAUNCH_STATE !== "open") headers.set("X-Robots-Tag", "noindex, nofollow");
+    return withSecurityHeaders(new Response(response.body, { status: response.status, statusText: response.statusText, headers }));
   }
 
   if (request.method === "POST") {

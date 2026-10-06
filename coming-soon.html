@@ -12,6 +12,7 @@
     />
     <link rel="icon" type="image/png" href="/assets/icons/jrppLogo.png" />
     <link rel="stylesheet" href="/assets/coming-soon.css" />
+    <script src="/assets/coming-soon.js" defer></script>
   <link rel="apple-touch-icon" href="/assets/icons/jppIcon-180.png" /></head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -69,15 +70,16 @@
           </div>
         </div>
 
-        <div class="launch-art" aria-hidden="true">
-          <span class="chapter-number">01</span>
-          <div class="orbit orbit-one"></div>
-          <div class="orbit orbit-two"></div>
-          <img
-            class="brand-logo"
-            src="/assets/icons/jrppLogo2.png"
-            alt=""
-          / width="640" height="396" decoding="async">
+        <div class="launch-art">
+          <span class="chapter-number" aria-hidden="true">01</span>
+          <div class="orbit orbit-one" aria-hidden="true"></div>
+          <div class="orbit orbit-two" aria-hidden="true"></div>
+          <button class="brand-logo" type="button" data-site-entrance aria-label="Jackrabbit Punkin Publishing logo">
+            <img
+              src="/assets/icons/jrppLogo2.png"
+              alt=""
+              width="640" height="396" decoding="async">
+          </button>
           <p>Opening soon</p>
         </div>
       </section>
