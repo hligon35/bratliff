@@ -4,7 +4,7 @@ window.siteConfig = (function freeze(value) {
   });
   return Object.freeze(value);
 })({
-  "siteUrl": "https://jackrabbitpunkinpublishing.com",
+  "siteUrl": "https://jrpp.alphazonelabs.com",
   "publicApiUrl": "",
   "formEndpoint": "/api/forms/submit",
   "storeBooksEndpoint": "/api/store/books",
