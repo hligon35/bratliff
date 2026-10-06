@@ -801,6 +801,9 @@ document.addEventListener("click", function (event) {
         sku: book.sku,
         stock: book.stock,
         lowStockThreshold: book.lowStockThreshold,
+        stripeSyncStatus: book.stripeInventory && book.stripeInventory.stripeSyncStatus || "pending",
+        stripeSyncedStock: book.stripeInventory ? book.stripeInventory.stripeSyncedStock : null,
+        stripeSyncError: book.stripeInventory && book.stripeInventory.stripeSyncError || "",
         low: low,
       };
     });
@@ -813,6 +816,11 @@ document.addEventListener("click", function (event) {
           { label: "SKU", key: "sku" },
           { label: "Stock", key: "stock" },
           { label: "Alert At", key: "lowStockThreshold" },
+          { label: "Stripe mirror", render: function (row) {
+            const label = row.stripeSyncStatus === "synced" ? "Synced · " + (row.stripeSyncedStock == null ? "—" : row.stripeSyncedStock) :
+              row.stripeSyncStatus === "error" ? "Needs retry" : row.stripeSyncStatus === "syncing" ? "Syncing" : "Pending";
+            return '<span class="badge ' + (row.stripeSyncStatus === "synced" ? "" : "low") + '" title="' + escapeHtml(row.stripeSyncError || "Stripe product metadata mirror") + '">' + escapeHtml(label) + "</span>";
+          } },
           { label: "Status", render: function (row) { return '<span class="badge ' + (row.low ? 'low' : '') + '">' + (row.low ? 'Low stock' : 'Healthy') + '</span>'; } },
         ],
         rows,
@@ -1057,7 +1065,11 @@ document.addEventListener("click", function (event) {
       }) || book;
       populateBookForm(book);
       if (fileInput) fileInput.value = "";
-      setStatus("#bookStatus", "Saved.", true);
+      const sync = data.stripeSync || {};
+      const message = sync.configured === false ? "Saved; Stripe sync needs configuration." :
+        sync.failed ? "Saved; Stripe sync failed and will retry automatically." :
+        sync.synced ? "Saved and mirrored to Stripe." : "Saved; Stripe sync is queued.";
+      setStatus("#bookStatus", message, sync.configured !== false && !sync.failed);
     } catch (error) {
       setStatus("#bookStatus", error.message || "Book could not be saved.", false);
     }
@@ -1133,7 +1145,7 @@ document.addEventListener("click", function (event) {
     const form = event.currentTarget;
     setStatus("#inventoryStatus", "Applying adjustment...", null);
     try {
-      await api("inventory/adjust", {
+      const result = await api("inventory/adjust", {
         method: "POST",
         body: {
           bookId: safeValue(field(form, "bookId")),
@@ -1146,7 +1158,11 @@ document.addEventListener("click", function (event) {
       const reason = field(form, "reason");
       if (reason) reason.value = "Admin adjustment";
       await loadBooks();
-      setStatus("#inventoryStatus", "Inventory updated.", true);
+      const sync = result.stripeSync || {};
+      const message = sync.configured === false ? "Inventory saved locally; Stripe sync needs configuration." :
+        sync.failed ? "Inventory saved locally; Stripe sync failed and will retry automatically." :
+        sync.synced ? "Inventory saved and mirrored to Stripe." : "Inventory saved; Stripe sync is queued.";
+      setStatus("#inventoryStatus", message, sync.configured !== false && !sync.failed);
     } catch (error) {
       setStatus("#inventoryStatus", error.message || "Inventory could not be updated.", false);
     }
@@ -1172,17 +1188,24 @@ document.addEventListener("click", function (event) {
       window.alert("Publisher Store Manager is ready.");
     });
   });
-  qs("#syncSquareStockBtn")?.addEventListener("click", async function () {
-    const button = qs("#syncSquareStockBtn");
-    if (button) { button.disabled = true; button.textContent = "Syncing..."; }
+  qs("#stripeInventorySyncBtn")?.addEventListener("click", async function () {
+    const button = qs("#stripeInventorySyncBtn");
+    if (button) { button.disabled = true; button.textContent = "Syncing…"; }
     try {
-      const data = await api("inventory/sync-square", { method: "POST" });
+      const data = await api("inventory/sync-stripe", { method: "POST", body: {} });
       await loadBooks();
-      window.alert("Square stock sync complete. " + (data.updated || 0) + " book(s) updated.");
+      const status = qs("#inventoryStatus");
+      if (status) {
+        status.textContent = data.configured === false ? "Stripe sync needs STRIPE_SECRET_KEY." :
+          data.failed ? "Stripe sync completed with " + data.failed + " item(s) needing retry." :
+          "Stripe inventory mirror updated for " + data.synced + " book(s).";
+        status.className = "status " + (data.failed || data.configured === false ? "error" : "success");
+      }
     } catch (error) {
-      window.alert(error.message || "Square stock sync failed.");
+      const status = qs("#inventoryStatus");
+      if (status) { status.textContent = error.message || "Stripe inventory sync failed."; status.className = "status error"; }
     } finally {
-      if (button) { button.disabled = false; button.textContent = "Sync Square Stock"; }
+      if (button) { button.disabled = false; button.textContent = "Sync Stripe Inventory"; }
     }
   });
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);

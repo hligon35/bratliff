@@ -45,7 +45,8 @@
             </p>
           </div>
           <button class="btn" id="setupBtn" type="button">Initialize / Repair Store</button>
-          <button class="btn alt" id="syncSquareStockBtn" type="button">Sync Square Stock</button>
+          <button class="btn alt" id="stripeInventorySyncBtn" type="button">Sync Stripe Inventory</button>
+          <span class="status" id="stripeInventorySyncStatus" role="status" aria-live="polite"></span>
         </div>
         <div class="tabs">
           <section data-store-view="overview" class="show">
@@ -223,6 +224,7 @@
               <div class="panel">
                 <div class="panel-head"><h2>Inventory</h2></div>
                 <div class="panel-body">
+                  <p class="toolbar-summary">Inventory changes are saved in the bookstore database and mirrored to each Stripe product’s metadata. Checkout stock enforcement remains in the bookstore.</p>
                   <div class="toolbar toolbar-inventory">
                     <div class="toolbar-field"><label for="inventorySearch">Search</label><input id="inventorySearch" title="Search inventory" placeholder="Title, SKU, author, category" /></div>
                     <div class="toolbar-field"><label for="inventoryStatusFilter">Status</label><select id="inventoryStatusFilter" title="Inventory status filter"><option value="">All statuses</option><option value="Published">Published</option><option value="Coming Soon">Coming Soon</option><option value="Out of Stock">Out of Stock</option><option value="Draft">Draft</option><option value="Archived">Archived</option></select></div>

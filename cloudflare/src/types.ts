@@ -83,6 +83,7 @@ export interface Env {
   SQUARE_LOCATION_ID: string;
   SQUARE_ENVIRONMENT: string;
   SQUARE_API_VERSION: string;
+  STRIPE_SECRET_KEY?: string;
   MAIL_FROM_EMAIL: string;
   ADMIN_NOTIFICATION_EMAIL: string;
   NAMECHEAP_EMAIL_ADDRESS?: string;

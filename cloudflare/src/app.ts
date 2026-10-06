@@ -5,6 +5,7 @@ import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import { MailDeliveryUncertainError, sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
 import { cleanLegacyEmailText } from "./email-html";
+import { syncStripeInventory } from "./stripe-inventory";
 import type {
   AdminRole,
   AdminUser,
@@ -1535,15 +1536,27 @@ async function handleAdminApi(
     });
   }
   if (request.method === "GET" && path === "books") {
-    return json(request, env, { ok: true, books: await listAllStoreBooks(env) });
+    const [books, inventory] = await Promise.all([listAllStoreBooks(env), getInventorySummary(env)]);
+    const syncByBook = new Map(inventory.map((row) => [row.bookId, row]));
+    return json(request, env, { ok: true, books: books.map((book) => ({ ...book, stripeInventory: syncByBook.get(book.bookId) || null })) });
   }
   if (request.method === "POST" && path === "books") {
     requireRole(admin, "manager");
-    return json(request, env, { ok: true, book: await saveBook(env, admin, await parseBody(request)) });
+    const book = await saveBook(env, admin, await parseBody(request));
+    const stripeSync = await syncStripeInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+    return json(request, env, { ok: true, book, stripeSync });
   }
   if (request.method === "POST" && path === "inventory/adjust") {
     requireRole(admin, "manager");
-    return json(request, env, { ok: true, book: await adjustInventory(env, admin, await parseBody(request)) });
+    const book = await adjustInventory(env, admin, await parseBody(request));
+    const stripeSync = await syncStripeInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+    return json(request, env, { ok: true, book, stripeSync });
+  }
+  if (request.method === "POST" && path === "inventory/sync-stripe") {
+    requireRole(admin, "manager");
+    const stripeSync = await syncStripeInventory(env, { force: true, limit: 100 });
+    await writeAuditLog(env, admin, "stripe_inventory_sync", "inventory", "all", "Stripe inventory metadata sync requested.");
+    return json(request, env, { ok: stripeSync.configured, ...stripeSync }, stripeSync.configured ? 200 : 503);
   }
   if (request.method === "POST" && path === "inventory/sync-square") {
     requireRole(admin, "manager");
@@ -3211,7 +3224,7 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
 }
 async function getInventorySummary(env: Env) {
   const rows = await env.DB.prepare(
-    "SELECT id AS bookId, sku, title, stock, low_stock_threshold AS lowStockThreshold, status, CASE WHEN status = 'Published' AND stock <= low_stock_threshold THEN 1 ELSE 0 END AS lowStock FROM books ORDER BY title COLLATE NOCASE",
+    "SELECT b.id AS bookId, b.sku, b.title, b.stock, b.low_stock_threshold AS lowStockThreshold, b.status, CASE WHEN b.status = 'Published' AND b.stock <= b.low_stock_threshold THEN 1 ELSE 0 END AS lowStock, m.stripe_product_id AS stripeProductId, m.synced_stock AS stripeSyncedStock, m.sync_status AS stripeSyncStatus, m.last_synced_at AS stripeLastSyncedAt, m.last_error AS stripeSyncError FROM books b LEFT JOIN stripe_inventory_mirror m ON m.book_id = b.id ORDER BY b.title COLLATE NOCASE",
   ).all<Record<string, unknown>>();
   return (rows.results || []).map((row) => ({
     bookId: text(row.bookId, 120),
@@ -3221,6 +3234,11 @@ async function getInventorySummary(env: Env) {
     lowStockThreshold: Number(row.lowStockThreshold || 0),
     status: text(row.status, 40),
     lowStock: Boolean(Number(row.lowStock || 0)),
+    stripeProductId: text(row.stripeProductId, 200),
+    stripeSyncedStock: row.stripeSyncedStock == null ? null : Number(row.stripeSyncedStock),
+    stripeSyncStatus: text(row.stripeSyncStatus, 20) || "pending",
+    stripeLastSyncedAt: text(row.stripeLastSyncedAt, 50),
+    stripeSyncError: text(row.stripeSyncError, 400),
   }));
 }
 
@@ -4199,6 +4217,8 @@ async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
   await sendDueCampaigns(env);
   await processSubmissionEmails(env);
   await processNewsletterQueue(env);
+  // Mirror queued D1 inventory changes to Stripe; D1 remains authoritative.
+  await syncStripeInventory(env, { limit: 5 });
   if (Math.floor(scheduledTime / 60000) % 15 === 0) {
     await rollupAnalyticsEvents(env);
     await syncBookInventoryFromSquare(env);
