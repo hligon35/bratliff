@@ -25,8 +25,12 @@
       if (!element.isConnected) { widgets.delete(element); return null; }
       const sitekey = String(window.siteConfig?.turnstileSiteKey || '').trim();
       if (!sitekey || /^replace-/.test(sitekey)) throw new Error('Security check is not configured.');
+      element.classList.add('turnstile-widget');
+      delete element.dataset.widgetSize;
+      const size = options.size || (element.clientWidth > 0 && element.clientWidth < 300 ? 'compact' : 'normal');
+      element.dataset.widgetSize = size;
       const id = api.render(element, {
-        sitekey, size: element.clientWidth > 0 && element.clientWidth < 300 ? 'compact' : 'flexible',
+        sitekey, size,
         ...options,
       });
       element.dataset.widgetId = String(id);

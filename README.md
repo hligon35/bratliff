@@ -42,6 +42,10 @@ Then open `http://localhost:8080`.
 
 ## Environment template
 
+Public forms and reader sign-in share the Turnstile loader in [assets/turnstile.js](assets/turnstile.js). Widgets use their standard 300 x 65 size without stretching across the form, with compact sizing below 300 pixels of available width. The header reader-login form includes a keyboard-accessible eye button to show or hide the password in both its desktop popover and mobile dialog; passwords start hidden whenever the form is rendered.
+
+The mobile account overlay is mounted directly under the document body, outside the blurred fixed header, so it stays centered in the viewport. Its card scrolls within the dynamic viewport height on short screens.
+
 Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.env.local` is optional and overrides `.env` during local development.
 
 - `SITE_URL`: the public website URL.

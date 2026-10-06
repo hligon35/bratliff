@@ -310,11 +310,25 @@ initPolicySections();
 function customerAccountPanelMarkup() {
   return [
     "<div class=\"account-panel\">",
-    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Login</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"current-password\" required></label><div class=\"customer-login-turnstile\" data-customer-turnstile></div><input type=\"hidden\" name=\"cf-turnstile-response\" data-turnstile-token><button class=\"button ink\" type=\"submit\">Login</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
+    "<div data-account-mode-panel=\"login\"><p class=\"account-panel-kicker\">Reader account</p><h3>Login</h3><form data-customer-auth-form data-auth-action=\"login\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<span class=\"account-password-field\"><input type=\"password\" name=\"password\" autocomplete=\"current-password\" required><button class=\"account-password-toggle\" type=\"button\" data-password-toggle aria-label=\"Show password\" aria-pressed=\"false\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z\"></path><circle cx=\"12\" cy=\"12\" r=\"3\"></circle><path class=\"password-eye-slash\" d=\"m3 3 18 18\"></path></svg></button></span></label><div class=\"customer-login-turnstile\" data-customer-turnstile></div><input type=\"hidden\" name=\"cf-turnstile-response\" data-turnstile-token><button class=\"button ink\" type=\"submit\">Login</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"signup\">Create an account</a><a href=\"#\" data-account-mode=\"forgot\">Forgot password?</a></p></div>",
     "<div data-account-mode-panel=\"signup\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Create an account</h3><form data-customer-auth-form data-auth-action=\"signup\"><label>Display name<input name=\"displayName\" autocomplete=\"name\" required></label><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label>Password<input type=\"password\" name=\"password\" autocomplete=\"new-password\" minlength=\"8\" required></label><button class=\"button ink\" type=\"submit\">Create account</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
     "<div data-account-mode-panel=\"forgot\" hidden><p class=\"account-panel-kicker\">Reader account</p><h3>Reset your password</h3><form data-customer-auth-form data-auth-action=\"forgot\"><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><button class=\"button ink\" type=\"submit\">Email reset link</button><p class=\"account-message\" data-account-message role=\"status\"></p></form><p class=\"account-links\"><a href=\"#\" data-account-mode=\"login\">Back to sign in</a></p></div>",
     "</div>",
   ].join("");
+}
+
+function initPasswordVisibility(root) {
+  root.querySelectorAll("[data-password-toggle]").forEach((button) => {
+    const input = button.closest(".account-password-field")?.querySelector('input[name="password"]');
+    if (!input) return;
+    input.setAttribute("aria-label", "Password");
+    button.addEventListener("click", () => {
+      const visible = input.type === "password";
+      input.type = visible ? "text" : "password";
+      button.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+      button.setAttribute("aria-pressed", String(visible));
+    });
+  });
 }
 
 function initCustomerAccount() {
@@ -325,6 +339,8 @@ function initCustomerAccount() {
   const triggerLabel = document.querySelector("[data-account-trigger-label]");
   const mobileLink = document.querySelector("[data-account-mobile-login]");
   if (!shell || !popover || !overlay || !trigger) return;
+  // The blurred header creates a containing block for fixed descendants.
+  document.body.appendChild(overlay);
   let currentUser = null;
   let currentAdmin = null;
   let sessionVersion = 0;
@@ -377,6 +393,7 @@ function initCustomerAccount() {
 
   function panelMarkup(root) {
     root.innerHTML = customerAccountPanelMarkup();
+    initPasswordVisibility(root);
     root.querySelectorAll("[data-account-mode]").forEach((link) => {
       link.addEventListener("click", (event) => {
         event.preventDefault();

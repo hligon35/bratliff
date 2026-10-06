@@ -174,7 +174,7 @@ test('simultaneous Turnstile consumers share one loader and render each element 
   const window={siteConfig:{turnstileSiteKey:'offline-key'}};
   const document={head:{appendChild(script){scripts.push(script);}},createElement(){return {dataset:{},remove(){}};}};
   vm.runInNewContext(readFileSync(root+'/assets/turnstile.js','utf8'),{window,document,WeakMap,Promise,String,Error});
-  const el={isConnected:true,clientWidth:250,dataset:{}};
+  const el={isConnected:true,clientWidth:250,dataset:{},classList:{add(){}}};
   const one=window.JPPTurnstile.render(el),two=window.JPPTurnstile.render(el);
   assert.equal(scripts.length,1);
   window.turnstile={render(element,options){rendered.push(options);return 'widget';},reset(id){elements.set(id,'reset');}};scripts[0].onload();
@@ -184,4 +184,32 @@ test('simultaneous Turnstile consumers share one loader and render each element 
   vm.runInNewContext(readFileSync(root+'/assets/turnstile.js','utf8'),{window,document,WeakMap,Promise,String,Error});
   const failed=window.JPPTurnstile.load();scripts[1].onerror();await assert.rejects(failed,/could not load/);
   const retry=window.JPPTurnstile.load();assert.equal(scripts.length,3);window.turnstile={};scripts[2].onload();await retry;
+});
+
+test('Turnstile uses content-sized normal widgets and switches to compact only below 300 pixels', async () => {
+  const rendered = [];
+  const window = {
+    siteConfig: { turnstileSiteKey: 'offline-key' },
+    turnstile: { render(element, options) { rendered.push(options); return String(rendered.length); } },
+  };
+  vm.runInNewContext(readFileSync(root + '/assets/turnstile.js', 'utf8'), { window, document: {} });
+  for (const [width, size] of [[0, 'normal'], [150, 'compact'], [299, 'compact'], [300, 'normal'], [900, 'normal']]) {
+    const classes = new Set();
+    const element = { isConnected: true, clientWidth: width, dataset: {}, classList: { add: name => classes.add(name) } };
+    await window.JPPTurnstile.render(element, { action: 'customer_login', theme: 'light' });
+    assert.equal(rendered.at(-1).size, size);
+    assert.equal(element.dataset.widgetSize, size);
+    assert.equal(classes.has('turnstile-widget'), true);
+    assert.equal(rendered.at(-1).action, 'customer_login');
+    assert.equal(rendered.at(-1).theme, 'light');
+  }
+  const element = { isConnected: true, clientWidth: 900, dataset: {}, classList: { add() {} } };
+  await window.JPPTurnstile.render(element, { size: 'compact' });
+  assert.equal(rendered.at(-1).size, 'compact');
+  assert.equal(element.dataset.widgetSize, 'compact');
+  const detached = { isConnected: false };
+  assert.equal(await window.JPPTurnstile.render(detached), null);
+  assert.equal(rendered.length, 6);
+  delete window.siteConfig.turnstileSiteKey;
+  await assert.rejects(window.JPPTurnstile.render({ isConnected: true }), /not configured/);
 });

@@ -504,7 +504,7 @@ p {
   top: calc(100% + 0.7rem);
   right: 0;
   z-index: 120;
-  width: min(330px, calc(100vw - 2rem));
+  width: min(334px, calc(100vw - 2rem));
   padding: 1rem;
   background: var(--cream);
   border: 1px solid rgba(10, 22, 40, 0.16);
@@ -532,10 +532,11 @@ p {
 
 .account-panel form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.65rem;
 }
 
-.customer-login-turnstile { display: flex; justify-content: center; min-height: 65px; }
+.customer-login-turnstile { justify-self: center; }
 
 .account-panel label {
   display: grid;
@@ -561,6 +562,37 @@ p {
   min-height: 42px;
   margin-top: 0.15rem;
 }
+
+.account-password-field {
+  position: relative;
+  display: block;
+}
+
+.account-panel .account-password-field input {
+  padding-right: 3rem;
+}
+
+.account-password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.account-password-toggle:hover { color: var(--purple); }
+.account-password-toggle svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.account-password-toggle .password-eye-slash { display: none; }
+.account-password-toggle[aria-pressed="true"] .password-eye-slash { display: inline; }
 
 .account-links {
   display: flex;
@@ -620,6 +652,8 @@ p {
   position: relative;
   width: min(440px, 100%);
   max-height: min(700px, calc(100vh - 2rem));
+  max-height: min(700px, calc(100dvh - 2rem));
+  min-height: 0;
   overflow: auto;
   padding: 1.5rem;
   border-radius: 20px;
@@ -2825,6 +2859,9 @@ body.document-viewer-open {
 .footer-signup input { width: 100%; min-width: 0; }
 .footer-grid a { overflow-wrap: anywhere; }
 .cf-turnstile { max-width: 100%; }
+.turnstile-widget { width: min(300px, 100%); min-width: 0; max-width: 100%; justify-self: start; }
+.turnstile-widget[data-widget-size="compact"] { width: 150px; }
+.customer-login-turnstile.turnstile-widget { justify-self: center; }
 @media (max-width: 1200px) and (min-width: 701px) {
   .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
