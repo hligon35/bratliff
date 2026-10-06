@@ -118,6 +118,25 @@
   async function initLoginPage() {
     if (document.body?.dataset.page !== 'login') return;
 
+    const configuration = await fetch('/api/auth/config', { cache: 'no-store' }).then(response => {
+      if (!response.ok) throw new Error('Sign-in configuration is unavailable.');
+      return response.json();
+    }).catch(error => { setLoginStatus(error.message, true); return null; });
+    if (!configuration) return;
+    if (configuration.mode === 'access') {
+      const host = qs('[data-google-login-button]');
+      if (!host) return;
+      const target = new URL(getRequestedReturnTo(), window.location.origin);
+      const safeTarget = target.origin === window.location.origin && target.pathname.startsWith('/admin/') ? target.pathname + target.search : '/admin/';
+      const button = document.createElement('a');
+      button.className = 'button ink';
+      button.textContent = 'Continue with Google';
+      button.href = safeTarget;
+      host.replaceChildren(button);
+      setLoginStatus('Continue to secure admin sign-in.');
+      return;
+    }
+
     if (!authGoogleEndpoint || !authSessionEndpoint) {
       setLoginStatus('Google sign-in is not configured yet. Finish PUBLIC_API_URL and redeploy the Worker.', true);
       return;
@@ -132,7 +151,7 @@
     if (existingSession) {
       setLoginStatus('You are already signed in. Redirecting to the admin console.');
       const destination = new URL(getRequestedReturnTo(), window.location.origin);
-      window.location.replace(destination.toString());
+      window.location.replace(destination.origin === window.location.origin ? destination.toString() : buildDefaultReturnTo());
       return;
     }
 

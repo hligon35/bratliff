@@ -6,13 +6,25 @@ const encoder = new TextEncoder();
 const utf8 = new TextDecoder("utf-8", { fatal: false });
 const MAX_MESSAGE_BYTES = 700_000;
 
+export class MailDeliveryUncertainError extends Error {}
+
+async function withDeadline<T>(operation: Promise<T>, milliseconds = 20000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<T>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error("Mail server timed out.")), Math.max(1, milliseconds));
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 class ProtocolReader {
   private reader: ReadableStreamDefaultReader<Uint8Array>;
   private buffer = new Uint8Array(0);
+  private deadline = Date.now() + 30000;
   constructor(stream: ReadableStream<Uint8Array>) { this.reader = stream.getReader(); }
 
   private async fill(): Promise<void> {
-    const next = await this.reader.read();
+    const next = await withDeadline(this.reader.read(), Math.min(20000, this.deadline - Date.now()));
     if (next.done || !next.value) throw new Error("Mail server closed the connection.");
     const merged = new Uint8Array(this.buffer.length + next.value.length);
     merged.set(this.buffer);
@@ -47,7 +59,7 @@ class ProtocolReader {
 }
 
 function appendText(writer: WritableStreamDefaultWriter<Uint8Array>, value: string): Promise<void> {
-  return writer.write(encoder.encode(value));
+  return withDeadline(writer.write(encoder.encode(value)), 10000);
 }
 
 async function imapCommand(
@@ -172,6 +184,8 @@ function parseEmail(rawBytes: Uint8Array, uid: string): Record<string, string> |
     toEmail: (headers.to || "").slice(0, 1000),
     subject,
     body: body || preview || "(This message has no readable plain-text body.)",
+    bodyHtml,
+    bodyFormat: parts.html ? "html" : "text",
     preview: preview || "(No message preview available.)",
     receivedAt,
   };
@@ -191,7 +205,7 @@ export async function syncNamecheapInbox(env: Env): Promise<{ configured: boolea
   let socket: ReturnType<typeof connect> | null = null;
   try {
     socket = connect({ hostname: "mail.privateemail.com", port: 993 }, { secureTransport: "on" });
-    await socket.opened;
+    await withDeadline(socket.opened, 10000);
     const reader = new ProtocolReader(socket.readable);
     const writer = socket.writable.getWriter();
     const greeting = await reader.line();
@@ -235,7 +249,7 @@ export async function syncNamecheapInbox(env: Env): Promise<{ configured: boolea
     return { configured: true, connected: false, synced: 0, message: "Namecheap mailbox sync failed. Check the mailbox application password and try again." };
   } finally {
     if (socket) {
-      try { await socket.close(); } catch { /* the connection may already be closed */ }
+      try { await withDeadline(socket.close(), 2000); } catch { /* the connection may already be closed */ }
     }
   }
 }
@@ -291,9 +305,11 @@ export async function sendNamecheapEmail(
 
   let socket: ReturnType<typeof connect> | null = null;
   let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+  let submitted = false;
+  let accepted = false;
   try {
     socket = connect({ hostname: "mail.privateemail.com", port: 465 }, { secureTransport: "on" });
-    await socket.opened;
+    await withDeadline(socket.opened, 10000);
     const reader = new ProtocolReader(socket.readable);
     writer = socket.writable.getWriter();
     const greeting = await smtpResponse(reader);
@@ -336,14 +352,23 @@ export async function sendNamecheapEmail(
       "--" + boundary + "--",
       "",
     ].join("\r\n");
+    submitted = true;
     await appendText(writer, mime + ".\r\n");
-    if ((await smtpResponse(reader)).code !== 250) throw new Error("Namecheap SMTP did not accept the message.");
-    await appendText(writer, "QUIT\r\n");
-    await smtpResponse(reader);
+    const acceptance = await smtpResponse(reader);
+    if (acceptance.code !== 250) {
+      submitted = false;
+      throw new Error("Namecheap SMTP did not accept the message.");
+    }
+    accepted = true;
+    // QUIT failure does not undo the server's acknowledgement of DATA.
+    try { await appendText(writer, "QUIT\r\n"); await smtpResponse(reader); } catch { /* already accepted */ }
+  } catch (error) {
+    if (submitted && !accepted) throw new MailDeliveryUncertainError("Mail submission outcome is uncertain; verify delivery before resending.");
+    throw error;
   } finally {
     try { writer?.releaseLock(); } catch { /* ignore stream cleanup errors */ }
     if (socket) {
-      try { await socket.close(); } catch { /* connection can close after QUIT */ }
+      try { await withDeadline(socket.close(), 2000); } catch { /* connection can close after QUIT */ }
     }
   }
 }

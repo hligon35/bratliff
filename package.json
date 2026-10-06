@@ -5,9 +5,9 @@
   "scripts": {
     "prepare:config": "node scripts/write-site-config.js",
     "admin:build": "node scripts/build-admin-assets.mjs",
-    "worker:prepare": "node scripts/stage-cloudflare-assets.js",
+    "worker:prepare": "npm run admin:build && node scripts/stage-cloudflare-assets.js",
     "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
-    "worker:deploy": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc",
+    "worker:deploy": "node scripts/write-site-config.js --production && npm run worker:check && npm run test:maintenance && npm run worker:prepare && wrangler deploy --env=\"\" --config cloudflare/wrangler.jsonc",
     "worker:deploy:sandbox": "npm run prepare:config && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc --env sandbox",
     "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit",
     "maintenance:run": "node scripts/monthly-maintenance.mjs --trigger local",

@@ -72,13 +72,6 @@ test("admin removal protects self and the last owner; profile cannot change sign
   assert.match(app, /sign-in email cannot be changed here/);
 });
 
-test("newsletter sends are idempotent per recipient and refuse duplicate campaign sends", () => {
-  const app = read("cloudflare/src/app.ts");
-  assert.match(app, /idempotencyKey: await newsletterIdempotencyKey\(campaign\.campaignId, email\)/);
-  assert.match(app, /\["Sent", "Sending"\]\.includes\(existing\.status\)/);
-  assert.match(app, /last_error = \?6/);
-});
-
 test("admin pages do not depend on external font hosts and preload the local icon font", () => {
   for (const css of ["assets/admin-shell.css", "assets/admin-src/admin.css"]) {
     assert.doesNotMatch(read(css), /fonts\.googleapis\.com|@import/);

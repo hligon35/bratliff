@@ -9,6 +9,7 @@ window.siteConfig = (function freeze(value) {
   "formEndpoint": "/api/forms/submit",
   "storeBooksEndpoint": "/api/store/books",
   "storeCheckoutEndpoint": "/api/store/checkout",
+  "storeConfirmEndpoint": "/api/store/confirm-checkout",
   "loginUrl": "/login/",
   "adminUrl": "/admin/",
   "adminApiUrl": "/api/admin",

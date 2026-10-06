@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
-import { sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
+import { MailDeliveryUncertainError, sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
 import { cleanLegacyEmailText } from "./email-html";
 import type {
   AdminRole,
@@ -97,6 +97,18 @@ const app: AppHandler = {
 
       if (url.pathname === "/healthz") {
         return json(request, env, { ok: true, service: "bratliff-platform", environment: env.SQUARE_ENVIRONMENT || "unset" });
+      }
+
+      if (url.pathname === "/api/unsubscribe") {
+        return withSecurityHeaders(await handleUnsubscribe(request, env, url.searchParams));
+      }
+
+      if (url.pathname === "/api/auth/config") {
+        return json(request, env, {
+          ok: true,
+          mode: adminAuthMode(env),
+          googleClientId: getGoogleClientId(env),
+        });
       }
 
       if (url.pathname.startsWith("/media/books/")) {
@@ -240,16 +252,27 @@ const app: AppHandler = {
     }
   },
 
-  async scheduled(_controller, env, ctx) {
+  async scheduled(controller, env, ctx) {
     if (!env.DB) return;
-    ctx.waitUntil(runScheduledTasks(env));
-    if (env.NAMECHEAP_EMAIL_ADDRESS && env.NAMECHEAP_EMAIL_PASSWORD) {
+    ctx.waitUntil(runScheduledTasks(env, controller.scheduledTime));
+    if (Math.floor(controller.scheduledTime / 60000) % 15 === 0 && env.NAMECHEAP_EMAIL_ADDRESS && env.NAMECHEAP_EMAIL_PASSWORD) {
       ctx.waitUntil(syncNamecheapInbox(env));
     }
   },
 };
 
 export default app;
+
+async function enforcePublicRateLimit(request: Request, env: Env, scope: string, maximum: number, windowSeconds: number, identity = "") {
+  const source = identity || request.headers.get("CF-Connecting-IP") || "anonymous";
+  const identityKey = await signValue(scope + ":" + source, text(env.CUSTOMER_SESSION_SECRET || env.ADMIN_SESSION_SECRET || env.UNSUBSCRIBE_SECRET, 300));
+  const windowStart = Math.floor(Date.now() / 1000 / windowSeconds) * windowSeconds;
+  const row = await env.DB.prepare(
+    `INSERT INTO public_rate_limits (identity_key, window_start, requests) VALUES (?1, ?2, 1)
+     ON CONFLICT(identity_key, window_start) DO UPDATE SET requests = requests + 1 WHERE requests < ?3 RETURNING requests`,
+  ).bind(identityKey, windowStart, maximum).first();
+  if (!row) throw new HttpError(429, "Too many attempts. Please wait before trying again.");
+}
 
 function requireTrustedMutationOrigin(request: Request, env: Env): void {
   const origin = request.headers.get("Origin");
@@ -297,7 +320,7 @@ async function handleCompatibilityRoot(
     if (action === "unsubscribe") {
       return handleUnsubscribe(request, env, url.searchParams);
     }
-    return json(request, env, { ok: true, service: "Jackrabbit Punkin Publishing platform" });
+    return withSecurityHeaders(await env.ASSETS.fetch(request));
   }
 
   if (request.method === "POST") {
@@ -320,6 +343,10 @@ function hasGoogleClientId(env: Env) {
 
 function hasCloudflareAccessConfig(env: Env) {
   return Boolean(text(env.CF_ACCESS_TEAM_DOMAIN, 200) && text(env.CF_ACCESS_AUD, 200));
+}
+
+function adminAuthMode(env: Env): "access" | "google" {
+  return text(env.ADMIN_AUTH_MODE, 40).toLowerCase() !== "google" && hasCloudflareAccessConfig(env) ? "access" : "google";
 }
 
 async function verifyCloudflareAccessJwt(token: string, env: Env): Promise<VerifiedAccessIdentity> {
@@ -397,7 +424,10 @@ async function handleAdminLogoutRequest(request: Request, env: Env) {
   } catch (error) {
     console.warn(JSON.stringify({ type: "admin_logout_activity_failed", error: getErrorMessage(error) }));
   }
-  return clearAdminSessionCookie(json(request, env, { ok: true }));
+  return clearAdminSessionCookie(json(request, env, {
+    ok: true,
+    logoutUrl: adminAuthMode(env) === "access" ? "/cdn-cgi/access/logout" : "/login/?signedOut=1",
+  }));
 }
 
 async function verifyGoogleIdentityToken(token: string, env: Env): Promise<VerifiedGoogleIdentity> {
@@ -721,6 +751,7 @@ async function createSquarePaymentLink(
       "Square-Version": env.SQUARE_API_VERSION || "2024-10-17",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
   });
   const data = (await response.json()) as Record<string, JsonValue>;
   if (!response.ok) {
@@ -729,6 +760,7 @@ async function createSquarePaymentLink(
     throw new HttpError(502, message);
   }
   const link = (data.payment_link as Record<string, JsonValue>) || {};
+  if (!text(link.url, 1000).startsWith("https://") || !text(link.order_id, 200) || !text(link.id, 200)) throw new HttpError(502, "Square did not return a valid checkout link.");
   return {
     url: text(link.url, 1000),
     orderId: text(link.order_id, 200),
@@ -764,11 +796,12 @@ async function fetchSquareInventoryCounts(env: Env, catalogObjectIds: string[]):
   return counts;
 }
 
-// Books with a Square catalog variation linked are treated as Square-managed inventory:
-// their `stock` column is a periodically-refreshed cache of Square's own count, kept in
-// sync here (on the scheduled cron) and via the manual "Sync Square Stock" admin action,
-// rather than requiring staff to re-enter counts by hand.
+// Square import is explicitly opt-in. Production uses the local inventory ledger.
+// Do not enable Square authority until checkout also updates Square catalog counts.
 async function syncBookInventoryFromSquare(env: Env): Promise<number> {
+  // Checkout and admin adjustments use local stock. Importing Square counts here
+  // would resurrect stock sold through ad hoc payment-link line items.
+  if (env.INVENTORY_AUTHORITY !== "square") return 0;
   if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) return 0;
   const rows = await env.DB.prepare(
     "SELECT id AS bookId, sku, title, stock, preorder, status, square_catalog_variation_id AS variationId FROM books WHERE square_catalog_variation_id != '' AND status != 'Archived'",
@@ -806,6 +839,8 @@ async function handleStoreCheckout(
   env: Env,
   payload: Record<string, string>,
 ): Promise<Response> {
+  requireTrustedMutationOrigin(request, env);
+  await enforcePublicRateLimit(request, env, "store-checkout", 10, 600);
   let cart: unknown[] = [];
   try {
     cart = JSON.parse(String(payload.cart || "[]"));
@@ -825,34 +860,27 @@ async function handleStoreCheckout(
   const shipping = money((bookCount * STORE_SHIPPING_PER_BOOK_CENTS) / 100);
   const total = money(subtotal + shipping);
 
-  await env.DB.prepare(
-    `INSERT INTO orders (
-      order_number, customer_id, provider, created_at, customer_name, customer_email,
-      subtotal, shipping, tax, total, payment_status, fulfillment_status,
-      tracking_number, shipping_address, notes
-    ) VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, 0, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
-  )
-    .bind(
-      orderNumber,
-      customer?.id || "",
-      customer?.displayName || "",
-      customer?.email || "",
-      subtotal,
-      shipping,
-      total,
-      customer?.shippingAddress || "",
-    )
-    .run();
-
-  await env.DB.prepare(
-    "INSERT INTO checkout_sessions (session_id, cart_json, created_at) VALUES (?1, ?2, datetime('now'))",
-  )
-    .bind(orderNumber, JSON.stringify(items))
-    .run();
+  const statements = [env.DB.prepare(
+    `INSERT INTO orders (order_number, customer_id, provider, created_at, customer_name, customer_email,
+      subtotal, shipping, tax, total, payment_status, fulfillment_status, tracking_number, shipping_address, notes)
+     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, 0, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
+  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || ""),
+    env.DB.prepare("INSERT INTO checkout_sessions (session_id, cart_json, created_at) VALUES (?1, ?2, datetime('now'))").bind(orderNumber, JSON.stringify(items)),
+    ...items.filter((item) => !item.preorder).map((item) => env.DB.prepare(
+      "INSERT INTO checkout_reservations (order_number, book_id, quantity, expires_at) VALUES (?1, ?2, ?3, datetime('now', '+30 minutes'))",
+    ).bind(orderNumber, item.bookId, item.quantity)),
+  ];
+  try { await env.DB.batch(statements); }
+  catch (error) {
+    if (/Insufficient available inventory/i.test(getErrorMessage(error))) throw new HttpError(409, "Some copies are reserved by another checkout. Please refresh your cart.");
+    throw error;
+  }
 
   const redirectSeparator = env.ORDER_SUCCESS_URL.includes("?") ? "&" : "?";
-  const result = await createSquarePaymentLink(env, {
-    idempotency_key: crypto.randomUUID(),
+  let result: Awaited<ReturnType<typeof createSquarePaymentLink>>;
+  try {
+    result = await createSquarePaymentLink(env, {
+    idempotency_key: orderNumber,
     order: {
       location_id: env.SQUARE_LOCATION_ID,
       reference_id: orderNumber,
@@ -877,6 +905,14 @@ async function handleStoreCheckout(
     },
   });
 
+  } catch (error) {
+    await env.DB.batch([
+      env.DB.prepare("UPDATE orders SET payment_status = 'Checkout Failed', notes = ?2 WHERE order_number = ?1").bind(orderNumber, "Checkout link could not be created."),
+      env.DB.prepare("DELETE FROM checkout_reservations WHERE order_number = ?1").bind(orderNumber),
+    ]);
+    throw error;
+  }
+
   await env.DB.prepare("UPDATE orders SET square_order_id = ?2, square_checkout_id = ?3 WHERE order_number = ?1")
     .bind(orderNumber, result.orderId, result.checkoutId)
     .run();
@@ -888,6 +924,8 @@ async function handleSponsorCheckout(
   request: Request,
   env: Env,
 ): Promise<Response> {
+  requireTrustedMutationOrigin(request, env);
+  await enforcePublicRateLimit(request, env, "sponsor-checkout", 10, 600);
   const contentType = request.headers.get("content-type") || "";
   const isMultipart = contentType.includes("multipart/form-data");
   const payload = await parseBody(isMultipart ? request.clone() : request);
@@ -953,8 +991,11 @@ async function handleSponsorCheckout(
 
   const sponsorSuccessUrl = firstUrlValue(env.SPONSOR_SUCCESS_URL) || firstUrlValue(env.ORDER_SUCCESS_URL);
   const redirectSeparator = sponsorSuccessUrl.includes("?") ? "&" : "?";
+  const sponsorPaymentId = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO sponsor_payments (id, sponsor_id, amount_cents, status, created_at, updated_at) VALUES (?1, ?2, ?3, 'pending', datetime('now'), datetime('now'))")
+    .bind(sponsorPaymentId, sponsorId, amountCents).run();
   const result = await createSquarePaymentLink(env, {
-    idempotency_key: crypto.randomUUID(),
+    idempotency_key: sponsorId,
     order: {
       location_id: env.SQUARE_LOCATION_ID,
       reference_id: sponsorId,
@@ -971,17 +1012,25 @@ async function handleSponsorCheckout(
     },
   });
 
-  await env.DB.prepare(
-    "INSERT INTO sponsor_payments (id, sponsor_id, square_order_id, square_checkout_id, amount_cents, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'pending', datetime('now'), datetime('now'))",
-  )
-    .bind(crypto.randomUUID(), sponsorId, result.orderId, result.checkoutId, amountCents)
-    .run();
+  await env.DB.prepare("UPDATE sponsor_payments SET square_order_id = ?2, square_checkout_id = ?3, updated_at = datetime('now') WHERE id = ?1")
+    .bind(sponsorPaymentId, result.orderId, result.checkoutId).run();
 
   return json(request, env, { ok: true, sponsorId, url: result.url });
 }
 
 async function validateOrderItems(env: Env, cart: unknown[]): Promise<CartLineItem[]> {
-  const items = Array.isArray(cart) ? cart : [];
+  if (!Array.isArray(cart) || cart.length > 20) throw new HttpError(400, "Use a cart with at most 20 different items.");
+  const quantities = new Map<string, number>();
+  for (const entry of cart) {
+    const data = (entry || {}) as Record<string, unknown>;
+    const sku = text(data.sku, 100).toUpperCase();
+    const quantity = Number(data.quantity);
+    if (!sku || typeof data.quantity !== "number" || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) throw new HttpError(400, "Use whole quantities from 1 to 99.");
+    const combined = (quantities.get(sku) || 0) + quantity;
+    if (combined > 99) throw new HttpError(400, "A title is limited to 99 copies per checkout.");
+    quantities.set(sku, combined);
+  }
+  const items = [...quantities].map(([sku, quantity]) => ({ sku, quantity }));
   const result: CartLineItem[] = [];
   for (const entry of items) {
     const data = (entry || {}) as Record<string, unknown>;
@@ -1113,79 +1162,68 @@ async function handleSquareWebhook(request: Request, env: Env): Promise<Response
   }
 }
 
-async function recordPaidOrderFromSquarePayment(
-  env: Env,
-  squareEventId: string,
-  payment: Record<string, JsonValue>,
-): Promise<void> {
-  const squareOrderId = text(payment.order_id, 200);
-  const squarePaymentId = text(payment.id, 200);
-  if (!squareOrderId) return;
+async function retrieveSquareObject(env: Env, path: string, field: string): Promise<Record<string, JsonValue>> {
+  const response = await fetch(`${squareApiBase(env)}/v2/${path}`, {
+    headers: { Authorization: "Bearer " + env.SQUARE_ACCESS_TOKEN, "Square-Version": env.SQUARE_API_VERSION || "2024-10-17" },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error("Square reconciliation lookup failed (" + response.status + ").");
+  const data = await response.json() as Record<string, JsonValue>;
+  return (data[field] || {}) as Record<string, JsonValue>;
+}
 
-  const order = await env.DB.prepare(
-    "SELECT order_number AS orderNumber, payment_status AS paymentStatus FROM orders WHERE square_order_id = ?1",
-  )
-    .bind(squareOrderId)
-    .first<{ orderNumber: string; paymentStatus: string }>();
-  if (!order) return; // Not a store order (may belong to a sponsor payment instead).
-  if (order.paymentStatus === "Paid") {
-    await env.DB.prepare("UPDATE orders SET square_payment_id = ?2, square_event_id = ?3 WHERE order_number = ?1")
-      .bind(order.orderNumber, squarePaymentId, squareEventId)
-      .run();
-    return;
+function squareShippingDetails(squareOrder: Record<string, JsonValue>, payment: Record<string, JsonValue>) {
+  const fulfillments = Array.isArray(squareOrder.fulfillments) ? squareOrder.fulfillments : [];
+  let recipient: Record<string, JsonValue> = {};
+  for (const fulfillment of fulfillments) {
+    const detail = fulfillment as Record<string, JsonValue>;
+    const shipment = (detail.shipment_details || {}) as Record<string, JsonValue>;
+    if (shipment.recipient) { recipient = shipment.recipient as Record<string, JsonValue>; break; }
   }
+  const address = (recipient.address || payment.shipping_address || {}) as Record<string, JsonValue>;
+  return {
+    name: text(recipient.display_name, 200),
+    email: text(recipient.email_address || payment.buyer_email_address, 320).toLowerCase(),
+    address: [address.address_line_1, address.address_line_2, address.address_line_3, address.locality, address.administrative_district_level_1, address.postal_code, address.country].map((part) => text(part, 200)).filter(Boolean).join(", "),
+  };
+}
 
-  const stored = await env.DB.prepare(
-    "SELECT session_id AS sessionId, cart_json AS cartJson FROM checkout_sessions WHERE session_id = ?1",
-  )
-    .bind(order.orderNumber)
-    .first<CheckoutSessionRecord>();
-  if (!stored) throw new Error("No local checkout cart found for order " + order.orderNumber + ".");
-  const items = JSON.parse(stored.cartJson) as CartLineItem[];
-
-  const amountMoney = (payment.amount_money as Record<string, JsonValue> | undefined) || {};
-  const amountCents = Number(amountMoney.amount || 0);
-  const total = amountCents ? money(amountCents / 100) : money(items.reduce((sum, item) => sum + item.lineTotal, 0));
-
-  await env.DB.prepare(
-    "UPDATE orders SET square_payment_id = ?2, square_event_id = ?3, payment_status = 'Paid', total = ?4 WHERE order_number = ?1",
-  )
-    .bind(order.orderNumber, squarePaymentId, squareEventId, total)
-    .run();
-
-  for (const item of items) {
-    const book = await getStoreBookById(env, item.bookId);
-    if (!book) throw new Error("Inventory book record is missing for " + item.sku + ".");
-    const previous = Number(book.stock || 0);
-    if (!item.preorder) {
-      const updateResult = await env.DB.prepare(
-        `UPDATE books
-         SET stock = stock - ?2,
-             status = CASE
-               WHEN preorder = 1 THEN status
-               WHEN stock - ?2 <= 0 AND status != 'Draft' AND status != 'Archived' THEN 'Out of Stock'
-               WHEN status != 'Draft' AND status != 'Archived' THEN 'Published'
-               ELSE status
-             END,
-             updated_at = datetime('now')
-         WHERE id = ?1 AND stock >= ?2`,
-      )
-        .bind(book.bookId, item.quantity)
-        .run();
-      if (Number(updateResult.meta?.changes || 0) !== 1) {
-        throw new Error("Insufficient inventory for " + item.title + ".");
-      }
+async function recordPaidOrderFromSquarePayment(env: Env, squareEventId: string, payment: Record<string, JsonValue>): Promise<void> {
+  const squareOrderId = text(payment.order_id, 200);
+  const paymentId = text(payment.id, 200);
+  if (!squareOrderId || !paymentId) return;
+  let squareOrder: Record<string, JsonValue> | null = null;
+  let order = await env.DB.prepare(
+    "SELECT order_number AS orderNumber, payment_status AS paymentStatus, total, shipping_address AS shippingAddress FROM orders WHERE square_order_id = ?1",
+  ).bind(squareOrderId).first<{ orderNumber: string; paymentStatus: string; total: number; shippingAddress: string }>();
+  if (!order) {
+    squareOrder = await retrieveSquareObject(env, "orders/" + encodeURIComponent(squareOrderId), "order");
+    const reference = text(squareOrder.reference_id, 200);
+    if (!/^JRPP-\d{14}-[A-F0-9]{8}$/.test(reference)) return;
+    order = await env.DB.prepare("UPDATE orders SET square_order_id = ?2 WHERE order_number = ?1 AND square_order_id = '' AND provider = 'square' RETURNING order_number AS orderNumber, payment_status AS paymentStatus, total, shipping_address AS shippingAddress")
+      .bind(reference, squareOrderId).first<{ orderNumber: string; paymentStatus: string; total: number; shippingAddress: string }>();
+    if (!order) return;
+  }
+  if (await env.DB.prepare("SELECT order_number FROM order_settlements WHERE order_number = ?1").bind(order.orderNumber).first()) return;
+  // Existing paid records predate the ledger; do not guess whether inventory was already decremented.
+  if (["Paid", "Refunded", "Partially Refunded"].includes(order.paymentStatus)) return;
+  const amount = (payment.amount_money || {}) as Record<string, JsonValue>;
+  const amountCents = Number(amount.amount || 0);
+  if (amount.currency !== "USD" || !Number.isSafeInteger(amountCents) || amountCents !== Math.round(order.total * 100)) {
+    throw new Error("Square payment amount does not match checkout " + order.orderNumber + ".");
+  }
+  const details = squareShippingDetails(squareOrder || await retrieveSquareObject(env, "orders/" + encodeURIComponent(squareOrderId), "order"), payment);
+  if (!details.address && !order.shippingAddress) throw new Error("Square shipping details are not available yet for " + order.orderNumber + ".");
+  try {
+    await env.DB.prepare(
+      "INSERT INTO order_settlements (order_number, payment_id, event_id, amount_cents, customer_name, customer_email, shipping_address) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT(order_number) DO NOTHING",
+    ).bind(order.orderNumber, paymentId, squareEventId, amountCents, details.name, details.email, details.address).run();
+  } catch (error) {
+    if (/Insufficient inventory|Checkout cart missing/i.test(getErrorMessage(error))) {
+      await env.DB.prepare("UPDATE orders SET payment_status = 'Payment Review', notes = ?2 WHERE order_number = ?1 AND payment_status NOT IN ('Paid', 'Refunded', 'Partially Refunded')")
+        .bind(order.orderNumber, "Payment completed in Square; settlement needs inventory/cart reconciliation. Do not fulfill until resolved.").run();
     }
-    await env.DB.prepare(
-      "INSERT INTO order_items (order_number, book_id, sku, title, quantity, unit_price, line_total) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-    )
-      .bind(order.orderNumber, item.bookId, item.sku, item.title, item.quantity, money(item.unitPrice), money(item.lineTotal))
-      .run();
-    await env.DB.prepare(
-      "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Online sale', ?8, 'Square', '')",
-    )
-      .bind(crypto.randomUUID(), item.bookId, item.sku, item.title, -Math.abs(item.quantity), previous, item.preorder ? previous : previous - item.quantity, order.orderNumber)
-      .run();
+    throw error;
   }
 }
 
@@ -1198,12 +1236,19 @@ async function recordPaidSponsorFromSquarePayment(
   const squarePaymentId = text(payment.id, 200);
   if (!squareOrderId) return;
 
-  const pending = await env.DB.prepare(
-    "SELECT id AS id, sponsor_id AS sponsorId, status FROM sponsor_payments WHERE square_order_id = ?1",
+  let pending = await env.DB.prepare(
+    "SELECT id AS id, sponsor_id AS sponsorId, status, amount_cents AS amountCents FROM sponsor_payments WHERE square_order_id = ?1",
   )
     .bind(squareOrderId)
-    .first<{ id: string; sponsorId: string; status: string }>();
-  if (!pending) return; // Not a sponsor payment.
+    .first<{ id: string; sponsorId: string; status: string; amountCents: number }>();
+  if (!pending) {
+    const squareOrder = await retrieveSquareObject(env, "orders/" + encodeURIComponent(squareOrderId), "order");
+    const reference = text(squareOrder.reference_id, 200);
+    if (!/^SP-[A-F0-9-]{10}$/.test(reference)) return;
+    pending = await env.DB.prepare("UPDATE sponsor_payments SET square_order_id = ?2 WHERE sponsor_id = ?1 AND square_order_id = '' AND status = 'pending' RETURNING id, sponsor_id AS sponsorId, status, amount_cents AS amountCents")
+      .bind(reference, squareOrderId).first<{ id: string; sponsorId: string; status: string; amountCents: number }>();
+  }
+  if (!pending || ["refunded", "partially_refunded"].includes(pending.status)) return;
 
   const paymentTimestamp = text(payment.created_at, 80) || new Date().toISOString();
   if (pending.status === "paid") {
@@ -1214,71 +1259,38 @@ async function recordPaidSponsorFromSquarePayment(
   const amountMoney = (payment.amount_money as Record<string, JsonValue> | undefined) || {};
   const amountCents = Number(amountMoney.amount || 0);
 
-  await env.DB.prepare(
-    "UPDATE sponsor_payments SET square_payment_id = ?2, square_event_id = ?3, amount_cents = COALESCE(NULLIF(?4, 0), amount_cents), status = 'paid', updated_at = datetime('now') WHERE id = ?1",
-  )
-    .bind(pending.id, squarePaymentId, squareEventId, amountCents)
-    .run();
-
-  await env.DB.prepare(
-    "UPDATE sponsors SET recognition_status = 'Pending Review', paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND recognition_status = 'Awaiting Payment'",
-  )
-    .bind(pending.sponsorId)
-    .run();
+  if (!squarePaymentId || amountMoney.currency !== "USD" || !Number.isSafeInteger(amountCents) || amountCents !== pending.amountCents) {
+    throw new Error("Square sponsorship amount does not match checkout.");
+  }
+  await env.DB.batch([
+    env.DB.prepare("UPDATE sponsor_payments SET square_payment_id = ?2, square_event_id = ?3, status = 'paid', updated_at = datetime('now') WHERE id = ?1 AND status = 'pending'")
+      .bind(pending.id, squarePaymentId, squareEventId),
+    env.DB.prepare("UPDATE sponsors SET recognition_status = 'Pending Review', paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND recognition_status = 'Awaiting Payment' AND EXISTS (SELECT 1 FROM sponsor_payments WHERE id = ?2 AND status = 'paid')")
+      .bind(pending.sponsorId, pending.id),
+  ]);
 
   await sendSponsorCertificateIfEligible(env, pending.sponsorId, paymentTimestamp);
 }
 
 async function recordRefundFromSquareEvent(env: Env, refund: Record<string, JsonValue>): Promise<void> {
   if (text(refund.status, 40) !== "COMPLETED") return;
-  const squarePaymentId = text(refund.payment_id, 200);
-  if (!squarePaymentId) return;
-
-  const order = await env.DB.prepare(
-    "SELECT order_number AS orderNumber FROM orders WHERE square_payment_id = ?1 AND payment_status != 'Refunded'",
-  )
-    .bind(squarePaymentId)
-    .first<{ orderNumber: string }>();
-  if (order) {
-    await env.DB.prepare("UPDATE orders SET payment_status = 'Refunded' WHERE order_number = ?1")
-      .bind(order.orderNumber)
-      .run();
-    const items = await env.DB.prepare(
-      "SELECT book_id AS bookId, sku, title, quantity FROM order_items WHERE order_number = ?1",
-    )
-      .bind(order.orderNumber)
-      .all<Record<string, unknown>>();
-    for (const item of items.results || []) {
-      const book = await getStoreBookById(env, text(item.bookId, 120));
-      if (!book) continue;
-      const previous = book.stock;
-      const quantity = Number(item.quantity || 0);
-      await env.DB.prepare("UPDATE books SET stock = stock + ?2, updated_at = datetime('now') WHERE id = ?1")
-        .bind(book.bookId, quantity)
-        .run();
-      await env.DB.prepare(
-        "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Refund', ?8, 'Square', '')",
-      )
-        .bind(crypto.randomUUID(), book.bookId, text(item.sku, 120), text(item.title, 300), Math.abs(quantity), previous, previous + quantity, order.orderNumber)
-        .run();
+  const refundId = text(refund.id, 200);
+  const paymentId = text(refund.payment_id, 200);
+  const amount = (refund.amount_money || {}) as Record<string, JsonValue>;
+  const amountCents = Number(amount.amount || 0);
+  if (!refundId || !paymentId || amount.currency !== "USD" || !Number.isSafeInteger(amountCents) || amountCents <= 0) throw new Error("Square refund payload is incomplete.");
+  let known = await env.DB.prepare("SELECT order_number AS id FROM orders WHERE square_payment_id = ?1 UNION ALL SELECT id FROM sponsor_payments WHERE square_payment_id = ?1 LIMIT 1").bind(paymentId).first();
+  if (!known) {
+    // Refund notifications can arrive before their completed-payment notification.
+    const payment = await retrieveSquareObject(env, "payments/" + encodeURIComponent(paymentId), "payment");
+    if (text(payment.status, 40) === "COMPLETED") {
+      await recordPaidOrderFromSquarePayment(env, "refund-reconcile:" + refundId, payment);
+      await recordPaidSponsorFromSquarePayment(env, "refund-reconcile:" + refundId, payment);
     }
-    return;
+    known = await env.DB.prepare("SELECT order_number AS id FROM orders WHERE square_payment_id = ?1 UNION ALL SELECT id FROM sponsor_payments WHERE square_payment_id = ?1 LIMIT 1").bind(paymentId).first();
   }
-
-  const sponsorPayment = await env.DB.prepare(
-    "SELECT sponsor_id AS sponsorId FROM sponsor_payments WHERE square_payment_id = ?1 AND status != 'refunded'",
-  )
-    .bind(squarePaymentId)
-    .first<{ sponsorId: string }>();
-  if (sponsorPayment) {
-    await env.DB.prepare("UPDATE sponsor_payments SET status = 'refunded', updated_at = datetime('now') WHERE square_payment_id = ?1")
-      .bind(squarePaymentId)
-      .run();
-    // A refunded sponsorship must never remain publicly visible without an explicit admin decision.
-    await env.DB.prepare("UPDATE sponsors SET recognition_status = 'Refunded', updated_at = datetime('now') WHERE id = ?1")
-      .bind(sponsorPayment.sponsorId)
-      .run();
-  }
+  if (!known) return; // Square also emits events for transactions outside this site.
+  await env.DB.prepare("INSERT INTO square_refunds (refund_id, payment_id, amount_cents) VALUES (?1, ?2, ?3) ON CONFLICT(refund_id) DO NOTHING").bind(refundId, paymentId, amountCents).run();
 }
 
 /**
@@ -1398,6 +1410,7 @@ async function handleAdminApi(
   }
   if (request.method === "POST" && path === "inventory/sync-square") {
     requireRole(admin, "manager");
+    if (env.INVENTORY_AUTHORITY !== "square") throw new HttpError(409, "Local inventory is authoritative. Record receipts and physical returns with an inventory adjustment.");
     const updated = await syncBookInventoryFromSquare(env);
     return json(request, env, { ok: true, updated, books: await listAllStoreBooks(env) });
   }
@@ -1455,31 +1468,10 @@ async function handleAdminApi(
   if (request.method === "POST" && path === "newsletter/send") {
     requireRole(admin, "manager");
     const body = await parseBody(request);
-    const existingId = text(body.campaignId, 120);
-    if (existingId) {
-      const existing = await env.DB.prepare("SELECT status FROM newsletter_campaigns WHERE campaign_id = ?1").bind(existingId).first<{ status: string }>();
-      if (existing && ["Sent", "Sending"].includes(existing.status)) {
-        throw new HttpError(409, "This newsletter was already " + existing.status.toLowerCase() + ". Duplicate it to send again.");
-      }
-    }
-    const campaign = await saveNewsletterCampaign(env, { ...body, status: "Sending" });
-    await sendNewsletterCampaign(env, campaign);
-    const outcome = await env.DB.prepare("SELECT status, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE campaign_id = ?1")
-      .bind(campaign.campaignId)
-      .first<{ status: string; recipients: number; sent: number; failed: number; lastError: string }>();
-    await writeAuditLog(env, admin, "newsletter_sent", "newsletter_campaign", campaign.campaignId, "Newsletter " + (outcome?.status || "sent") + ": " + text(campaign.title || campaign.subject, 200) + " (" + Number(outcome?.sent || 0) + " sent, " + Number(outcome?.failed || 0) + " failed).");
-    if (outcome && outcome.failed > 0) {
-      const allFailed = outcome.sent === 0;
-      return json(request, env, {
-        ok: !allFailed,
-        campaignId: campaign.campaignId,
-        sent: outcome.sent,
-        failed: outcome.failed,
-        error: outcome.lastError,
-        message: allFailed ? "Newsletter could not be delivered: " + outcome.lastError : "Newsletter sent to " + outcome.sent + " of " + outcome.recipients + " recipients; " + outcome.failed + " failed. " + outcome.lastError,
-      }, allFailed ? 502 : 200);
-    }
-    return json(request, env, { ok: true, campaignId: campaign.campaignId, sent: outcome?.sent ?? 0, failed: 0, message: "Newsletter sent." });
+    const campaign = await saveNewsletterCampaign(env, { ...body, status: "Draft" });
+    await queueNewsletterCampaign(env, campaign);
+    await writeAuditLog(env, admin, "newsletter_queued", "newsletter_campaign", campaign.campaignId, "Newsletter queued: " + text(campaign.title || campaign.subject, 200));
+    return json(request, env, { ok: true, campaignId: campaign.campaignId, message: "Newsletter queued. Delivery progress will update as the Worker processes it." });
   }
   if (request.method === "POST" && path.startsWith("newsletter/campaigns/") && path.endsWith("/cancel")) {
     requireRole(admin, "manager");
@@ -1488,9 +1480,10 @@ async function handleAdminApi(
       .bind(campaignId)
       .first<{ campaignId: string; title: string; subject: string; status: string }>();
     if (!campaign) throw new HttpError(404, "Newsletter campaign not found.");
-    await env.DB.prepare("UPDATE newsletter_campaigns SET status = 'Cancelled', scheduled_at = '', updated_at = datetime('now') WHERE campaign_id = ?1")
+    const cancelled = await env.DB.prepare("UPDATE newsletter_campaigns SET status = 'Cancelled', scheduled_at = '', updated_at = datetime('now') WHERE campaign_id = ?1 AND status IN ('Draft', 'Scheduled', 'Queued') AND send_lock_id = '' RETURNING campaign_id")
       .bind(campaignId)
-      .run();
+      .first();
+    if (!cancelled) throw new HttpError(409, "Only an unsent draft, schedule or queue can be cancelled.");
     await writeAuditLog(env, admin, "newsletter_cancelled", "newsletter_campaign", campaignId, "Newsletter schedule cancelled: " + text(campaign.title || campaign.subject, 200) + ".");
     return json(request, env, { ok: true, campaignId, message: "Schedule cancelled." });
   }
@@ -1922,16 +1915,23 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
   if (!subject || !content.trim()) throw new HttpError(400, "Subject and message are required.");
   if (!/^[a-zA-Z0-9_-]{8,120}$/.test(idempotencyKey)) throw new HttpError(400, "A valid send idempotency key is required.");
   const prior = await env.DB.prepare(
-    "SELECT id, status, error FROM mailbox_outbound WHERE idempotency_key = ?1 AND admin_email = ?2",
+    "SELECT id, status, error, recipient, subject, body, created_at AS createdAt FROM mailbox_outbound WHERE idempotency_key = ?1 AND admin_email = ?2",
   ).bind(idempotencyKey, admin.email).first<Record<string, unknown>>();
+  if (prior && (prior.recipient !== to || prior.subject !== subject || prior.body !== content)) {
+    throw new HttpError(409, "This send key belongs to different message content. Start a new message.");
+  }
   if (prior && ["Accepted", "Sending"].includes(text(prior.status, 40))) {
     if (draftKey && text(prior.status, 40) === "Accepted") await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, draftKey).run();
     return json(request, env, { ok: true, status: prior.status, message: prior.status === "Accepted" ? "Accepted by email service." : "This message is already being processed." });
   }
   const outboundId = text(prior?.id, 120) || "MAIL-" + crypto.randomUUID();
   if (prior) {
-    await env.DB.prepare("UPDATE mailbox_outbound SET status = 'Sending', error = '', updated_at = datetime('now') WHERE id = ?1")
-      .bind(outboundId).run();
+    if (Date.now() - Date.parse(String(prior.createdAt) + 'Z') >= 23 * 3600000) {
+      throw new HttpError(409, "The retry window has expired. Verify delivery with the provider before composing another message.");
+    }
+    const claimed = await env.DB.prepare("UPDATE mailbox_outbound SET status = 'Sending', error = '', updated_at = datetime('now') WHERE id = ?1 AND status = 'Failed' RETURNING id")
+      .bind(outboundId).first();
+    if (!claimed) return json(request, env, { ok: true, status: "Sending", message: "This message is already being processed." });
   } else {
     await env.DB.prepare(
       "INSERT OR IGNORE INTO mailbox_outbound (id, item_key, recipient, subject, body, admin_email, status, idempotency_key, created_at, updated_at, error) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'Sending', ?7, datetime('now'), datetime('now'), '')",
@@ -1943,6 +1943,7 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
     }
     if (text(record?.id, 120) !== outboundId) return json(request, env, { ok: true, status: "Sending", message: "This message is already being processed." });
   }
+  let providerAccepted = false;
   try {
     const siteUrl = firstUrlValue(env.SITE_URL);
     const outgoingHtml = buildEmailHtml({
@@ -1970,12 +1971,18 @@ async function sendMailboxEmail(request: Request, env: Env, admin: Authenticated
         idempotencyKey,
       });
     }
+    providerAccepted = true;
     await env.DB.prepare("UPDATE mailbox_outbound SET status = 'Accepted', error = '', updated_at = datetime('now') WHERE id = ?1")
       .bind(outboundId).run();
     if (itemKey || draftKey) await env.DB.prepare("DELETE FROM mailbox_drafts WHERE admin_email = ?1 AND item_key = ?2").bind(admin.email, draftKey || itemKey).run();
     await writeAuditLog(env, admin, "mail_sent", "mail_item", itemKey || outboundId, "Email accepted by provider for " + to + ".");
     return json(request, env, { ok: true, status: "Accepted", message: "Accepted by email service." });
   } catch (error) {
+    if (providerAccepted || error instanceof MailDeliveryUncertainError) {
+      const message = "Delivery confirmation needs review. Check the sent mailbox/provider before sending again.";
+      await env.DB.prepare("UPDATE mailbox_outbound SET error = ?2, updated_at = datetime('now') WHERE id = ?1 AND status = 'Sending'").bind(outboundId, message).run();
+      return json(request, env, { ok: true, status: "Sending", message, outboundId });
+    }
     const detail = getErrorMessage(error).slice(0, 2000);
     await env.DB.prepare("UPDATE mailbox_outbound SET status = 'Failed', error = ?2, updated_at = datetime('now') WHERE id = ?1")
       .bind(outboundId, detail).run();
@@ -2459,21 +2466,36 @@ async function deleteBook(env: Env, bookId: string): Promise<{ action: "archived
   return { action: "deleted", message: "Book permanently deleted." };
 }
 
+function publicImageKey(url: URL, route: string, prefix: string): string {
+  let key: string;
+  try { key = decodeURIComponent(url.pathname.slice(route.length)); } catch { return ""; }
+  if (!key.startsWith(prefix) || !/^[a-z]+\/[^/\\.]+\/[^/\\]+\.(?:png|jpe?g|webp|svg)$/i.test(key) || key.includes("..")) return "";
+  return key;
+}
+
 async function serveBookImage(url: URL, env: Env): Promise<Response> {
-  const object = await env.BOOK_ASSETS.get(decodeURIComponent(url.pathname.slice("/media/books/".length)));
+  const key = publicImageKey(url, "/media/books/", "books/");
+  if (!key) return new Response("Not found", { status: 404 });
+  const object = await env.BOOK_ASSETS.get(key);
   if (!object || !object.body) return new Response("Not found", { status: 404 });
   const headers = new Headers();
   object.writeHttpMetadata(headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (key.toLowerCase().endsWith(".svg")) headers.set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
   headers.set("Cache-Control", "public, max-age=86400");
   if (object.httpEtag) headers.set("ETag", object.httpEtag);
   return new Response(object.body, { headers });
 }
 
 async function serveSponsorLogo(url: URL, env: Env): Promise<Response> {
-  const object = await env.BOOK_ASSETS.get(decodeURIComponent(url.pathname.slice("/media/sponsors/".length)));
+  const key = publicImageKey(url, "/media/sponsors/", "sponsors/");
+  if (!key) return new Response("Not found", { status: 404 });
+  const object = await env.BOOK_ASSETS.get(key);
   if (!object || !object.body) return new Response("Not found", { status: 404 });
   const headers = new Headers();
   object.writeHttpMetadata(headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (key.toLowerCase().endsWith(".svg")) headers.set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
   headers.set("Cache-Control", "public, max-age=86400");
   if (object.httpEtag) headers.set("ETag", object.httpEtag);
   return new Response(object.body, { headers });
@@ -2718,10 +2740,14 @@ async function deleteSponsor(env: Env, admin: AuthenticatedAdmin, sponsorId: str
 }
 
 async function serveAuthorPortrait(url: URL, env: Env) {
-  const object = await env.BOOK_ASSETS.get(decodeURIComponent(url.pathname.slice("/media/authors/".length)));
+  const key = publicImageKey(url, "/media/authors/", "authors/");
+  if (!key) return new Response("Not found", { status: 404 });
+  const object = await env.BOOK_ASSETS.get(key);
   if (!object || !object.body) return new Response("Not found", { status: 404 });
   const headers = new Headers();
   object.writeHttpMetadata(headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (key.toLowerCase().endsWith(".svg")) headers.set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:");
   headers.set("Cache-Control", "public, max-age=86400");
   if (object.httpEtag) headers.set("ETag", object.httpEtag);
   return new Response(object.body, { headers });
@@ -3189,7 +3215,7 @@ async function getNewsletterBuilderState(env: Env, admin: AuthenticatedAdmin) {
 async function saveNewsletterCampaign(env: Env, body: Record<string, string>): Promise<NewsletterCampaignRecord> {
   const campaignId = text(body.campaignId, 120) || "NL-" + crypto.randomUUID().slice(0, 8).toUpperCase();
   const normalized = normalizeNewsletterPayload(body);
-  await env.DB.prepare(
+  const saved = await env.DB.prepare(
     `INSERT INTO newsletter_campaigns (
       campaign_id, created_at, updated_at, status, title, subject, preview_text,
       audience, target_type, target_value, from_name, hero_message, hero_cta_label, hero_cta_url,
@@ -3197,7 +3223,7 @@ async function saveNewsletterCampaign(env: Env, body: Record<string, string>): P
       featured_cta_label, featured_cta_url, quick1_title, quick1_text, quick1_url,
       quick2_title, quick2_text, quick2_url, closing_note, send_date, send_time,
       time_zone, scheduled_at, sent_at, recipients, sent, failed, last_error
-    ) VALUES (?1, COALESCE((SELECT created_at FROM newsletter_campaigns WHERE campaign_id = ?1), datetime('now')), datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, COALESCE((SELECT sent_at FROM newsletter_campaigns WHERE campaign_id = ?1), ''), COALESCE((SELECT recipients FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT sent FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT failed FROM newsletter_campaigns WHERE campaign_id = ?1), 0), '')
+    ) VALUES (?1, COALESCE((SELECT created_at FROM newsletter_campaigns WHERE campaign_id = ?1), datetime('now')), datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, COALESCE((SELECT sent_at FROM newsletter_campaigns WHERE campaign_id = ?1), ''), COALESCE((SELECT recipients FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT sent FROM newsletter_campaigns WHERE campaign_id = ?1), 0), COALESCE((SELECT failed FROM newsletter_campaigns WHERE campaign_id = ?1), 0), '')
     ON CONFLICT(campaign_id) DO UPDATE SET
       updated_at = datetime('now'),
       status = excluded.status,
@@ -3228,10 +3254,12 @@ async function saveNewsletterCampaign(env: Env, body: Record<string, string>): P
       send_time = excluded.send_time,
       time_zone = excluded.time_zone,
       scheduled_at = excluded.scheduled_at,
-      last_error = ''`,
+      last_error = ''
+    WHERE newsletter_campaigns.delivery_snapshot = '' AND newsletter_campaigns.status IN ('Draft', 'Scheduled', 'Cancelled')`,
   )
     .bind(campaignId, normalized.status, normalized.title, normalized.subject, normalized.previewText, normalized.audience, normalized.targetType, normalized.targetValue, normalized.fromName, normalized.heroMessage, normalized.heroCtaLabel, normalized.heroCtaUrl, normalized.featuredBookId, normalized.featuredBookTitle, normalized.featuredBookDescription, normalized.featuredBookImageUrl, normalized.featuredCtaLabel, normalized.featuredCtaUrl, normalized.quick1Title, normalized.quick1Text, normalized.quick1Url, normalized.quick2Title, normalized.quick2Text, normalized.quick2Url, normalized.closingNote, normalized.sendDate, normalized.sendTime, normalized.timeZone, normalized.scheduledAt)
     .run();
+  if (!saved.meta?.changes) throw new HttpError(409, "This campaign has already entered delivery. Duplicate it to send different content.");
   const campaign = await env.DB.prepare(
     "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, target_type AS targetType, target_value AS targetValue, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE campaign_id = ?1",
   ).bind(campaignId).first<NewsletterCampaignRecord>();
@@ -3239,13 +3267,34 @@ async function saveNewsletterCampaign(env: Env, body: Record<string, string>): P
   return campaign;
 }
 
+function newsletterSchedule(sendDate: string, sendTime: string, timeZone: string): string {
+  if (!sendDate && !sendTime) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sendDate) || !/^\d{2}:\d{2}$/.test(sendTime)) throw new HttpError(400, "Enter a valid newsletter date and time.");
+  const desired = Date.parse(sendDate + "T" + sendTime + ":00Z");
+  if (!Number.isFinite(desired)) throw new HttpError(400, "Enter a valid newsletter date and time.");
+  let formatter: Intl.DateTimeFormat;
+  try { formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); }
+  catch { throw new HttpError(400, "Choose a valid newsletter time zone."); }
+  const localParts = (instant: number) => {
+    const parts = Object.fromEntries(formatter.formatToParts(instant).map((part) => [part.type, part.value]));
+    return parts.year + "-" + parts.month + "-" + parts.day + "T" + parts.hour + ":" + parts.minute;
+  };
+  let instant = desired;
+  for (let attempt = 0; attempt < 4; attempt++) instant += desired - Date.parse(localParts(instant) + ":00Z");
+  if (localParts(instant) !== sendDate + "T" + sendTime) throw new HttpError(400, "That local time does not exist in this time zone. Choose another time.");
+  return new Date(instant).toISOString();
+}
+
 function normalizeNewsletterPayload(body: Record<string, string>) {
   const subject = text(body.subject, 180);
   if (!subject) throw new HttpError(400, "Email subject is required.");
   const sendDate = text(body.sendDate, 20);
   const sendTime = text(body.sendTime, 20);
+  const timeZone = text(body.timeZone, 80) || NEWSLETTER_DEFAULTS.timeZone;
+  const scheduledAt = newsletterSchedule(sendDate, sendTime, timeZone);
+  if (text(body.status, 40) === "Scheduled" && !scheduledAt) throw new HttpError(400, "A scheduled newsletter needs a date and time.");
   return {
-    status: text(body.status, 40) || (sendDate && sendTime ? "Scheduled" : "Draft"),
+    status: text(body.status, 40) === "Scheduled" || (!body.status && sendDate && sendTime) ? "Scheduled" : "Draft",
     title: text(body.title, 180) || NEWSLETTER_DEFAULTS.title,
     subject,
     previewText: text(body.previewText, 240),
@@ -3271,8 +3320,8 @@ function normalizeNewsletterPayload(body: Record<string, string>) {
     closingNote: text(body.closingNote, 2000),
     sendDate,
     sendTime,
-    timeZone: text(body.timeZone, 80) || NEWSLETTER_DEFAULTS.timeZone,
-    scheduledAt: sendDate && sendTime ? new Date(`${sendDate}T${sendTime}:00`).toISOString() : "",
+    timeZone,
+    scheduledAt,
   };
 }
 
@@ -3450,11 +3499,16 @@ async function sendSponsorCertificateIfEligible(
   if (sponsor.adminNotes?.startsWith("[TEST DATA ")) return;
   if (sponsor.certificateStatus === "sent") return;
 
-  await env.DB.prepare(
-    "UPDATE sponsors SET certificate_status = 'sending', certificate_error = '', updated_at = datetime('now') WHERE id = ?1 AND certificate_status != 'sent'",
-  )
-    .bind(sponsorId)
-    .run();
+  const lockId = crypto.randomUUID();
+  const claimed = await env.DB.prepare(`UPDATE sponsors SET certificate_status = 'sending', certificate_error = '',
+    certificate_first_attempt_at = CASE WHEN certificate_first_attempt_at = '' THEN datetime('now') ELSE certificate_first_attempt_at END,
+    certificate_lock_id = ?2, certificate_lock_until = datetime('now', '+3 minutes'), updated_at = datetime('now')
+    WHERE id = ?1 AND certificate_status != 'sent'
+      AND (certificate_lock_until = '' OR datetime(certificate_lock_until) <= datetime('now'))
+      AND (certificate_first_attempt_at != '' OR certificate_status NOT IN ('sending', 'error'))
+      AND (certificate_first_attempt_at = '' OR datetime(certificate_first_attempt_at) > datetime('now', '-23 hours'))
+    RETURNING id`).bind(sponsorId, lockId).first();
+  if (!claimed) throw new Error("Certificate delivery is in progress or requires provider review before another send.");
 
   try {
     if (!isValidEmail(sponsor.payerEmail)) {
@@ -3515,17 +3569,19 @@ async function sendSponsorCertificateIfEligible(
       idempotencyKey: "sponsor-certificate-confirmation-" + sponsorId,
     });
     await env.DB.prepare(
-      "UPDATE sponsors SET certificate_status = 'sent', certificate_sent_at = datetime('now'), certificate_error = '', updated_at = datetime('now') WHERE id = ?1",
+      "UPDATE sponsors SET certificate_status = 'sent', certificate_sent_at = datetime('now'), certificate_error = '', updated_at = datetime('now') WHERE id = ?1 AND certificate_lock_id = ?2",
     )
-      .bind(sponsorId)
+      .bind(sponsorId, lockId)
       .run();
   } catch (error) {
     await env.DB.prepare(
-      "UPDATE sponsors SET certificate_status = 'error', certificate_error = ?2, updated_at = datetime('now') WHERE id = ?1",
+      "UPDATE sponsors SET certificate_status = 'error', certificate_error = ?2, updated_at = datetime('now') WHERE id = ?1 AND certificate_lock_id = ?3",
     )
-      .bind(sponsorId, getErrorMessage(error).slice(0, 500))
+      .bind(sponsorId, getErrorMessage(error).slice(0, 500), lockId)
       .run();
     throw error;
+  } finally {
+    await env.DB.prepare("UPDATE sponsors SET certificate_lock_id = '', certificate_lock_until = '' WHERE id = ?1 AND certificate_lock_id = ?2").bind(sponsorId, lockId).run();
   }
 }
 type CustomerResource = (typeof RESOURCE_CATALOG)[number];
@@ -3666,6 +3722,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   }
 
   if (request.method === "POST" && path === "auth/signup") {
+    await enforcePublicRateLimit(request, env, "customer-signup", 10, 3600);
     const body = await parseBody(request);
     const email = normalizeCustomerEmail(body.email);
     const password = customerPassword(body.password);
@@ -3714,8 +3771,10 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   }
 
   if (request.method === "POST" && path === "auth/forgot-password") {
+    await enforcePublicRateLimit(request, env, "password-reset-ip", 10, 3600);
     const body = await parseBody(request);
     const email = normalizeCustomerEmail(body.email);
+    await enforcePublicRateLimit(request, env, "password-reset-email", 1, 60, email);
     const account = await findCustomerByEmail(env, email);
     if (account) {
       const token = base64UrlFromBytes(crypto.getRandomValues(new Uint8Array(32)));
@@ -3730,10 +3789,10 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
           to: email,
           subject: "Reset your JPP reader account password",
           text: "Use this link within one hour to choose a new password: " + resetUrl.toString(),
-          html: '<p>Use the link below within one hour to choose a new password:</p><p><a href="' + escapeHtml(resetUrl.toString()) + '">Reset your password</a></p>',
+          html: buildEmailHtml({ eyebrow: "READER ACCOUNT", heading: "Reset your password", intro: "Use this link within one hour to choose a new password.", buttonLabel: "Reset password", buttonUrl: resetUrl.toString(), siteUrl: origin, footer: "If you did not request a password reset, you can ignore this email." }),
           replyTo: env.ADMIN_NOTIFICATION_EMAIL,
           fromName: "Jackrabbit Punkin Publishing",
-          idempotencyKey: "customer-password-reset-" + text(account.id, 120) + "-" + Math.floor(Date.now() / 3600000),
+          idempotencyKey: "customer-password-reset-" + tokenHash.slice(0, 40),
         });
       } catch (error) {
         console.warn(JSON.stringify({ type: "customer_password_reset_email_failed", error: getErrorMessage(error) }));
@@ -3797,8 +3856,8 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
 
   if (request.method === "GET" && path === "purchases") {
     const user = await requireCustomerSession(request, env);
-    const orders = await env.DB.prepare("SELECT order_number AS orderNumber, created_at AS createdAt, customer_email AS customerEmail, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress FROM orders WHERE customer_id = ?1 OR (customer_id = '' AND lower(customer_email) = ?2) ORDER BY created_at DESC LIMIT 100")
-      .bind(user.id, user.email).all<Record<string, unknown>>();
+    const orders = await env.DB.prepare("SELECT order_number AS orderNumber, created_at AS createdAt, customer_email AS customerEmail, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress FROM orders WHERE customer_id = ?1 ORDER BY created_at DESC LIMIT 100")
+      .bind(user.id).all<Record<string, unknown>>();
     const purchases = [];
     for (const order of orders.results || []) {
       const items = await env.DB.prepare("SELECT book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number = ?1 ORDER BY id ASC")
@@ -3887,6 +3946,10 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   return json(request, env, { ok: false, error: "Not found." }, 404);
 }
 
+class EmailDeliveryError extends Error {
+  constructor(message: string, readonly status: number, readonly retryAfter = 0, readonly concurrent = false) { super(message); }
+}
+
 async function sendEmail(
   env: Env,
   message: {
@@ -3896,6 +3959,7 @@ async function sendEmail(
     html: string;
     replyTo: string;
     fromName: string;
+    fromEmail?: string;
     attachments?: Array<{ filename: string; content: string }>;
     idempotencyKey?: string;
   },
@@ -3906,7 +3970,7 @@ async function sendEmail(
   });
   if (message.idempotencyKey) headers.set("Idempotency-Key", message.idempotencyKey);
   const body: Record<string, unknown> = {
-    from: message.fromName + " <" + env.MAIL_FROM_EMAIL + ">",
+    from: message.fromName + " <" + (message.fromEmail || env.MAIL_FROM_EMAIL) + ">",
     to: [message.to],
     reply_to: message.replyTo,
     subject: message.subject,
@@ -3918,9 +3982,11 @@ async function sendEmail(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) {
-    throw new Error(describeResendFailure(response.status, await response.text(), env.MAIL_FROM_EMAIL));
+    const detail = await response.text();
+    throw new EmailDeliveryError(describeResendFailure(response.status, detail, message.fromEmail || env.MAIL_FROM_EMAIL), response.status, Number(response.headers.get("Retry-After")) || 0, response.status === 409 && detail.includes("concurrent_idempotent_requests"));
   }
 }
 
@@ -4005,7 +4071,7 @@ async function getUnsubscribeUrl(env: Env, email: string) {
   if (!isValidEmail(normalized)) return "";
   const encodedEmail = base64UrlEncode(normalized);
   const signature = await signValue(encodedEmail, env.UNSUBSCRIBE_SECRET);
-  return `${firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "")}/?action=unsubscribe&e=${encodeURIComponent(encodedEmail)}&sig=${encodeURIComponent(signature)}`;
+  return `${firstUrlValue(env.PUBLIC_API_URL).replace(/\/$/, "")}/api/unsubscribe?e=${encodeURIComponent(encodedEmail)}&sig=${encodeURIComponent(signature)}`;
 }
 
 function buildNewsletterPlainText(campaign: NewsletterCampaignRecord, unsubscribeUrl: string) {
@@ -4036,10 +4102,17 @@ function renderUnsubscribePage(success: boolean, message: string) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function runScheduledTasks(env: Env) {
+async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
   await sendDueCampaigns(env);
-  await rollupAnalyticsEvents(env);
-  await syncBookInventoryFromSquare(env);
+  await processNewsletterQueue(env);
+  if (Math.floor(scheduledTime / 60000) % 15 === 0) {
+    await rollupAnalyticsEvents(env);
+    await syncBookInventoryFromSquare(env);
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM public_rate_limits WHERE window_start < ?1").bind(Math.floor(Date.now() / 1000) - 86400),
+      env.DB.prepare("DELETE FROM checkout_reservations WHERE datetime(expires_at) <= datetime('now')"),
+    ]);
+  }
 }
 
 const ANALYTICS_EVENT_TYPES = new Set([
@@ -4236,73 +4309,90 @@ async function sendDueCampaigns(env: Env) {
   const rows = await env.DB.prepare(
     "SELECT campaign_id AS campaignId, created_at AS createdAt, updated_at AS updatedAt, status, title, subject, preview_text AS previewText, audience, target_type AS targetType, target_value AS targetValue, from_name AS fromName, hero_message AS heroMessage, hero_cta_label AS heroCtaLabel, hero_cta_url AS heroCtaUrl, featured_book_id AS featuredBookId, featured_book_title AS featuredBookTitle, featured_book_description AS featuredBookDescription, featured_book_image_url AS featuredBookImageUrl, featured_cta_label AS featuredCtaLabel, featured_cta_url AS featuredCtaUrl, quick1_title AS quick1Title, quick1_text AS quick1Text, quick1_url AS quick1Url, quick2_title AS quick2Title, quick2_text AS quick2Text, quick2_url AS quick2Url, closing_note AS closingNote, send_date AS sendDate, send_time AS sendTime, time_zone AS timeZone, scheduled_at AS scheduledAt, sent_at AS sentAt, recipients, sent, failed, last_error AS lastError FROM newsletter_campaigns WHERE status = 'Scheduled' AND scheduled_at != '' AND sent_at = '' AND datetime(scheduled_at) <= datetime('now') ORDER BY datetime(scheduled_at) ASC LIMIT 5",
   ).all<NewsletterCampaignRecord>();
-  const scheduler: AuthenticatedAdmin = {
-    email: "system@scheduler",
-    role: "manager",
-    displayName: "Scheduled worker",
-    name: "Scheduled worker",
-    avatarUrl: "",
-    token: { provider: "worker-cron" },
-  };
   for (const campaign of rows.results || []) {
-    try {
-      await sendNewsletterCampaign(env, campaign);
-      await writeAuditLog(env, scheduler, "newsletter_sent", "newsletter_campaign", campaign.campaignId, "Scheduled newsletter sent by worker.");
-    } catch (error) {
-      await env.DB.prepare(
-        "UPDATE newsletter_campaigns SET failed = failed + 1, last_error = ?2, updated_at = datetime('now') WHERE campaign_id = ?1",
-      )
-        .bind(campaign.campaignId, getErrorMessage(error).slice(0, 2000))
-        .run();
-      console.error(JSON.stringify({ type: "campaign_send_failed", campaignId: campaign.campaignId, error: getErrorMessage(error) }));
+    try { await queueNewsletterCampaign(env, campaign); }
+    catch (error) {
+      await env.DB.prepare("UPDATE newsletter_campaigns SET last_error = ?2, updated_at = datetime('now') WHERE campaign_id = ?1")
+        .bind(campaign.campaignId, getErrorMessage(error).slice(0, 1000)).run();
     }
   }
 }
 
-async function sendNewsletterCampaign(env: Env, campaign: NewsletterCampaignRecord) {
-  const subscribers = await getNewsletterCampaignRecipients(env, campaign);
-  if (!subscribers.length) {
-    await env.DB.prepare(
-      "UPDATE newsletter_campaigns SET status = 'Sent', sent_at = datetime('now'), recipients = 0, sent = 0, failed = 0, last_error = '', updated_at = datetime('now') WHERE campaign_id = ?1",
-    )
-      .bind(campaign.campaignId)
-      .run();
-    return;
-  }
+async function queueNewsletterCampaign(env: Env, campaign: NewsletterCampaignRecord) {
+  const recipients = await getNewsletterCampaignRecipients(env, campaign);
+  const deliveries = await Promise.all(recipients.map(async (email) => ({ email, unsubscribeUrl: await getUnsubscribeUrl(env, email) })));
+  const snapshot = JSON.stringify({ campaign, siteUrl: env.SITE_URL, fromEmail: env.MAIL_FROM_EMAIL, replyTo: env.ADMIN_NOTIFICATION_EMAIL });
+  const results = await env.DB.batch([
+    env.DB.prepare("UPDATE newsletter_campaigns SET status = 'Queued', delivery_snapshot = ?2, recipients = ?3, sent = 0, failed = 0, last_error = '', updated_at = datetime('now') WHERE campaign_id = ?1 AND delivery_snapshot = '' AND status IN ('Draft', 'Scheduled')")
+      .bind(campaign.campaignId, snapshot, recipients.length),
+    env.DB.prepare("INSERT OR IGNORE INTO newsletter_deliveries (campaign_id, email, unsubscribe_url) SELECT ?1, json_extract(value, '$.email'), json_extract(value, '$.unsubscribeUrl') FROM json_each(?2) WHERE EXISTS (SELECT 1 FROM newsletter_campaigns WHERE campaign_id = ?1 AND delivery_snapshot = ?3 AND status = 'Queued')")
+      .bind(campaign.campaignId, JSON.stringify(deliveries), snapshot),
+  ]);
+  if (!results[0].meta?.changes) throw new HttpError(409, "This campaign is already queued or sent. Duplicate it to send again.");
+}
 
-  let sent = 0;
-  let failed = 0;
-  let firstError = "";
-  for (let index = 0; index < subscribers.length; index += 20) {
-    const batch = subscribers.slice(index, index + 20);
-    const results = await Promise.allSettled(
-      batch.map(async (email) => {
-        const unsubscribeUrl = await getUnsubscribeUrl(env, email);
-        await sendEmail(env, {
-          to: email,
-          subject: campaign.subject,
-          text: buildNewsletterPlainText(campaign, unsubscribeUrl),
-          html: buildNewsletterEmailHtml(env, campaign, unsubscribeUrl),
-          replyTo: env.ADMIN_NOTIFICATION_EMAIL,
-          fromName: campaign.fromName || "Jackrabbit Punkin Publishing LLC",
-          idempotencyKey: await newsletterIdempotencyKey(campaign.campaignId, email),
-        });
-      }),
-    );
-    for (const result of results) {
-      if (result.status === "fulfilled") sent += 1;
-      else {
-        failed += 1;
-        if (!firstError) firstError = getErrorMessage(result.reason).slice(0, 1000);
+// A renewable campaign claim serializes overlapping cron invocations. Each
+// recipient has durable progress and a stable payload/key across provider retries.
+async function processNewsletterQueue(env: Env) {
+  const lockId = crypto.randomUUID();
+  const claimed = await env.DB.prepare(`UPDATE newsletter_campaigns SET status = 'Sending', send_lock_id = ?1,
+    send_lock_until = datetime('now', '+3 minutes') WHERE campaign_id = (
+      SELECT c.campaign_id FROM newsletter_campaigns c WHERE c.status IN ('Queued', 'Sending') AND c.delivery_snapshot != ''
+        AND (c.send_lock_until = '' OR datetime(c.send_lock_until) <= datetime('now'))
+        AND (EXISTS (SELECT 1 FROM newsletter_deliveries d WHERE d.campaign_id = c.campaign_id AND d.status = 'Pending' AND datetime(d.next_attempt_at) <= datetime('now'))
+          OR NOT EXISTS (SELECT 1 FROM newsletter_deliveries d WHERE d.campaign_id = c.campaign_id AND d.status = 'Pending'))
+      ORDER BY c.updated_at LIMIT 1) RETURNING campaign_id AS campaignId, delivery_snapshot AS snapshot`)
+    .bind(lockId).first<{ campaignId: string; snapshot: string }>();
+  if (!claimed) return;
+  const started = Date.now();
+  try {
+    const frozen = JSON.parse(claimed.snapshot) as { campaign: NewsletterCampaignRecord; siteUrl: string; fromEmail: string; replyTo: string };
+    const rows = await env.DB.prepare("SELECT email, unsubscribe_url AS unsubscribeUrl, attempts, first_attempt_at AS firstAttemptAt FROM newsletter_deliveries WHERE campaign_id = ?1 AND status = 'Pending' AND datetime(next_attempt_at) <= datetime('now') ORDER BY email LIMIT 20")
+      .bind(claimed.campaignId).all<{ email: string; unsubscribeUrl: string; attempts: number; firstAttemptAt: string }>();
+    for (const row of rows.results || []) {
+      if (Date.now() - started > 25000) break;
+      const unsubscribed = await env.DB.prepare("SELECT email FROM newsletter_subscribers WHERE email = ?1 AND (status != 'active' OR consent != 1)").bind(row.email).first();
+      const interested = frozen.campaign.targetType !== "book_interest" || await env.DB.prepare("SELECT id FROM form_submissions WHERE form_type = 'bookNotification' AND lower(email) = ?1 AND title = ?2 AND status != 'Unsubscribed' LIMIT 1").bind(row.email, frozen.campaign.targetValue).first();
+      if (unsubscribed || !interested) {
+        await env.DB.prepare("UPDATE newsletter_deliveries SET status = 'Skipped', updated_at = datetime('now') WHERE campaign_id = ?1 AND email = ?2").bind(claimed.campaignId, row.email).run();
+        continue;
       }
+      // Resend keys expire after 24 hours. Stop before that boundary instead of
+      // risking a duplicate when the outcome of an earlier attempt was uncertain.
+      if (row.attempts >= 6 || (row.firstAttemptAt && Date.now() - Date.parse(row.firstAttemptAt + 'Z') >= 23 * 3600000)) {
+        await env.DB.prepare("UPDATE newsletter_deliveries SET status = 'Failed', last_error = 'Retry window exhausted; verify provider delivery before any manual resend.', updated_at = datetime('now') WHERE campaign_id = ?1 AND email = ?2").bind(claimed.campaignId, row.email).run();
+        continue;
+      }
+      await env.DB.prepare("UPDATE newsletter_deliveries SET attempts = attempts + 1, first_attempt_at = CASE WHEN first_attempt_at = '' THEN datetime('now') ELSE first_attempt_at END, updated_at = datetime('now') WHERE campaign_id = ?1 AND email = ?2").bind(claimed.campaignId, row.email).run();
+      try {
+        await sendEmail(env, {
+          to: row.email, subject: frozen.campaign.subject,
+          text: buildNewsletterPlainText(frozen.campaign, row.unsubscribeUrl),
+          html: buildNewsletterEmailHtml({ ...env, SITE_URL: frozen.siteUrl }, frozen.campaign, row.unsubscribeUrl),
+          replyTo: frozen.replyTo, fromName: frozen.campaign.fromName, fromEmail: frozen.fromEmail,
+          idempotencyKey: await newsletterIdempotencyKey(claimed.campaignId, row.email),
+        });
+        await env.DB.prepare("UPDATE newsletter_deliveries SET status = 'Sent', last_error = '', updated_at = datetime('now') WHERE campaign_id = ?1 AND email = ?2").bind(claimed.campaignId, row.email).run();
+      } catch (error) {
+        const transient = !(error instanceof EmailDeliveryError) || error.status === 429 || error.status >= 500 || error.concurrent;
+        const delay = Math.max(60 * 2 ** row.attempts, error instanceof EmailDeliveryError ? error.retryAfter : 0);
+        await env.DB.prepare("UPDATE newsletter_deliveries SET status = ?3, next_attempt_at = datetime('now', ?4), last_error = ?5, updated_at = datetime('now') WHERE campaign_id = ?1 AND email = ?2")
+          .bind(claimed.campaignId, row.email, transient && row.attempts + 1 < 6 ? "Pending" : "Failed", '+' + Math.min(delay, 3600) + ' seconds', getErrorMessage(error).slice(0, 1000)).run();
+      }
+      // Keep below Resend's shared account limit; never burst 20 requests at once.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
+    await env.DB.prepare(`UPDATE newsletter_campaigns SET
+      sent = (SELECT COUNT(*) FROM newsletter_deliveries WHERE campaign_id = ?1 AND status = 'Sent'),
+      failed = (SELECT COUNT(*) FROM newsletter_deliveries WHERE campaign_id = ?1 AND status = 'Failed'),
+      last_error = COALESCE((SELECT last_error FROM newsletter_deliveries WHERE campaign_id = ?1 AND last_error != '' ORDER BY updated_at DESC LIMIT 1), ''),
+      status = CASE WHEN EXISTS (SELECT 1 FROM newsletter_deliveries WHERE campaign_id = ?1 AND status = 'Pending') THEN 'Sending'
+        WHEN EXISTS (SELECT 1 FROM newsletter_deliveries WHERE campaign_id = ?1 AND status = 'Failed') THEN 'Sent with Errors' ELSE 'Sent' END,
+      sent_at = CASE WHEN EXISTS (SELECT 1 FROM newsletter_deliveries WHERE campaign_id = ?1 AND status = 'Pending') THEN '' ELSE datetime('now') END,
+      updated_at = datetime('now') WHERE campaign_id = ?1 AND send_lock_id = ?2`).bind(claimed.campaignId, lockId).run();
+  } finally {
+    await env.DB.prepare("UPDATE newsletter_campaigns SET send_lock_id = '', send_lock_until = '' WHERE campaign_id = ?1 AND send_lock_id = ?2").bind(claimed.campaignId, lockId).run();
   }
-
-  await env.DB.prepare(
-    "UPDATE newsletter_campaigns SET status = ?2, sent_at = datetime('now'), recipients = ?3, sent = ?4, failed = ?5, last_error = ?6, updated_at = datetime('now') WHERE campaign_id = ?1",
-  )
-    .bind(campaign.campaignId, failed ? "Sent with Errors" : "Sent", subscribers.length, sent, failed, firstError)
-    .run();
 }
 
 async function newsletterIdempotencyKey(campaignId: string, email: string): Promise<string> {

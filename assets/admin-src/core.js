@@ -471,13 +471,19 @@
 
   async function logout() {
     clearCache(cacheKeys.viewer);
+    let destination = '';
     if (authLogoutEndpoint) {
-      await fetch(authLogoutEndpoint, {
+      const response = await fetch(authLogoutEndpoint, {
         method: "POST",
         credentials: "include",
         cache: "no-store",
-      }).catch(function () {});
+      }).catch(function () { return null; });
+      if (response && response.ok) {
+        const data = await response.json().catch(function () { return {}; });
+        destination = String(data.logoutUrl || '');
+      }
     }
+    if (destination === '/cdn-cgi/access/logout') { window.location.assign(destination); return; }
     redirectToLogin("Signed out.");
   }
 
