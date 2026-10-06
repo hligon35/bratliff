@@ -2,7 +2,7 @@ name: Quality Checks
 
 on:
   push:
-    branches: [main, major-update, mailbox, monthlyUpdate]
+    branches: [main, major-update, mailbox, monthlyUpdate, update]
   pull_request:
     branches: [main, major-update]
 
@@ -23,6 +23,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run release:check
       - run: npm run worker:check
       - run: npm run test:maintenance
       - run: npm run worker:prepare

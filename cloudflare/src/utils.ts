@@ -144,15 +144,16 @@ export function matchOriginUrl(rawValue: string | undefined, request: Request, f
 // Directive subset that blocks framing, plugins, and base-tag injection without restricting script/style sources used by static pages.
 const BASELINE_CSP = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
 
-export function withSecurityHeaders(response: Response): Response {
+export function withSecurityHeaders(response: Response, allowSameOriginFrame = false): Response {
   const headers = new Headers(response.headers);
   headers.set("X-Content-Type-Options", "nosniff");
-  headers.set("X-Frame-Options", "DENY");
+  headers.set("X-Frame-Options", allowSameOriginFrame ? "SAMEORIGIN" : "DENY");
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   headers.set("Strict-Transport-Security", "max-age=31536000");
   headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-  if (!headers.has("Content-Security-Policy")) headers.set("Content-Security-Policy", BASELINE_CSP);
+  if (allowSameOriginFrame) headers.set("Content-Security-Policy", "frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
+  else if (!headers.has("Content-Security-Policy")) headers.set("Content-Security-Policy", BASELINE_CSP);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 

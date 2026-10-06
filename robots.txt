@@ -1,7 +1,7 @@
 User-agent: *
 Disallow: /admin/
 Disallow: /login/
-Disallow: /coming-soon.html
+Disallow: /coming-soon
 
 # Generative-engine / AI-assistant crawlers explicitly welcomed for discovery and citation
 User-agent: GPTBot
@@ -41,3 +41,4 @@ Disallow: /admin/
 Disallow: /login/
 
 Sitemap: https://jackrabbitpunkinpublishing.com/sitemap.xml
+Disallow: /account

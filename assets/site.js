@@ -1,14 +1,14 @@
 const pages = [
-  ["Home", "index.html", "home"],
-  ["Books", "books.html", "books"],
-  ["About Us", "about.html", "about"],
-  ["Read It Forward", "read-it-forward.html", "forward"],
-  ["Speaking & Events", "speaking.html", "speaking"],
-  ["Book Club", "book-club.html", "club"],
-  ["Awards", "recognition.html", "awards"],
-  ["Media", "media.html", "media"],
-  ["Contact", "contact.html", "contact"],
-  ["Resources", "resources.html", "resources"],
+  ["Home", "/", "home"],
+  ["Books", "/books", "books"],
+  ["About Us", "/about", "about"],
+  ["Read It Forward", "/read-it-forward", "forward"],
+  ["Speaking & Events", "/speaking", "speaking"],
+  ["Book Club", "/book-club", "club"],
+  ["Awards", "/recognition", "awards"],
+  ["Media", "/media", "media"],
+  ["Contact", "/contact", "contact"],
+  ["Resources", "/resources", "resources"],
 ];
 
 const siteConfig = window.siteConfig || {};
@@ -180,11 +180,11 @@ function header() {
     .map(([label, href, key]) => "<a href=\"" + href + "\"" + (key === current ? " aria-current=\"page\"" : "") + ">" + label + "</a>")
     .join("");
   return "<a class=\"skip-link\" href=\"#main\">Skip to content</a><header class=\"site-header\"><div class=\"container nav-wrap\">" +
-    "<a class=\"brand brand-with-logo\" href=\"index.html\" aria-label=\"Jackrabbit Punkin Publishing home\">" +
+    "<a class=\"brand brand-with-logo\" href=\"/\" aria-label=\"Jackrabbit Punkin Publishing home\">" +
     "<img class=\"brand-logo\" src=\"" + artwork.brandLogo + "\" alt=\"\" aria-hidden=\"true\">" +
     "<span class=\"brand-copy\"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a>" +
     "<button class=\"menu-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"site-nav\" aria-label=\"Open navigation\"><span class=\"material-icons-round\" aria-hidden=\"true\">menu</span></button>" +
-    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"account.html\" data-account-mobile-login>Login</a></nav>" +
+    "<nav class=\"site-nav\" id=\"site-nav\" aria-label=\"Primary\">" + navLinks + "<a class=\"mobile-login-link\" href=\"/account\" data-account-mobile-login>Login</a></nav>" +
     "<div class=\"site-account\" data-account-shell><button class=\"account-trigger\" type=\"button\" data-account-trigger aria-expanded=\"false\" aria-controls=\"account-popover\"><span class=\"jrpp-public-icon\" data-account-trigger-icon aria-hidden=\"true\">person</span><span data-account-trigger-label>Login</span></button><div class=\"account-popover\" id=\"account-popover\" data-account-popover hidden><div data-account-panel></div></div></div>" +
     "<div class=\"account-overlay\" data-account-overlay hidden><div class=\"account-overlay-card\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"account-overlay-title\"><button class=\"account-overlay-close\" type=\"button\" data-account-close aria-label=\"Close sign in\"><span class=\"material-icons-round\" aria-hidden=\"true\">close</span></button><h2 id=\"account-overlay-title\">Reader account</h2><div data-account-panel></div></div></div>" +
     "</div></header>";
@@ -225,12 +225,12 @@ function socialLinks() {
 
 function footer() {
   return `<footer class="site-footer"><div class="container footer-grid">
-    <div><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
+    <div><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><span>JP</span></span><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><p style="margin-top:1rem;max-width:34ch">Stories That Inspire. Books That Endure.</p><a href="mailto:Publisher@JackrabbitPunkinPublishing.com">Publisher@JackrabbitPunkinPublishing.com</a>${socialLinks()}</div>
     <div><h3>Explore</h3><div class="footer-links">${pages
       .slice(0, 10)
       .map(([label, href]) => `<a href="${href}">${label}</a>`)
       .join("")}</div></div>
-    <div><h3>Policies</h3><div class="footer-links"><a href="policies.html#privacy">Privacy Policy</a><a href="policies.html#terms">Terms & Conditions</a><a href="policies.html#refund">Refund Policy</a><a href="policies.html#shipping">Shipping Policy</a><a href="policies.html#accessibility">Accessibility</a><a href="policies.html#copyright">Copyright</a></div></div>
+    <div><h3>Policies</h3><div class="footer-links"><a href="/policies#privacy">Privacy Policy</a><a href="/policies#terms">Terms & Conditions</a><a href="/policies#refund">Refund Policy</a><a href="/policies#shipping">Shipping Policy</a><a href="/policies#accessibility">Accessibility</a><a href="/policies#copyright">Copyright</a></div></div>
     <div class="footer-signup"><h3>Stay Connected</h3><p>Get news about books, author events, and Read It Forward.</p><form data-form-type="newsletter" data-success-message="Thank you for subscribing."><div class="newsletter-names"><label>First name<input type="text" name="firstName" autocomplete="given-name" maxlength="100" required></label><label>Last name<input type="text" name="lastName" autocomplete="family-name" maxlength="100" required></label></div><label>Email address<input type="email" name="email" autocomplete="email" required></label><input type="hidden" name="consent" value="true"><div class="cf-turnstile" data-action="turnstile-spin-v1"></div><button class="button" type="submit">Subscribe</button><p class="newsletter-note">Unsubscribe at any time.</p><div class="form-message" role="status"></div></form></div>
   </div><div class="container footer-bottom"><span>© 2026 Jackrabbit Punkin Publishing LLC. All rights reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
 }
@@ -335,21 +335,8 @@ function initCustomerAccount() {
   const adminStatus = shell.querySelector("[data-admin-status]");
   const adminName = shell.querySelector("[data-admin-status-name]");
   const triggerIcon = shell.querySelector("[data-account-trigger-icon]");
-  let customerTurnstilePromise = null;
-  function loadCustomerTurnstile() {
-    if (window.turnstile) return Promise.resolve(window.turnstile);
-    if (customerTurnstilePromise) return customerTurnstilePromise;
-    customerTurnstilePromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector("script[data-turnstile-api]");
-      const script = existing || document.createElement("script");
-      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-      script.async = true; script.defer = true; script.dataset.turnstileApi = "true";
-      script.addEventListener("load", () => window.turnstile ? resolve(window.turnstile) : reject(new Error("Security check did not initialize.")), { once: true });
-      script.addEventListener("error", () => reject(new Error("Security check could not load. Please refresh and try again.")), { once: true });
-      if (!existing) document.head.appendChild(script);
-    });
-    return customerTurnstilePromise;
-  }
+  function loadCustomerTurnstile() { return window.JPPTurnstile.load(); }
+
   async function mountCustomerTurnstile(root) {
     const form = root?.querySelector('[data-customer-auth-form][data-auth-action="login"]');
     const container = form?.querySelector("[data-customer-turnstile]");
@@ -363,9 +350,9 @@ function initCustomerAccount() {
       return;
     }
     try {
-      const turnstile = await loadCustomerTurnstile();
+      await loadCustomerTurnstile();
       if (!container.isConnected || !form.isConnected) return;
-      const widgetId = turnstile.render(container, {
+      const widgetId = await window.JPPTurnstile.render(container, {
         sitekey: key, action: "customer_login", theme: "light",
         callback: (token) => { const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = token; },
         "expired-callback": () => { const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = ""; },
@@ -458,9 +445,10 @@ function initCustomerAccount() {
     if (mobileLink) {
       mobileLink.textContent = signedIn ? "Profile" : "Login";
       mobileLink.hidden = signedIn;
-      mobileLink.href = currentUser ? "account.html" : "#";
+      mobileLink.href = currentUser ? "/account" : "#";
     }
     document.querySelectorAll("[data-account-panel]").forEach((root) => {
+      window.JPPTurnstile.remove(root.querySelector("[data-customer-turnstile]"));
       if (currentAdmin) {
         root.innerHTML = '<div class="account-panel account-panel-user"><p class="account-panel-kicker">Admin logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class="button ink" href="/admin/">Admin</a><button class="account-signout" type="button" data-admin-logout>Logout</button></div>';
         root.querySelector("[data-account-user-name]").textContent = currentAdmin.displayName || currentAdmin.name || currentAdmin.email;
@@ -472,7 +460,7 @@ function initCustomerAccount() {
         panelMarkup(root);
         return;
       }
-      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class=\"button ink\" href=\"account.html\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Logout</button></div>";
+      root.innerHTML = "<div class=\"account-panel account-panel-user\"><p class=\"account-panel-kicker\">Logged in</p><h3 data-account-user-name></h3><p data-account-user-email></p><a class=\"button ink\" href=\"/account\">View profile</a><button class=\"account-signout\" type=\"button\" data-account-logout>Logout</button></div>";
       root.querySelector("[data-account-user-name]").textContent = currentUser.displayName || "Reader";
       root.querySelector("[data-account-user-email]").textContent = currentUser.email;
       root.querySelector("[data-account-logout]")?.addEventListener("click", async () => {
@@ -485,6 +473,7 @@ function initCustomerAccount() {
   }
 
   function closeAll() {
+    if (!overlay.hidden) window.JPPDialog.close();
     popover.hidden = true;
     overlay.hidden = true;
     document.body.classList.remove("account-overlay-open");
@@ -503,12 +492,13 @@ function initCustomerAccount() {
   function openOverlay() {
     overlay.hidden = false;
     document.body.classList.add("account-overlay-open");
-    overlay.querySelector("input, a, button")?.focus();
+    window.JPPDialog.open(overlay.querySelector("[role=dialog]"), closeAll);
     const panel = overlay.querySelector("[data-account-panel]");
     if (panel && !currentUser && !currentAdmin) mountCustomerTurnstile(panel);
   }
 
   function closeOverlay() {
+    window.JPPDialog.close();
     overlay.hidden = true;
     document.body.classList.remove("account-overlay-open");
   }
@@ -556,7 +546,7 @@ function initCustomerAccount() {
   document.addEventListener("click", (event) => {
     if (!shell.contains(event.target) && !popover.hidden) closeAll();
   });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeAll(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !popover.hidden) closeAll(); });
 
   async function refresh() {
     const version = ++sessionVersion;
@@ -673,8 +663,7 @@ async function submitLiveForm(form) {
   }
 
   payload.set("formType", form.dataset.formType || "contact");
-  payload.set("pageUrl", window.location.href);
-  payload.set("userAgent", window.navigator.userAgent);
+  payload.set("pageUrl", window.location.origin + window.location.pathname);
 
   if (payload.get("formType") === "newsletter" && !payload.get("consent")) {
     payload.set("consent", "true");
@@ -691,6 +680,7 @@ async function submitLiveForm(form) {
       submitButton.textContent = "Sending...";
     }
 
+    if (!payload.get("cf-turnstile-response")) throw new Error("Complete the security check before sending.");
     const requestInit = {
       method: "POST",
       headers: {
@@ -721,10 +711,11 @@ async function submitLiveForm(form) {
   } catch (error) {
     setFormMessage(
       form,
-      "We could not send your request just now. Please try again in a moment or email us directly.",
+      error.message || "We could not send your request just now. Please try again in a moment or email us directly.",
       true,
     );
   } finally {
+    window.JPPTurnstile.reset(form);
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.textContent = originalButtonText;
@@ -744,25 +735,16 @@ document.querySelectorAll("form[data-form-type]").forEach((form) => {
 });
 
 function renderTurnstileWidgets() {
-  const sitekey = normalizeUrl(siteConfig.turnstileSiteKey);
-  if (!sitekey || typeof window.turnstile === "undefined") return;
-  document.querySelectorAll(".cf-turnstile").forEach((el) => {
-    if (el.dataset.rendered) return;
-    el.dataset.rendered = "true";
-    window.turnstile.render(el, { sitekey, action: "turnstile-spin-v1" });
+  const render = (el) => window.JPPTurnstile.render(el, { action: "turnstile-spin-v1" }).catch(() => {
+    const form = el.closest("form");
+    if (form) setFormMessage(form, "Security check could not load. Please refresh or email us directly.", true);
   });
+  const observer = typeof IntersectionObserver === "function" ? new IntersectionObserver(entries => {
+    entries.forEach(entry => { if (entry.isIntersecting) { observer.unobserve(entry.target); render(entry.target); } });
+  }, { rootMargin: "200px" }) : null;
+  document.querySelectorAll(".cf-turnstile").forEach(el => observer ? observer.observe(el) : render(el));
 }
-
-window.onloadTurnstileCallback = renderTurnstileWidgets;
-if (document.querySelector(".footer-signup") && !document.querySelector('script[src*="challenges.cloudflare.com/turnstile/"]')) {
-  const turnstileScript = document.createElement("script");
-  turnstileScript.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-  turnstileScript.async = true;
-  turnstileScript.onload = renderTurnstileWidgets;
-  document.head.appendChild(turnstileScript);
-}
-if (document.readyState !== "loading") renderTurnstileWidgets();
-else document.addEventListener("DOMContentLoaded", renderTurnstileWidgets);
+renderTurnstileWidgets();
 
 function initAdminEntryPages() {
   const loginStatus = document.querySelector("[data-login-status]");
@@ -880,6 +862,7 @@ let modalTrigger = null;
 function closeNotificationModal() {
   if (!modal?.classList.contains("open")) return;
   modal.classList.remove("open");
+  window.JPPDialog.close();
   modalTrigger?.focus();
   modalTrigger = null;
 }
@@ -894,7 +877,7 @@ document.querySelectorAll("[data-notify]").forEach((button) =>
     if (form) form.dataset.bookTitle = title;
     syncNotificationTitle(title);
     modal?.classList.add("open");
-    modal?.querySelector('input[type="email"]')?.focus();
+    if (modal) window.JPPDialog.open(modal.querySelector("[role=dialog]") || modal, closeNotificationModal, button);
   }),
 );
 document
@@ -903,25 +886,7 @@ document
 modal?.addEventListener("click", (event) => {
   if (event.target === modal) closeNotificationModal();
 });
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeNotificationModal();
-  if (event.key !== "Tab" || !modal?.classList.contains("open")) return;
-  const focusable = [
-    ...modal.querySelectorAll(
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
-    ),
-  ].filter((element) => !element.hidden);
-  if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-});
+
 
 const documentViewer = document.querySelector("[data-document-viewer-modal]");
 let documentViewerTrigger = null;
@@ -929,6 +894,7 @@ let documentViewerTrigger = null;
 function closeDocumentViewer() {
   if (!documentViewer?.classList.contains("open")) return;
   documentViewer.classList.remove("open");
+  window.JPPDialog.close();
   documentViewer.setAttribute("aria-hidden", "true");
   document.body.classList.remove("document-viewer-open");
   const frame = documentViewer.querySelector("[data-document-viewer-frame]");
@@ -982,7 +948,7 @@ function openDocumentViewer(button) {
   documentViewer.classList.add("open");
   documentViewer.setAttribute("aria-hidden", "false");
   document.body.classList.add("document-viewer-open");
-  documentViewer.querySelector("[data-document-viewer-close]")?.focus();
+  window.JPPDialog.open(documentViewer.querySelector("[role=dialog]") || documentViewer, closeDocumentViewer, button);
 }
 
 document.querySelectorAll("[data-document-viewer]").forEach((button) => {
@@ -994,29 +960,7 @@ documentViewer?.querySelectorAll("[data-document-viewer-close]").forEach((button
 documentViewer?.addEventListener("click", (event) => {
   if (event.target === documentViewer) closeDocumentViewer();
 });
-document.addEventListener("keydown", (event) => {
-  if (!documentViewer?.classList.contains("open")) return;
-  if (event.key === "Escape") {
-    closeDocumentViewer();
-    return;
-  }
-  if (event.key !== "Tab") return;
-  const focusable = [
-    ...documentViewer.querySelectorAll(
-      'button:not([disabled]), a[href], iframe',
-    ),
-  ].filter((element) => !element.hidden);
-  if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-});
+
 
 const requestedSubject = new URLSearchParams(location.search).get("subject");
 if (requestedSubject) {
@@ -1303,12 +1247,13 @@ function initSponsorProgram() {
     }
     backdrop.classList.add("open");
     backdrop.setAttribute("aria-hidden", "false");
-    document.querySelector('[data-sponsor-form] input[name="payerName"]').focus();
+    window.JPPDialog.open(backdrop.querySelector("[role=dialog]"), closeSponsorModal);
   }
 
   function closeSponsorModal() {
     const backdrop = document.querySelector(".sponsor-modal-backdrop");
     backdrop?.classList.remove("open");
+    window.JPPDialog.close();
     backdrop?.setAttribute("aria-hidden", "true");
   }
 
@@ -1345,7 +1290,7 @@ function initSponsorProgram() {
       });
       const data = await response.json();
       if (!data.ok || !data.url) throw new Error(data.error || "Sponsorship checkout could not be started.");
-      trackEvent("sponsor_checkout_start", { meta: { package: body.package } });
+      trackEvent("sponsor_checkout_start", { meta: { packageKey: body.package } });
       if (checkoutWindow && !checkoutWindow.closed) {
         checkoutWindow.location.href = data.url;
         submitButton.disabled = false;

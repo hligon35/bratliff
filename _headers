@@ -12,5 +12,9 @@
 /login/*
   X-Robots-Tag: noindex, nofollow
 
-/coming-soon.html
+/coming-soon*
   X-Robots-Tag: noindex, nofollow
+
+/account*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer

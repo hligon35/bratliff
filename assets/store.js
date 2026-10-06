@@ -24,7 +24,7 @@
   const checkoutEndpoint = resolveEndpoint(siteConfig.storeCheckoutEndpoint || siteConfig.storeEndpoint || siteConfig.formEndpoint, '/api/store/checkout');
   const confirmCheckoutEndpoint = resolveEndpoint(siteConfig.storeConfirmEndpoint || '/api/store/confirm-checkout', '/api/store/confirm-checkout');
   const usesLegacyCheckout = /script\.google\.com/i.test(checkoutEndpoint);
-  const state = { books: [], cart: loadCart() };
+  const state = { books: [], cart: loadCart(), checkout: { available: false } };
 
   function resolveEndpoint(configuredValue, defaultPath) {
     if (publicApiRoot) return publicApiRoot + defaultPath;
@@ -55,6 +55,7 @@
     const data = await response.json();
     if (!data.ok) throw new Error(data.error || 'Could not load books.');
     state.books = Array.isArray(data.books) ? data.books : [];
+    state.checkout = data.checkout || { available: false };
     return state.books;
   }
 
@@ -62,7 +63,7 @@
     const grid = document.querySelector('[data-store-grid]');
     if (!grid) return;
     if (!state.books.length) {
-      grid.innerHTML = '<div class="store-empty">No published books are available yet.</div>';
+      grid.innerHTML = '<div class="store-empty">Direct ordering is opening soon. You can still explore the featured books and retailer links above.</div>';
       return;
     }
 
@@ -129,8 +130,11 @@
     if (!state.cart.length) itemsEl.innerHTML = '<div class="store-empty">Your cart is empty.</div>';
     else itemsEl.innerHTML = state.cart.map(item => `<div class="store-cart-item">
       ${item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="">` : '<span></span>'}
-      <div><h3>${escapeHtml(item.title)}</h3><div class="store-qty"><button type="button" data-qty="-1" data-sku="${escapeHtml(item.sku)}">−</button><span>${item.quantity}</span><button type="button" data-qty="1" data-sku="${escapeHtml(item.sku)}">+</button></div></div>
+      <div><h3>${escapeHtml(item.title)}</h3><div class="store-qty"><button type="button" aria-label="Decrease quantity" data-qty="-1" data-sku="${escapeHtml(item.sku)}">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-qty="1" data-sku="${escapeHtml(item.sku)}">+</button></div></div>
       <strong>${money(item.price * item.quantity)}</strong></div>`).join('');
+    const checkoutButton = document.querySelector('[data-checkout]');
+    checkoutButton.disabled = !state.cart.length || !state.checkout.available || Boolean(state.checkingOut);
+    checkoutButton.textContent = state.checkout.available ? 'Checkout' : 'Online checkout unavailable';
     totalEl.textContent = money(state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
   }
 
@@ -139,6 +143,7 @@
     const backdrop = document.querySelector('.store-cart-backdrop');
     backdrop.classList.add('open'); backdrop.setAttribute('aria-hidden', 'false');
     document.body.classList.add('store-cart-open');
+    window.JPPDialog.open(backdrop.querySelector('[role=dialog]'), closeCart);
   }
 
   function closeCart() {
@@ -146,10 +151,12 @@
     if (!backdrop) return;
     backdrop.classList.remove('open'); backdrop.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('store-cart-open');
+    window.JPPDialog.close();
   }
 
   async function checkout() {
     if (state.checkingOut) return;
+    if (!state.checkout.available) return toast('Online checkout is temporarily unavailable. Please contact the publisher.');
     if (!state.cart.length) return toast('Your cart is empty.');
     if (!checkoutEndpoint) return toast('Checkout is not configured yet.');
     const body = new URLSearchParams({ action: 'store-checkout', cart: JSON.stringify(state.cart.map(item => ({ sku: item.sku, quantity: item.quantity }))) });
@@ -164,7 +171,7 @@
     } catch (error) { toast(error.message); }
     finally {
       state.checkingOut = false;
-      document.querySelectorAll('[data-checkout]').forEach(button => { button.disabled = false; });
+      document.querySelectorAll('[data-checkout]').forEach(button => { button.disabled = !state.checkout.available; });
     }
   }
 

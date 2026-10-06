@@ -21,25 +21,12 @@
 
   let mode = new URLSearchParams(window.location.search).has("reset") ? "reset" : "login";
   let user = null;
-  let turnstileScriptPromise = null;
   let accountTurnstileWidget = null;
 
-  function loadTurnstile() {
-    if (window.turnstile) return Promise.resolve(window.turnstile);
-    if (turnstileScriptPromise) return turnstileScriptPromise;
-    turnstileScriptPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector("script[data-turnstile-api]");
-      const script = existing || document.createElement("script");
-      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-      script.async = true; script.defer = true; script.dataset.turnstileApi = "true";
-      script.addEventListener("load", () => window.turnstile ? resolve(window.turnstile) : reject(new Error("Security check did not initialize.")), { once: true });
-      script.addEventListener("error", () => reject(new Error("Security check could not load. Please refresh and try again.")), { once: true });
-      if (!existing) document.head.appendChild(script);
-    });
-    return turnstileScriptPromise;
-  }
+  function loadTurnstile() { return window.JPPTurnstile.load(); }
+
   function removeAccountTurnstile() {
-    if (accountTurnstileWidget !== null && window.turnstile) { try { window.turnstile.remove(accountTurnstileWidget); } catch {} }
+    window.JPPTurnstile.remove(root.querySelector("[data-account-turnstile]"));
     accountTurnstileWidget = null;
   }
   async function mountAccountTurnstile(form) {
@@ -49,9 +36,9 @@
     if (!host || !form || host.dataset.widgetId) return;
     if (!key) { if (submit) submit.disabled = true; message("Sign-in security is not configured. Please contact support.", true); return; }
     try {
-      const turnstile = await loadTurnstile();
+      await loadTurnstile();
       if (!host.isConnected || !form.isConnected) return;
-      accountTurnstileWidget = turnstile.render(host, {
+      accountTurnstileWidget = await window.JPPTurnstile.render(host, {
         sitekey: key, action: "customer_login", theme: "light",
         callback: (token) => { const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = token; },
         "expired-callback": () => { const input = form.querySelector("[data-turnstile-token]"); if (input) input.value = ""; },
@@ -125,6 +112,7 @@
         return;
       }
       user = data.user;
+      if (action === "reset") window.history.replaceState(null, "", window.location.pathname);
       window.JRPPAccount?.refresh?.();
       render();
     } catch (error) {
@@ -139,6 +127,7 @@
   }
 
   function renderProfile() {
+    removeAccountTurnstile();
     root.innerHTML = "<div class=\"account-layout\"><div><p class=\"eyebrow\">Your account</p><h2>Welcome back, <span data-account-name></span>.</h2><p>Your saved shipping address can be reused by the store team when fulfilling future orders. Purchases are linked to this account email.</p><button class=\"button ghost\" type=\"button\" data-account-page-logout>Sign out</button></div><div><section class=\"account-card\"><h2>Profile details</h2><form data-profile-form><div class=\"account-form-grid\"><label>Display name<input name=\"displayName\" autocomplete=\"name\" required></label><label>Email<input type=\"email\" name=\"email\" autocomplete=\"email\" required></label><label class=\"span-2\">Shipping address<textarea name=\"shippingAddress\" autocomplete=\"street-address\"></textarea></label><label>Current password<input type=\"password\" name=\"currentPassword\" autocomplete=\"current-password\"></label><label>New password<input type=\"password\" name=\"newPassword\" autocomplete=\"new-password\" minlength=\"8\"></label></div><button class=\"button ink\" type=\"submit\">Save profile</button><p class=\"account-form-message\" data-account-form-message role=\"status\"></p></form></section><section class=\"account-section\"><h2>Past purchases</h2><div class=\"purchase-list\" data-purchase-list><p>Loading your purchases…</p></div></section></div></div>";
     root.querySelector("[data-account-name]").textContent = user.displayName || "reader";
     const form = root.querySelector("[data-profile-form]");
