@@ -11,6 +11,7 @@
     ] },
     { label: "Customer work", items: [
       { key: "mailbox", label: "Mailbox", icon: "mail", view: true, count: "mailNavCount" },
+      { key: "submissions", label: "Website submissions", icon: "forum", view: true },
     ] },
     { label: "Publishing", items: [
       { key: "author", label: "Featured Author", icon: "person" },
@@ -29,6 +30,7 @@
     catalog: ["BOOKSTORE", "Catalog"],
     inventory: ["BOOKSTORE", "Inventory"],
     mailbox: ["CUSTOMER WORK", "Mailbox"],
+    submissions: ["CUSTOMER WORK", "Website submissions"],
     author: ["PUBLISHING", "Featured Author"],
     sponsors: ["PUBLISHING", "Sponsors"],
     newsletter: ["PUBLISHING", "Newsletter"],

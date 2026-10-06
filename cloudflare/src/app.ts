@@ -1391,6 +1391,18 @@ async function handleAdminApi(
     requireRole(admin, "manager");
     return await sendMailboxEmail(request, env, admin, await parseBody(request));
   }
+  if (request.method === "GET" && path === "submissions/items") {
+    return json(request, env, { ok: true, ...(await listSubmissionRecords(env, admin, url.searchParams)) });
+  }
+  if (request.method === "GET" && path === "submissions/item") {
+    return json(request, env, { ok: true, item: await getSubmissionRecord(env, admin, url.searchParams.get("key")) });
+  }
+  if (request.method === "PATCH" && path === "submissions/item/state") {
+    requireRole(admin, "manager");
+    const body = await parseBody(request);
+    const item = await getSubmissionRecord(env, admin, body.itemKey);
+    return json(request, env, { ok: true, ...(await updateCorrespondenceState(env, admin, item.itemKey, body.action, "submission")) });
+  }
   if (request.method === "GET" && path === "submissions") {
     return json(request, env, {
       ok: true,
@@ -1671,17 +1683,17 @@ async function handleAdminApi(
   return json(request, env, { ok: false, error: "Admin route not found." }, 404);
 }
 
-type MailboxSourceKey = { sourceType: "order" | "submission" | "outbound" | "email"; id: string; itemKey: string };
+type MailboxSourceKey = { sourceType: "outbound" | "email"; id: string; itemKey: string };
 
 function parseMailboxSourceKey(value: unknown): MailboxSourceKey {
   const itemKey = text(value, 240);
   const splitAt = itemKey.indexOf(":");
   const sourceType = itemKey.slice(0, splitAt);
   const id = itemKey.slice(splitAt + 1);
-  if (splitAt < 1 || !id || !["order", "submission", "outbound", "email"].includes(sourceType) || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) {
+  if (splitAt < 1 || !id || !["outbound", "email"].includes(sourceType) || !/^[a-zA-Z0-9_-]{1,180}$/.test(id)) {
     throw new HttpError(400, "Choose a valid mailbox item.");
   }
-  return { sourceType: sourceType as "order" | "submission" | "outbound", id, itemKey };
+  return { sourceType: sourceType as MailboxSourceKey["sourceType"], id, itemKey };
 }
 
 async function resolveMailboxDraftKey(env: Env, value: unknown, adminEmail: string): Promise<string> {
@@ -1693,13 +1705,28 @@ async function resolveMailboxDraftKey(env: Env, value: unknown, adminEmail: stri
 async function assertMailboxItemExists(env: Env, value: unknown, adminEmail = ""): Promise<MailboxSourceKey> {
   const key = parseMailboxSourceKey(value);
   let row: Record<string, unknown> | null;
-  if (key.sourceType === "order") row = await env.DB.prepare("SELECT order_number AS id FROM orders WHERE order_number = ?1").bind(key.id).first();
-  else if (key.sourceType === "submission") row = await env.DB.prepare("SELECT id FROM form_submissions WHERE id = ?1").bind(key.id).first();
-  else if (key.sourceType === "email") row = await env.DB.prepare("SELECT uid AS id FROM mailbox_external_messages WHERE uid = ?1").bind(key.id).first();
+  if (key.sourceType === "email") row = await env.DB.prepare("SELECT uid AS id FROM mailbox_external_messages WHERE uid = ?1").bind(key.id).first();
   else row = await env.DB.prepare("SELECT id FROM mailbox_outbound WHERE id = ?1 AND admin_email = ?2").bind(key.id, adminEmail).first();
   if (!row) throw new HttpError(404, "Mailbox item not found.");
   return key;
 }
+
+// Mail sources are deliberately limited to messages received from the mail server
+// and real outbound attempts. Business records never participate in these queries.
+const mailboxSourceSql =
+  "WITH source_items AS (" +
+  " SELECT 'email' AS sourceType, 'email:' || e.uid AS itemKey, e.uid AS id, e.received_at AS createdAt, " +
+  " e.from_name AS name, e.from_email AS email, e.subject, e.preview, e.body, 'Received' AS status, '' AS idempotencyKey, '' AS error, 'inbox' AS defaultFolder, 0 AS defaultRead " +
+  " FROM mailbox_external_messages e UNION ALL " +
+  " SELECT 'outbound', 'outbound:' || o.id, o.id, o.created_at, o.recipient, o.recipient, o.subject, " +
+  " COALESCE(NULLIF(o.error, ''), substr(o.body, 1, 220)), o.body, o.status, o.idempotency_key, o.error, " +
+  " CASE o.status WHEN 'Accepted' THEN 'sent' WHEN 'Failed' THEN 'failed' ELSE 'outbox' END, 1 " +
+  " FROM mailbox_outbound o WHERE o.admin_email = ?1" +
+  "), mailbox_items AS (" +
+  " SELECT s.*, CASE WHEN m.folder IN ('archive', 'trash') THEN m.folder ELSE s.defaultFolder END AS folder, " +
+  " COALESCE(m.is_read, s.defaultRead) AS isRead, COALESCE(m.starred, 0) AS starred " +
+  " FROM source_items s LEFT JOIN mailbox_state m ON m.item_key = s.itemKey AND m.admin_email = ?1" +
+  ")";
 
 async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams) {
   const folder = text(search.get("folder"), 20).toLowerCase() || "inbox";
@@ -1707,144 +1734,52 @@ async function listMailboxItems(env: Env, admin: AuthenticatedAdmin, search: URL
   const term = text(search.get("search"), 120).toLowerCase();
   const page = clampInt(search.get("page"), 1, 5000, 1);
   const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
-  if (!["inbox", "starred", "archive", "trash", "all"].includes(folder)) throw new HttpError(400, "Choose a valid mailbox folder.");
-  if (!["all", "orders", "submissions", "email"].includes(type)) throw new HttpError(400, "Choose a valid mailbox record type.");
-
-  const sourceSql =
-    "WITH source_items AS (" +
-    " SELECT 'order' AS sourceType, 'order:' || o.order_number AS itemKey, o.order_number AS id, o.created_at AS createdAt, " +
-    " o.customer_name AS name, o.customer_email AS email, 'Order ' || o.order_number AS subject, " +
-    " 'Bookstore order · ' || COALESCE(o.customer_name, o.customer_email, 'Customer') AS preview, " +
-    " COALESCE(o.notes, '') AS body, '' AS formTypeLabel, o.payment_status AS status, o.payment_status AS paymentStatus, " +
-    " o.fulfillment_status AS fulfillmentStatus, o.total AS total, o.shipping_address AS shippingAddress, '' AS organization, '' AS phone, '' AS pageUrl " +
-    " FROM orders o UNION ALL " +
-    " SELECT 'submission' AS sourceType, 'submission:' || f.id AS itemKey, f.id AS id, f.created_at AS createdAt, " +
-    " f.name AS name, f.email AS email, " +
-    " CASE f.form_type WHEN 'contact' THEN COALESCE(NULLIF(f.subject,''),'Website contact') WHEN 'speaking' THEN 'Speaking request' " +
-    " WHEN 'bookClub' THEN 'Book club request' WHEN 'bookNotification' THEN 'Book notification' WHEN 'newsletter' THEN 'Newsletter signup' ELSE 'Website submission' END AS subject, " +
-    " COALESCE(NULLIF(f.message,''), NULLIF(f.request_text,''), NULLIF(f.details,''), NULLIF(f.subject,''), NULLIF(f.title,''), 'Website submission') AS preview, " +
-    " COALESCE(NULLIF(f.message,''), NULLIF(f.request_text,''), NULLIF(f.details,''), NULLIF(f.notes,''), '') AS body, " +
-    " f.form_type AS formTypeLabel, f.status AS status, '' AS paymentStatus, '' AS fulfillmentStatus, 0 AS total, '' AS shippingAddress, f.organization AS organization, f.phone AS phone, f.page_url AS pageUrl " +
-    " FROM form_submissions f UNION ALL " +
-    " SELECT 'email' AS sourceType, 'email:' || e.uid AS itemKey, e.uid AS id, e.received_at AS createdAt, " +
-    " e.from_name AS name, e.from_email AS email, e.subject AS subject, e.preview AS preview, e.body AS body, " +
-    " 'Email message' AS formTypeLabel, 'Received' AS status, '' AS paymentStatus, '' AS fulfillmentStatus, 0 AS total, '' AS shippingAddress, '' AS organization, '' AS phone, '' AS pageUrl " +
-    " FROM mailbox_external_messages e" +
-    "), mailbox_items AS (" +
-    " SELECT s.*, COALESCE(m.folder, 'inbox') AS folder, COALESCE(m.is_read, 0) AS isRead, COALESCE(m.starred, 0) AS starred " +
-    " FROM source_items s LEFT JOIN mailbox_state m ON m.item_key = s.itemKey AND m.admin_email = ?1" +
-    ")";
+  if (!["inbox", "sent", "failed", "outbox", "starred", "archive", "trash", "all"].includes(folder)) throw new HttpError(400, "Choose a valid mailbox folder.");
+  // Accept the previous email/all filters for bookmarked clients, but never
+  // expose purchases or form records through the mailbox API.
+  if (!["all", "email"].includes(type)) throw new HttpError(400, "The mailbox contains email messages only.");
   const filters: string[] = [];
   const bindings: unknown[] = [admin.email];
   const bind = (value: unknown) => { bindings.push(value); return "?" + bindings.length; };
   if (folder === "starred") filters.push("starred = 1 AND folder != 'trash'");
   else if (folder !== "all") filters.push("folder = " + bind(folder));
-  if (type === "orders") filters.push("sourceType = 'order'");
-  else if (type === "submissions") filters.push("sourceType = 'submission'");
-  else if (type === "email") filters.push("sourceType = 'email'");
   if (term) {
     const pattern = bind("%" + term + "%");
-    filters.push("(lower(name) LIKE " + pattern + " OR lower(email) LIKE " + pattern + " OR lower(subject) LIKE " + pattern + " OR lower(preview) LIKE " + pattern + " OR lower(body) LIKE " + pattern + " OR lower(id) LIKE " + pattern + ")");
+    filters.push("(lower(name) LIKE " + pattern + " OR lower(email) LIKE " + pattern + " OR lower(subject) LIKE " + pattern + " OR lower(preview) LIKE " + pattern + " OR lower(body) LIKE " + pattern + ")");
   }
   const whereSql = filters.length ? " WHERE " + filters.join(" AND ") : "";
-  const countRow = await env.DB.prepare(sourceSql + " SELECT COUNT(*) AS count FROM mailbox_items" + whereSql)
-    .bind(...bindings).first<{ count: number }>();
+  const countRow = await env.DB.prepare(mailboxSourceSql + " SELECT COUNT(*) AS count FROM mailbox_items" + whereSql).bind(...bindings).first<{ count: number }>();
   const limitBind = bind(pageSize);
   const offsetBind = bind((page - 1) * pageSize);
   const pageRows = await env.DB.prepare(
-    sourceSql + " SELECT sourceType, itemKey, id, createdAt, name, email, subject, substr(preview, 1, 220) AS preview, substr(body, 1, CASE WHEN sourceType = 'email' THEN 6000 ELSE 1200 END) AS body, formTypeLabel, status, paymentStatus, fulfillmentStatus, total, shippingAddress, organization, phone, pageUrl, folder, isRead, starred FROM mailbox_items" + whereSql + " ORDER BY datetime(createdAt) DESC, itemKey DESC LIMIT " + limitBind + " OFFSET " + offsetBind,
+    mailboxSourceSql + " SELECT sourceType, itemKey, id, createdAt, name, email, subject, substr(preview, 1, 220) AS preview, substr(body, 1, 6000) AS body, status, idempotencyKey, error, folder, isRead, starred FROM mailbox_items" + whereSql + " ORDER BY datetime(createdAt) DESC, itemKey DESC LIMIT " + limitBind + " OFFSET " + offsetBind,
   ).bind(...bindings).all<Record<string, unknown>>();
-
-  const countRowByFolder = await env.DB.prepare(
-    sourceSql + " SELECT SUM(CASE WHEN folder = 'inbox' AND isRead = 0 THEN 1 ELSE 0 END) AS unread, " +
-    " SUM(CASE WHEN folder = 'inbox' THEN 1 ELSE 0 END) AS inbox, SUM(CASE WHEN folder = 'archive' THEN 1 ELSE 0 END) AS archive, " +
-    " SUM(CASE WHEN folder = 'trash' THEN 1 ELSE 0 END) AS trash FROM mailbox_items",
+  const counts = await env.DB.prepare(
+    mailboxSourceSql + " SELECT SUM(CASE WHEN folder = 'inbox' AND isRead = 0 THEN 1 ELSE 0 END) AS unread, " +
+    ["inbox", "sent", "failed", "outbox", "archive", "trash"].map((name) => "SUM(CASE WHEN folder = '" + name + "' THEN 1 ELSE 0 END) AS " + name).join(", ") + " FROM mailbox_items",
   ).bind(admin.email).first<Record<string, unknown>>();
-  const rows = (pageRows.results || []).map((row): Record<string, unknown> => {
-    const base = { ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 };
-    if (row.sourceType !== "email") return base;
-    const body = cleanLegacyEmailText(text(row.body, 6000));
-    return { ...base, body: body.slice(0, 1200), preview: body.replace(/\s+/g, " ").slice(0, 220) };
-  });
-  const orderNumbers = rows.filter((row) => row.sourceType === "order").map((row) => text(row.id, 180));
-  if (orderNumbers.length) {
-    const slots = orderNumbers.map((_, index) => "?" + (index + 1)).join(",");
-    const result = await env.DB.prepare(
-      "SELECT order_number AS orderNumber, book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number IN (" + slots + ")",
-    ).bind(...orderNumbers).all<Record<string, unknown>>();
-    const grouped = new Map<string, Record<string, unknown>[]>();
-    for (const item of result.results || []) {
-      const id = text(item.orderNumber, 180);
-      if (!grouped.has(id)) grouped.set(id, []);
-      grouped.get(id)!.push(item);
-    }
-    for (const row of rows) {
-      if (row.sourceType === "order") row.items = grouped.get(text(row.id, 180)) || [];
-    }
-  }
   return {
-    items: rows,
-    page,
-    pageSize,
-    total: Number(countRow?.count || 0),
-    counts: { inbox: Number(countRowByFolder?.inbox || 0), unread: Number(countRowByFolder?.unread || 0), archive: Number(countRowByFolder?.archive || 0), trash: Number(countRowByFolder?.trash || 0) },
+    items: (pageRows.results || []).map((row) => {
+      const body = row.sourceType === "email" ? cleanLegacyEmailText(text(row.body, 6000)) : text(row.body, 6000);
+      return { ...row, body: body.slice(0, 1200), preview: row.error ? text(row.error, 220) : body.replace(/\s+/g, " ").slice(0, 220), isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 };
+    }),
+    page, pageSize, total: Number(countRow?.count || 0),
+    counts: Object.fromEntries(["inbox", "unread", "sent", "failed", "outbox", "archive", "trash"].map((name) => [name, Number(counts?.[name] || 0)])),
   };
 }
 
+// Preserve the existing sent/failed routes, including replies linked to legacy
+// business records: the outbound message itself is real mail.
 async function listStandaloneMailboxEmail(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams, sent = false) {
-  const page = clampInt(search.get("page"), 1, 5000, 1);
-  const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
-  const term = text(search.get("search"), 120).toLowerCase();
-  const bindings: unknown[] = [admin.email, sent ? "Accepted" : "Failed"];
-  let where = " WHERE o.admin_email = ?1 AND o.status = ?2 AND o.item_key = '' AND COALESCE(ms.folder, 'inbox') = 'inbox'";
-  if (term) {
-    bindings.push("%" + term + "%");
-    where += " AND (lower(o.subject) LIKE ?3 OR lower(o.recipient) LIKE ?3 OR lower(o.error) LIKE ?3 OR lower(o.body) LIKE ?3)";
-  }
-  const from = " FROM mailbox_outbound o LEFT JOIN mailbox_state ms ON ms.admin_email = o.admin_email AND ms.item_key = 'outbound:' || o.id";
-  const count = await env.DB.prepare("SELECT COUNT(*) AS count" + from + where).bind(...bindings).first<{ count: number }>();
-  bindings.push(pageSize, (page - 1) * pageSize);
-  const rows = await env.DB.prepare(
-    "SELECT 'outbound' AS sourceType, 'outbound:' || o.id AS itemKey, o.id AS id, o.created_at AS createdAt, o.recipient AS name, o.recipient AS email, o.subject, COALESCE(NULLIF(o.error, ''), substr(o.body, 1, 180)) AS preview, o.body, 'Outbound email' AS formTypeLabel, o.status, o.idempotency_key AS idempotencyKey, o.error, COALESCE(ms.folder, 'inbox') AS folder, COALESCE(ms.is_read, 0) AS isRead, COALESCE(ms.starred, 0) AS starred" +
-    from + where + " ORDER BY datetime(o.created_at) DESC LIMIT ?" + (bindings.length - 1) + " OFFSET ?" + bindings.length,
-  ).bind(...bindings).all<Record<string, unknown>>();
-  return {
-    items: (rows.results || []).map((row) => ({ ...row, isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 })),
-    total: Number(count?.count || 0),
-    page,
-    pageSize,
-    counts: sent ? { sent: Number(count?.count || 0) } : { failed: Number(count?.count || 0) },
-  };
+  const params = new URLSearchParams(search);
+  params.set("folder", sent ? "sent" : "failed");
+  return listMailboxItems(env, admin, params);
 }
 
 async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknown) {
   const key = await assertMailboxItemExists(env, value, admin.email);
   let item: Record<string, unknown> | null = null;
-  if (key.sourceType === "order") {
-    const found = await env.DB.prepare(
-      "SELECT order_number AS orderNumber, created_at AS date, customer_name AS customer, customer_email AS email, subtotal, shipping, tax, total, payment_status AS paymentStatus, fulfillment_status AS fulfillmentStatus, tracking_number AS trackingNumber, shipping_address AS shippingAddress, notes FROM orders WHERE order_number = ?1",
-    ).bind(key.id).first<Record<string, unknown>>();
-    if (found) {
-      const lines = await env.DB.prepare(
-        "SELECT order_number AS orderNumber, book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number = ?1",
-      ).bind(key.id).all<Record<string, unknown>>();
-      item = {
-        itemKey: key.itemKey, sourceType: "order", id: key.id, createdAt: found.date, name: found.customer, email: found.email,
-        subject: "Order " + key.id, preview: "Bookstore order", body: text(found.notes, 4000), status: found.paymentStatus,
-        paymentStatus: found.paymentStatus, fulfillmentStatus: found.fulfillmentStatus, total: found.total, subtotal: found.subtotal,
-        shipping: found.shipping, tax: found.tax, shippingAddress: found.shippingAddress, trackingNumber: found.trackingNumber, items: lines.results || [],
-      };
-    }
-  } else if (key.sourceType === "submission") {
-    const found = await env.DB.prepare(
-      "SELECT id, form_type AS formType, created_at AS createdAt, name, email, phone, subject, title, organization, event_type AS eventType, event_date AS eventDate, location, audience, details, group_name AS groupName, group_size AS groupSize, preferred_format AS preferredFormat, preferred_speaker AS preferredSpeaker, speaking_budget AS speakingBudget, request_text AS requestText, notes, message, page_url AS pageUrl, status FROM form_submissions WHERE id = ?1",
-    ).bind(key.id).first<Record<string, unknown>>();
-    if (found) item = {
-      ...found, itemKey: key.itemKey, sourceType: "submission",
-      subject: text(found.subject, 240) || (text(found.formType, 40) === "speaking" ? "Speaking request" : text(found.formType, 40) === "bookClub" ? "Book club request" : "Website submission"),
-      body: text(found.message, 16000) || text(found.requestText, 16000) || text(found.details, 16000) || text(found.notes, 4000),
-    };
-  } else if (key.sourceType === "email") {
+  if (key.sourceType === "email") {
     const found = await env.DB.prepare(
       "SELECT uid AS id, message_id AS messageId, from_name AS name, from_email AS email, to_email AS toEmail, subject, body, body_html AS bodyHtml, preview, received_at AS createdAt FROM mailbox_external_messages WHERE uid = ?1",
     ).bind(key.id).first<Record<string, unknown>>();
@@ -1871,8 +1806,8 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
     ).bind(admin.email, key.itemKey).all<Record<string, unknown>>()).results || [];
   return {
     ...item,
-    folder: text(savedState?.folder, 20) || "inbox",
-    isRead: Number(savedState?.isRead || 0) === 1,
+    folder: savedState?.folder === "archive" || savedState?.folder === "trash" ? savedState.folder : key.sourceType === "email" ? "inbox" : item.status === "Accepted" ? "sent" : item.status === "Failed" ? "failed" : "outbox",
+    isRead: Number(savedState?.isRead ?? (key.sourceType === "outbound" ? 1 : 0)) === 1,
     starred: Number(savedState?.starred || 0) === 1,
     draft: draft ? { body: text(draft.body, 20000), updatedAt: draft.updatedAt } : null,
     outbound: outboundRows,
@@ -1881,12 +1816,16 @@ async function getMailboxItem(env: Env, admin: AuthenticatedAdmin, value: unknow
 
 async function updateMailboxState(env: Env, admin: AuthenticatedAdmin, body: Record<string, string>) {
   const key = await assertMailboxItemExists(env, body.itemKey, admin.email);
+  return updateCorrespondenceState(env, admin, key.itemKey, body.action, "mailbox");
+}
+
+async function updateCorrespondenceState(env: Env, admin: AuthenticatedAdmin, itemKey: string, requestedAction: unknown, scope: "mailbox" | "submission") {
   const current = await env.DB.prepare("SELECT folder, is_read AS isRead, starred FROM mailbox_state WHERE admin_email = ?1 AND item_key = ?2")
-    .bind(admin.email, key.itemKey).first<Record<string, unknown>>();
+    .bind(admin.email, itemKey).first<Record<string, unknown>>();
   let folder = text(current?.folder, 20) || "inbox";
-  let isRead = Number(current?.isRead || 0) === 1;
+  let isRead = Number(current?.isRead ?? (itemKey.startsWith("outbound:") ? 1 : 0)) === 1;
   let starred = Number(current?.starred || 0) === 1;
-  const action = text(body.action, 20).toLowerCase();
+  const action = text(requestedAction, 20).toLowerCase();
   if (action === "archive") folder = "archive";
   else if (action === "trash") folder = "trash";
   else if (action === "restore") folder = "inbox";
@@ -1898,9 +1837,9 @@ async function updateMailboxState(env: Env, admin: AuthenticatedAdmin, body: Rec
   await env.DB.prepare(
     "INSERT INTO mailbox_state (admin_email, item_key, folder, is_read, starred, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now')) " +
     "ON CONFLICT(admin_email, item_key) DO UPDATE SET folder = excluded.folder, is_read = excluded.is_read, starred = excluded.starred, updated_at = datetime('now')",
-  ).bind(admin.email, key.itemKey, folder, isRead ? 1 : 0, starred ? 1 : 0).run();
-  if (action !== "read" && action !== "unread") await writeAuditLog(env, admin, "mailbox_" + action, "mail_item", key.itemKey, "Mailbox state changed to " + folder + ".");
-  return { itemKey: key.itemKey, folder, isRead, starred };
+  ).bind(admin.email, itemKey, folder, isRead ? 1 : 0, starred ? 1 : 0).run();
+  if (action !== "read" && action !== "unread") await writeAuditLog(env, admin, scope + "_" + action, scope === "mailbox" ? "mail_item" : "submission", itemKey, "View state changed to " + folder + ".");
+  return { itemKey, folder, isRead, starred };
 }
 
 async function sendMailboxEmail(request: Request, env: Env, admin: AuthenticatedAdmin, body: Record<string, string>) {
@@ -2171,6 +2110,44 @@ async function listActivity(env: Env, filter: string, limit: number) {
     .bind(limit)
     .all();
   return rows.results || [];
+}
+
+const submissionSelect = "SELECT f.id, f.name, f.email, f.phone, f.subject, f.message, f.title, f.organization, f.location, f.audience, f.details, f.notes, f.status, f.form_type AS formType, f.created_at AS createdAt, f.event_type AS eventType, f.event_date AS eventDate, f.group_name AS groupName, f.group_size AS groupSize, f.preferred_format AS preferredFormat, f.preferred_speaker AS preferredSpeaker, f.speaking_budget AS speakingBudget, f.request_text AS requestText, f.page_url AS pageUrl, 'submission:' || f.id AS itemKey, COALESCE(m.folder, 'inbox') AS folder, COALESCE(m.is_read, 0) AS isRead, COALESCE(m.starred, 0) AS starred FROM form_submissions f LEFT JOIN mailbox_state m ON m.item_key = 'submission:' || f.id AND m.admin_email = ?1";
+
+function formatSubmissionRecord(row: Record<string, unknown>) {
+  return { ...row, itemKey: text(row.itemKey, 240), sourceType: "submission", formTypeLabel: row.formType,
+    subject: text(row.subject, 240) || (row.formType === "speaking" ? "Speaking request" : row.formType === "bookClub" ? "Book club request" : row.formType === "bookNotification" ? "Book notification" : row.formType === "newsletter" ? "Newsletter signup" : "Website contact"),
+    body: text(row.message, 16000) || text(row.requestText, 16000) || text(row.details, 16000) || text(row.notes, 4000),
+    isRead: Number(row.isRead) === 1, starred: Number(row.starred) === 1 };
+}
+
+async function getSubmissionRecord(env: Env, admin: AuthenticatedAdmin, value: unknown) {
+  const key = text(value, 240);
+  if (!/^submission:[a-zA-Z0-9_-]{1,180}$/.test(key)) throw new HttpError(400, "Choose a valid website submission.");
+  const row = await env.DB.prepare(submissionSelect + " WHERE f.id = ?2").bind(admin.email, key.slice(11)).first<Record<string, unknown>>();
+  if (!row) throw new HttpError(404, "Website submission not found.");
+  return formatSubmissionRecord(row);
+}
+
+async function listSubmissionRecords(env: Env, admin: AuthenticatedAdmin, search: URLSearchParams) {
+  const folder = text(search.get("folder"), 20) || "inbox";
+  const formType = text(search.get("formType"), 40);
+  const term = text(search.get("search"), 120).toLowerCase();
+  const page = clampInt(search.get("page"), 1, 5000, 1);
+  const pageSize = clampInt(search.get("pageSize"), 1, 50, 30);
+  if (!["inbox", "starred", "archive", "trash", "all"].includes(folder)) throw new HttpError(400, "Choose a valid submissions folder.");
+  const filters: string[] = [], bindings: unknown[] = [admin.email];
+  const bind = (value: unknown) => { bindings.push(value); return "?" + bindings.length; };
+  if (folder === "starred") filters.push("starred = 1 AND folder != 'trash'");
+  else if (folder !== "all") filters.push("folder = " + bind(folder));
+  if (formType) filters.push("formType = " + bind(formType));
+  if (term) { const pattern = bind("%" + term + "%"); filters.push("(lower(name) LIKE " + pattern + " OR lower(email) LIKE " + pattern + " OR lower(subject) LIKE " + pattern + " OR lower(message) LIKE " + pattern + " OR lower(requestText) LIKE " + pattern + " OR lower(details) LIKE " + pattern + " OR lower(title) LIKE " + pattern + " OR lower(organization) LIKE " + pattern + ")"); }
+  const source = "WITH records AS (" + submissionSelect + ")";
+  const where = filters.length ? " WHERE " + filters.join(" AND ") : "";
+  const total = await env.DB.prepare(source + " SELECT COUNT(*) AS count FROM records" + where).bind(...bindings).first<{ count: number }>();
+  const limit = bind(pageSize), offset = bind((page - 1) * pageSize);
+  const rows = await env.DB.prepare(source + " SELECT * FROM records" + where + " ORDER BY datetime(createdAt) DESC, id DESC LIMIT " + limit + " OFFSET " + offset).bind(...bindings).all<Record<string, unknown>>();
+  return { items: (rows.results || []).map(formatSubmissionRecord), page, pageSize, total: Number(total?.count || 0) };
 }
 
 async function listSubmissions(env: Env, formType: string, limit: number) {

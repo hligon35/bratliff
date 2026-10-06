@@ -25,7 +25,7 @@ export function loadWorker(fetchMock = () => { throw new Error('Unexpected netwo
     if (cache.has(filename)) return cache.get(filename).exports;
     const mod = { exports: {} }; cache.set(filename, mod);
     let source = readFileSync(filename, 'utf8');
-    if (filename.endsWith('/app.ts')) source += '\nexport const review = { recordPaidOrderFromSquarePayment, recordRefundFromSquareEvent, recordPaidSponsorFromSquarePayment, queueNewsletterCampaign, processNewsletterQueue, saveNewsletterCampaign, validateOrderItems, enforcePublicRateLimit, syncBookInventoryFromSquare, getUnsubscribeUrl, deriveCustomerPassword, verifyCustomerPassword, issueCustomerSessionCookie, handleCustomerApi, sendMailboxEmail, sendSponsorCertificateIfEligible };';
+    if (filename.endsWith('/app.ts')) source += '\nexport const review = { recordPaidOrderFromSquarePayment, recordRefundFromSquareEvent, recordPaidSponsorFromSquarePayment, queueNewsletterCampaign, processNewsletterQueue, saveNewsletterCampaign, validateOrderItems, enforcePublicRateLimit, syncBookInventoryFromSquare, getUnsubscribeUrl, deriveCustomerPassword, verifyCustomerPassword, issueCustomerSessionCookie, handleCustomerApi, sendMailboxEmail, listMailboxItems, listStandaloneMailboxEmail, getMailboxItem, updateMailboxState, resolveMailboxDraftKey, listSubmissionRecords, getSubmissionRecord, updateCorrespondenceState, sendSponsorCertificateIfEligible };';
     if (filename.endsWith('/namecheap-mail.ts')) source += '\nexport const review = { parseEmail, ProtocolReader };';
     const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     function requireLocal(name) {
