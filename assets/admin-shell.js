@@ -55,7 +55,7 @@
   }
 
   drawer.innerHTML =
-    '<div class="drawer-toolbar"><button class="icon-button drawer-close" type="button" data-drawer-toggle aria-controls="workspaceDrawer">' + icon("menu") + '</button></div><div class="brand-row"><a class="workspace-brand" href="/admin/" aria-label="Publisher workspace">' +
+    '<div class="drawer-toolbar"><button class="icon-button drawer-close" type="button" data-drawer-toggle aria-controls="workspaceDrawer">' + icon("menu") + '</button></div><div class="brand-row"><a class="workspace-brand" href="/" aria-label="Jackrabbit Punkin Publishing home page">' +
     '<img src="/assets/icons/jrppLogo2.png" alt="" width="42" height="42">' +
     '<span class="brand-name">Jackrabbit Punkin<small>Publisher workspace</small></span></a></div>' +
     groups.map(function (group) {
