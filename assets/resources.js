@@ -43,6 +43,8 @@
       const image = element("img");
       image.src = resource.cover;
       image.alt = resource.coverAlt;
+      image.loading = "lazy"; image.decoding = "async";
+      image.width = resource.coverWidth; image.height = resource.coverHeight;
       cover.appendChild(image);
     } else {
       cover.appendChild(element("span", "resource-cover-pending", "Cover pending"));
@@ -91,6 +93,10 @@
     invite.hidden = mode !== "invite";
     registerForm.hidden = mode !== "register";
     signInForm.hidden = mode !== "signin";
+    if (mode === "signin") {
+      window.JPPTurnstile.render(signInForm.querySelector("[data-resource-turnstile]"), { action: "customer_login", theme: "light" })
+        .catch(error => { auth.querySelector("[data-resource-auth-error]").textContent = error.message; });
+    }
     const password = registerForm.querySelector("[name=password]");
     password.closest("label").hidden = signedIn;
     password.disabled = signedIn;
@@ -126,7 +132,7 @@
       }
       await api("/api/customer/resources/register", { method: "POST", body: JSON.stringify({ ...form, selectedResource: selected.slug, marketingOptIn: Boolean(form.marketingOptIn) }) });
       showLibrary(await api("/api/customer/resources"));
-      history.replaceState(null, "", "resources.html?library=1");
+      history.replaceState(null, "", "/resources?library=1");
     } catch (error) {
       auth.querySelector("[data-resource-auth-error]").textContent = error.message;
     } finally {
@@ -139,12 +145,13 @@
     const button = signInForm.querySelector("button[type=submit]");
     button.disabled = true;
     try {
+      if (!new FormData(signInForm).get("cf-turnstile-response")) throw new Error("Complete the security check before signing in.");
       await api("/api/customer/auth/login", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(signInForm))) });
       signedIn = true;
       window.JRPPAccount?.refresh?.();
       try {
         showLibrary(await api("/api/customer/resources"));
-        history.replaceState(null, "", "resources.html?library=1");
+        history.replaceState(null, "", "/resources?library=1");
       } catch (error) {
         if (error.status === 403) showAuth("register");
         else throw error;
@@ -152,6 +159,7 @@
     } catch (error) {
       auth.querySelector("[data-resource-auth-error]").textContent = error.message;
     } finally {
+      window.JPPTurnstile.reset(signInForm);
       button.disabled = false;
     }
   });

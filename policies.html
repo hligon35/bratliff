@@ -9,12 +9,12 @@
       name="description"
       content="Privacy, terms, refund, shipping, accessibility, and copyright policies for Jackrabbit Punkin Publishing LLC."
     />
-    <link rel="canonical" href="https://jackrabbitpunkinpublishing.com/policies.html" />
+    <link rel="canonical" href="https://jackrabbitpunkinpublishing.com//policies" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Jackrabbit Punkin Publishing LLC" />
     <meta property="og:title" content="Policies | Jackrabbit Punkin Publishing LLC" />
     <meta property="og:description" content="Privacy, terms, refund, shipping, accessibility, and copyright policies for Jackrabbit Punkin Publishing LLC." />
-    <meta property="og:url" content="https://jackrabbitpunkinpublishing.com/policies.html" />
+    <meta property="og:url" content="https://jackrabbitpunkinpublishing.com//policies" />
     <meta property="og:image" content="https://jackrabbitpunkinpublishing.com/assets/icons/jrppLogo2.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Policies | Jackrabbit Punkin Publishing LLC" />
@@ -44,16 +44,18 @@
     </script>
     <link rel="stylesheet" href="assets/styles.css" />
     <script src="assets/site-config.js" defer></script>
+    <script src="assets/dialogs.js" defer></script>
+    <script src="assets/turnstile.js" defer></script>
     <script src="assets/site.js" defer></script>
   <link rel="apple-touch-icon" href="/assets/icons/jppIcon-180.png" /></head>
   <body data-page="policies">
     <div data-header>
-      <a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap"><a class="brand brand-with-logo" href="index.html" aria-label="Jackrabbit Punkin Publishing home"><img class="brand-logo" src="assets/icons/jrppLogo2.png" alt="" aria-hidden="true" width="64" height="64"><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation"><span class="material-icons-round" aria-hidden="true">menu</span></button><nav class="site-nav" id="site-nav" aria-label="Primary"><a href="index.html">Home</a><a href="books.html">Books</a><a href="about.html">About Us</a><a href="read-it-forward.html">Read It Forward</a><a href="speaking.html">Speaking & Events</a><a href="book-club.html">Book Club</a><a href="recognition.html">Awards</a><a href="media.html">Media</a><a href="contact.html">Contact</a><a href="resources.html">Resources</a><a class="mobile-login-link" href="account.html" data-account-mobile-login>Login</a></nav><div class="site-account" data-account-shell><button class="account-trigger" type="button" data-account-trigger aria-expanded="false" aria-controls="account-popover"><span class="jrpp-public-icon material-icons-round" data-account-trigger-icon aria-hidden="true">person</span><span data-account-trigger-label>Login</span></button><div class="account-popover" id="account-popover" data-account-popover hidden><div data-account-panel></div></div></div><div class="account-overlay" data-account-overlay hidden><div class="account-overlay-card" role="dialog" aria-modal="true" aria-labelledby="account-overlay-title"><button class="account-overlay-close" type="button" data-account-close aria-label="Close sign in"><span class="material-icons-round" aria-hidden="true">close</span></button><h2 id="account-overlay-title">Reader account</h2><div data-account-panel></div></div></div></div></header>
+      <a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="container nav-wrap"><a class="brand brand-with-logo" href="/" aria-label="Jackrabbit Punkin Publishing home"><img class="brand-logo" src="assets/icons/jrppLogo2.png" alt="" aria-hidden="true" width="64" height="64" decoding="async"><span class="brand-copy"><strong>Jackrabbit Punkin</strong><small>Publishing LLC</small></span></a><button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation"><span class="material-icons-round" aria-hidden="true">menu</span></button><nav class="site-nav" id="site-nav" aria-label="Primary"><a href="/">Home</a><a href="/books">Books</a><a href="/about">About Us</a><a href="/read-it-forward">Read It Forward</a><a href="/speaking">Speaking & Events</a><a href="/book-club">Book Club</a><a href="/recognition">Awards</a><a href="/media">Media</a><a href="/contact">Contact</a><a href="/resources">Resources</a><a class="mobile-login-link" href="/account" data-account-mobile-login>Login</a></nav><div class="site-account" data-account-shell><button class="account-trigger" type="button" data-account-trigger aria-expanded="false" aria-controls="account-popover"><span class="jrpp-public-icon material-icons-round" data-account-trigger-icon aria-hidden="true">person</span><span data-account-trigger-label>Login</span></button><div class="account-popover" id="account-popover" data-account-popover hidden><div data-account-panel></div></div></div><div class="account-overlay" data-account-overlay hidden><div class="account-overlay-card" role="dialog" aria-modal="true" aria-labelledby="account-overlay-title"><button class="account-overlay-close" type="button" data-account-close aria-label="Close sign in"><span class="material-icons-round" aria-hidden="true">close</span></button><h2 id="account-overlay-title">Reader account</h2><div data-account-panel></div></div></div></div></header>
     </div>
     <main id="main">
       <section class="page-hero">
         <div class="container">
-          <div class="breadcrumb"><a href="index.html">Home</a> / Policies</div>
+          <div class="breadcrumb"><a href="/">Home</a> / Policies</div>
           <p class="eyebrow light">Legal & accessibility</p>
           <h1>Policies</h1>
           <p class="lede">
@@ -83,7 +85,7 @@
               <h3>Information We Collect</h3>
               <h4>Email Subscriptions</h4>
               <p>
-                When you subscribe to our newsletter, we collect your email
+                When you subscribe to our newsletter, we collect your first name, last name, and email
                 address. This information is used solely to send you updates
                 about new releases, events, and the Read It Forward Program. You
                 may unsubscribe at any time.
@@ -107,27 +109,15 @@
                 through linked retailers are also subject to the retailer’s
                 applicable privacy and payment policies.
               </p>
+              <h4>Reader Accounts &amp; Resource Library</h4>
+              <p>Reader accounts store your email address, display name, password hash, and any shipping address you save. Resource Library registration also stores your name, selected guide, optional organization and download history. Newsletter marketing is optional and requires a separate opt-in. We never store your password in plain text.</p>
               <h4>Analytics Data</h4>
-              <p>
-                We use website analytics tools to understand how visitors
-                interact with our site. This may include data such as pages
-                visited, time spent on pages, referring website, and general
-                geographic location. This data is aggregated and does not
-                personally identify individual visitors.
-              </p>
+              <p>We record page and interaction counts, broad device and referrer categories, and a daily rotating identifier derived from the connection address and browser information using a server secret. We do not store raw connection addresses or browser information in analytics records. Events are aggregated and the earlier daily event records are removed during scheduled processing.</p>
               <h3>Cookies</h3>
               <p>
-                This website uses cookies and similar technologies to improve
-                functionality, analyze traffic, and enhance the user experience.
-                Cookies are small text files placed on your device by your web
-                browser. By continuing to use this website, you consent to the
-                use of cookies in accordance with this Privacy Policy.
+                We use necessary cookies for account sessions and security verification. Reader sessions can last up to 30 days; publisher admin sessions follow the configured authentication policy. Cart contents are saved in your browser. These features use Cloudflare and its security services; payments use Square and communications use the configured email services.
               </p>
-              <p>
-                You may adjust your browser settings to refuse cookies; however,
-                doing so may affect the functionality of certain features of
-                this website.
-              </p>
+              <p>You can clear browser cookies and stored cart data at any time. Clearing account cookies signs you out. Contact publisher@jackrabbitpunkinpublishing.com with questions or requests concerning your account, registrations, subscriptions, or order information. Order and business records may need to be retained separately from an account.</p>
               <h3>How We Use Your Information</h3>
               <ul>
                 <li>

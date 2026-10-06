@@ -126,7 +126,7 @@ test('both new and already-emailed legacy unsubscribe URLs reach the Worker whil
   url.pathname='/';url.searchParams.set('action','unsubscribe');
   assert.equal((await worker.default.fetch(new Request(url),f.env,{})).status,200);
   assert.equal(value(f.sqlite,'SELECT status FROM newsletter_subscribers').status,'unsubscribed');
-  assert.match(await (await worker.default.fetch(new Request('https://jackrabbitpunkinpublishing.com/'),f.env,{})).text(),/homepage gate/);
+  const home=await worker.default.fetch(new Request('https://jackrabbitpunkinpublishing.com/'),f.env,{}); assert.equal(home.status,302); assert.match(home.headers.get('location'),/\/coming-soon$/);
 });
 
 async function queuedCampaign(f,worker) {
@@ -228,7 +228,7 @@ test('password reset requests use different provider keys and valid branded link
   f.sqlite.exec('DELETE FROM public_rate_limits');
   assert.equal((await worker.default.fetch(request(),f.env,{})).status,200);
   assert.equal(calls.length,2);assert.notEqual(calls[0].key,calls[1].key);assert.notEqual(first,value(f.sqlite,'SELECT reset_token_hash FROM customer_accounts').reset_token_hash);
-  assert.match(calls[1].body.html,/Jackrabbit Punkin Publishing/);assert.match(calls[1].body.html,/account\.html\?reset=/);
+  assert.match(calls[1].body.html,/Jackrabbit Punkin Publishing/);assert.match(calls[1].body.html,/account\?reset=/);
 });
 
 test('Access mode exposes its login mode and directs logout through the Access session endpoint', async () => {

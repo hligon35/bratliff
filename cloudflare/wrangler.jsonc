@@ -48,7 +48,25 @@
 			"/api/*",
 			"/square/*",
 			"/healthz",
+			"/assets/documents/*",
 			"/index",
+			"/index.html",
+			"/books*",
+			"/about*",
+			"/read-it-forward*",
+			"/speaking*",
+			"/book-club*",
+			"/recognition*",
+			"/media*",
+			"/contact*",
+			"/resources*",
+			"/account*",
+			"/policies*",
+			"/coming-soon*",
+			"/admin",
+			"/admin/*",
+			"/login",
+			"/login/*",
 			"/"
 		]
 	},
@@ -74,18 +92,20 @@
 		"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
 		"MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",
 		"NAMECHEAP_EMAIL_ADDRESS": "publisher@jackrabbitpunkinpublishing.com",
-		"ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
-		"ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books.html?checkout=success",
+		"ORDER_CANCEL_URL": "https://jackrabbitpunkinpublishing.com/books?checkout=cancelled",
+		"ORDER_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/books?checkout=success",
 		"PUBLIC_ADMIN_URL": "https://jackrabbitpunkinpublishing.com/admin/",
 		"PUBLIC_API_URL": "https://jackrabbitpunkinpublishing.com",
 		"SITE_URL": "https://jackrabbitpunkinpublishing.com",
-		"SPONSOR_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/read-it-forward.html",
+		"SPONSOR_SUCCESS_URL": "https://jackrabbitpunkinpublishing.com/read-it-forward",
 		"SQUARE_API_VERSION": "2024-10-17",
 		"SQUARE_ENVIRONMENT": "production",
 		"ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
 		"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
 		"INVENTORY_AUTHORITY": "local",
-		"ADMIN_AUTH_MODE": "google"
+		"SITE_LAUNCH_STATE": "closed",
+		"STORE_TAX_MODE": "unconfigured",
+		"ADMIN_AUTH_MODE": "access"
 	},
 	"secrets": {
 		"required": [
@@ -96,7 +116,8 @@
 			"SQUARE_LOCATION_ID",
 			"RESEND_API_KEY",
 			"TURNSTILE_SECRET_KEY",
-			"GOOGLE_CLIENT_SECRET"
+			"CUSTOMER_SESSION_SECRET",
+			"NAMECHEAP_EMAIL_PASSWORD"
 		]
 	},
 	"env": {
@@ -120,7 +141,25 @@
 					"/api/*",
 					"/square/*",
 					"/healthz",
+					"/assets/documents/*",
 					"/index",
+					"/index.html",
+					"/books*",
+					"/about*",
+					"/read-it-forward*",
+					"/speaking*",
+					"/book-club*",
+					"/recognition*",
+					"/media*",
+					"/contact*",
+					"/resources*",
+					"/account*",
+					"/policies*",
+					"/coming-soon*",
+					"/admin",
+					"/admin/*",
+					"/login",
+					"/login/*",
 					"/"
 				]
 			},
@@ -146,18 +185,20 @@
 				"CORS_ORIGIN": "https://sandbox.jackrabbitpunkinpublishing.com",
 				"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
 				"MAIL_FROM_EMAIL": "website@notifications.jackrabbitpunkinpublishing.com",
-				"ORDER_CANCEL_URL": "https://sandbox.jackrabbitpunkinpublishing.com/books.html?checkout=cancelled",
-				"ORDER_SUCCESS_URL": "https://sandbox.jackrabbitpunkinpublishing.com/books.html?checkout=success",
+				"ORDER_CANCEL_URL": "https://sandbox.jackrabbitpunkinpublishing.com/books?checkout=cancelled",
+				"ORDER_SUCCESS_URL": "https://sandbox.jackrabbitpunkinpublishing.com/books?checkout=success",
 				"PUBLIC_ADMIN_URL": "https://sandbox.jackrabbitpunkinpublishing.com/admin/",
 				"PUBLIC_API_URL": "https://sandbox.jackrabbitpunkinpublishing.com",
 				"SITE_URL": "https://sandbox.jackrabbitpunkinpublishing.com",
-				"SPONSOR_SUCCESS_URL": "https://sandbox.jackrabbitpunkinpublishing.com/read-it-forward.html",
+				"SPONSOR_SUCCESS_URL": "https://sandbox.jackrabbitpunkinpublishing.com/read-it-forward",
 				"SQUARE_API_VERSION": "2024-10-17",
 				"SQUARE_ENVIRONMENT": "sandbox",
 				"ADMIN_DEVELOPER_EMAILS": "hligon@getsparqd.com",
 				"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
 				"NAMECHEAP_EMAIL_ADDRESS": "publisher@jackrabbitpunkinpublishing.com",
-				"INVENTORY_AUTHORITY": "local"
+				"INVENTORY_AUTHORITY": "local",
+				"SITE_LAUNCH_STATE": "open",
+				"STORE_TAX_MODE": "none"
 			},
 			"secrets": {
 				"required": [
@@ -168,7 +209,8 @@
 					"SQUARE_LOCATION_ID",
 					"RESEND_API_KEY",
 					"TURNSTILE_SECRET_KEY",
-					"GOOGLE_CLIENT_SECRET"
+					"CUSTOMER_SESSION_SECRET",
+					"NAMECHEAP_EMAIL_PASSWORD"
 				]
 			}
 		}

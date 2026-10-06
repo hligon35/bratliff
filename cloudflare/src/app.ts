@@ -1,3 +1,5 @@
+import { storeTaxPolicy, publicCheckoutConfiguration } from "./store-tax";
+import { deriveCustomerPassword, verifyCustomerPassword, needsPasswordUpgrade } from "./passwords";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
@@ -60,7 +62,6 @@ const ADMIN_SESSION_COOKIE = "__Host-jrpp_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60;
 const CUSTOMER_SESSION_COOKIE = "__Host-jrpp_customer_session";
 const CUSTOMER_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-const CUSTOMER_PASSWORD_ITERATIONS = 120000;
 const GOOGLE_ID_TOKEN_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 const PREFERRED_SPEAKERS = new Set(["Barbara J. Ratliff", "Charles Ratliff", "Either", "Not Sure"]);
 const SPONSOR_CERTIFICATE_ASSET_PATH = "/assets/documents/JPP_Certificate_of_Appreciation_v1.pdf";
@@ -90,6 +91,17 @@ const app: AppHandler = {
   async fetch(request, env, ctx) {
     try {
       const url = new URL(request.url);
+      if (!/^\/(api|square)(\/|$)/.test(url.pathname) && ["GET", "HEAD"].includes(request.method)) {
+        const canonical = new URL(firstUrlValue(env.SITE_URL) || request.url);
+        if (url.hostname === "www." + canonical.hostname && canonical.protocol === "https:") {
+          canonical.pathname = url.pathname; canonical.search = url.search;
+          return withSecurityHeaders(Response.redirect(canonical.toString(), 308));
+        }
+      }
+      if (url.pathname === "/index.html" || url.pathname === "/index") {
+        url.pathname = "/";
+        return withSecurityHeaders(Response.redirect(url.toString(), 307));
+      }
 
       if (request.method === "OPTIONS") {
         return withCors(request, env, new Response(null, { status: 204 }));
@@ -97,6 +109,11 @@ const app: AppHandler = {
 
       if (url.pathname === "/healthz") {
         return json(request, env, { ok: true, service: "bratliff-platform", environment: env.SQUARE_ENVIRONMENT || "unset" });
+      }
+
+      if (/^\/assets\/documents\/[^/]+\.pdf$/.test(url.pathname)) {
+        const response = await env.ASSETS.fetch(request);
+        return withSecurityHeaders(response, response.ok && (response.headers.get("Content-Type") || "").includes("application/pdf"));
       }
 
       if (url.pathname === "/api/unsubscribe") {
@@ -186,7 +203,7 @@ const app: AppHandler = {
       }
 
       if (url.pathname === "/api/store/books") {
-        return json(request, env, { ok: true, books: await listPublishedStoreBooks(env) });
+        return json(request, env, { ok: true, books: await listPublishedStoreBooks(env), checkout: publicCheckoutConfiguration(env) });
       }
 
       if (url.pathname === "/api/store/book") {
@@ -303,10 +320,10 @@ async function handleCompatibilityRoot(
   env: Env,
   url: URL,
 ): Promise<Response> {
-  if (request.method === "GET") {
+  if (["GET", "HEAD"].includes(request.method)) {
     const action = String(url.searchParams.get("action") || "").trim();
     if (action === "store-books") {
-      return json(request, env, { ok: true, books: await listPublishedStoreBooks(env) });
+      return json(request, env, { ok: true, books: await listPublishedStoreBooks(env), checkout: publicCheckoutConfiguration(env) });
     }
     if (action === "store-book") {
       const book = await getStoreBookById(env, url.searchParams.get("id") || "");
@@ -320,6 +337,11 @@ async function handleCompatibilityRoot(
     }
     if (action === "unsubscribe") {
       return handleUnsubscribe(request, env, url.searchParams);
+    }
+    if (env.SITE_LAUNCH_STATE !== "open") {
+      const response = Response.redirect(new URL("/coming-soon", url).toString(), 302);
+      const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store");
+      return withSecurityHeaders(new Response(null, { status: 302, headers }));
     }
     return withSecurityHeaders(await env.ASSETS.fetch(request));
   }
@@ -347,7 +369,8 @@ function hasCloudflareAccessConfig(env: Env) {
 }
 
 function adminAuthMode(env: Env): "access" | "google" {
-  return text(env.ADMIN_AUTH_MODE, 40).toLowerCase() !== "google" && hasCloudflareAccessConfig(env) ? "access" : "google";
+  const mode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
+  return mode === "access" || (mode !== "google" && hasCloudflareAccessConfig(env)) ? "access" : "google";
 }
 
 const accessJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
@@ -636,7 +659,7 @@ async function handleFormSubmission(
 ): Promise<Response> {
   if (payload.website) return json(request, env, { ok: true, emailSent: false });
   const turnstileToken = text(payload["cf-turnstile-response"], 2000);
-  if (!(await verifyTurnstile(env, turnstileToken, request.headers.get("CF-Connecting-IP")))) {
+  if (!(await verifyTurnstile(env, turnstileToken, request.headers.get("CF-Connecting-IP"), { action: "turnstile-spin-v1", hostname: new URL(request.url).hostname }))) {
     throw new HttpError(400, "Verification failed. Please try again.");
   }
   const formType = validateFormPayload(payload);
@@ -859,22 +882,24 @@ async function handleStoreCheckout(
   }
   const items = await validateOrderItems(env, cart);
   if (!items.length) throw new HttpError(400, "Your cart is empty.");
-  if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) {
+  if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-") || !env.SQUARE_LOCATION_ID || env.SQUARE_LOCATION_ID.startsWith("replace-")) {
     throw new HttpError(503, "Square is not configured yet.");
   }
 
+  const taxPolicy = storeTaxPolicy(env);
   const customer = await getOptionalCustomerSession(request, env);
   const orderNumber = createOrderNumber();
   const subtotal = money(items.reduce((sum, item) => sum + item.lineTotal, 0));
   const bookCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const shipping = money((bookCount * STORE_SHIPPING_PER_BOOK_CENTS) / 100);
-  const total = money(subtotal + shipping);
+  const estimatedTax = money((subtotal + (taxPolicy.shippingTaxable ? shipping : 0)) * taxPolicy.percentage / 100);
+  const total = money(subtotal + shipping + estimatedTax);
 
   const statements = [env.DB.prepare(
     `INSERT INTO orders (order_number, customer_id, provider, created_at, customer_name, customer_email,
       subtotal, shipping, tax, total, payment_status, fulfillment_status, tracking_number, shipping_address, notes)
-     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, 0, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
-  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || ""),
+     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, ?9, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
+  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || "", estimatedTax),
     env.DB.prepare("INSERT INTO checkout_sessions (session_id, cart_json, created_at) VALUES (?1, ?2, datetime('now'))").bind(orderNumber, JSON.stringify(items)),
     ...items.filter((item) => !item.preorder).map((item) => env.DB.prepare(
       "INSERT INTO checkout_reservations (order_number, book_id, quantity, expires_at) VALUES (?1, ?2, ?3, datetime('now', '+30 minutes'))",
@@ -886,7 +911,8 @@ async function handleStoreCheckout(
     throw error;
   }
 
-  const redirectSeparator = env.ORDER_SUCCESS_URL.includes("?") ? "&" : "?";
+  const successUrl = firstUrlValue(env.ORDER_SUCCESS_URL) || new URL("/books?checkout=success", firstUrlValue(env.SITE_URL)).toString();
+  const redirectSeparator = successUrl.includes("?") ? "&" : "?";
   let result: Awaited<ReturnType<typeof createSquarePaymentLink>>;
   try {
     result = await createSquarePaymentLink(env, {
@@ -894,24 +920,28 @@ async function handleStoreCheckout(
     order: {
       location_id: env.SQUARE_LOCATION_ID,
       reference_id: orderNumber,
+      pricing_options: { auto_apply_taxes: false, auto_apply_discounts: false },
+      ...(taxPolicy.mode === "fixed" ? { taxes: [{ uid: "store-tax", name: "Sales tax", percentage: String(taxPolicy.percentage), scope: "LINE_ITEM", type: "ADDITIVE" }] } : {}),
       line_items: [
         ...items.map((item) => ({
           name: item.title.slice(0, 500),
           quantity: String(item.quantity),
           base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
           metadata: { sku: item.sku, bookId: item.bookId },
+          ...(taxPolicy.mode === "fixed" ? { applied_taxes: [{ tax_uid: "store-tax" }] } : {}),
         })),
         {
           name: "U.S. Shipping & Handling",
           quantity: "1",
           base_price_money: { amount: Math.round(shipping * 100), currency: "USD" },
           metadata: { type: "shipping", perBookCents: String(STORE_SHIPPING_PER_BOOK_CENTS) },
+          ...(taxPolicy.shippingTaxable ? { applied_taxes: [{ tax_uid: "store-tax" }] } : {}),
         },
       ],
     },
     checkout_options: {
       ask_for_shipping_address: true,
-      redirect_url: `${env.ORDER_SUCCESS_URL}${redirectSeparator}orderNumber=${encodeURIComponent(orderNumber)}`,
+      redirect_url: `${successUrl}${redirectSeparator}orderNumber=${encodeURIComponent(orderNumber)}`,
     },
   });
 
@@ -923,9 +953,21 @@ async function handleStoreCheckout(
     throw error;
   }
 
+  // Retain provider IDs even if the subsequent verification/read times out.
   await env.DB.prepare("UPDATE orders SET square_order_id = ?2, square_checkout_id = ?3 WHERE order_number = ?1")
     .bind(orderNumber, result.orderId, result.checkoutId)
     .run();
+  if (taxPolicy.mode === "fixed") {
+    const providerOrder = await retrieveSquareObject(env, "orders/" + encodeURIComponent(result.orderId), "order");
+    const providerTotal = providerOrder.total_money as Record<string, JsonValue>;
+    const providerTax = providerOrder.total_tax_money as Record<string, JsonValue>;
+    const providerDiscount = providerOrder.total_discount_money as Record<string, JsonValue> | undefined;
+    const cents = Number(providerTotal?.amount), taxCents = Number(providerTax?.amount);
+    if (providerOrder.reference_id !== orderNumber || providerTotal?.currency !== "USD" || providerTax?.currency !== "USD" || !Number.isSafeInteger(cents) || !Number.isSafeInteger(taxCents) || taxCents < 0 || cents !== Math.round((subtotal + shipping) * 100) + taxCents || Number(providerDiscount?.amount || 0) !== 0 || Math.abs(taxCents - Math.round(estimatedTax * 100)) > items.length + 1) {
+      throw new HttpError(502, "Checkout totals could not be verified. Please contact the publisher.");
+    }
+    await env.DB.prepare("UPDATE orders SET tax = ?2, total = ?3 WHERE order_number = ?1").bind(orderNumber, taxCents / 100, cents / 100).run();
+  }
 
   return json(request, env, { ok: true, id: orderNumber, url: result.url });
 }
@@ -3580,27 +3622,6 @@ function customerSessionSecret(env: Env): string {
   return text(env.CUSTOMER_SESSION_SECRET || env.ADMIN_SESSION_SECRET, 300);
 }
 
-function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
-  const binary = decodeBase64Url(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-async function deriveCustomerPassword(password: string, saltBytes = crypto.getRandomValues(new Uint8Array(16))) {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), { name: "PBKDF2" }, false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: saltBytes, iterations: CUSTOMER_PASSWORD_ITERATIONS, hash: "SHA-256" },
-    key,
-    256,
-  );
-  return { salt: base64UrlFromBytes(saltBytes), hash: base64UrlFromBytes(new Uint8Array(bits)) };
-}
-
-async function verifyCustomerPassword(password: string, salt: string, expectedHash: string): Promise<boolean> {
-  const result = await deriveCustomerPassword(password, base64UrlToBytes(salt));
-  return constantTimeEqual(result.hash, expectedHash);
-}
 
 function customerAccountFromRow(row: Record<string, unknown>): CustomerAccount {
   return {
@@ -3620,18 +3641,20 @@ function authenticatedCustomer(account: CustomerAccount, tokenSubject = account.
 
 async function findCustomerById(env: Env, id: string) {
   return env.DB.prepare(
-    "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE id = ?1",
+    "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, session_version AS sessionVersion, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE id = ?1",
   ).bind(id).first<Record<string, unknown>>();
 }
 
 async function findCustomerByEmail(env: Env, email: string) {
   return env.DB.prepare(
-    "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE lower(email) = ?1",
+    "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, session_version AS sessionVersion, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE lower(email) = ?1",
   ).bind(email.toLowerCase()).first<Record<string, unknown>>();
 }
 
-function issueCustomerSessionCookie(response: Response, env: Env, user: AuthenticatedCustomer) {
-  const payload = base64UrlEncode(JSON.stringify({ sub: user.id, email: user.email, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + CUSTOMER_SESSION_TTL_SECONDS }));
+async function issueCustomerSessionCookie(response: Response, env: Env, user: AuthenticatedCustomer, expectedSessionVersion?: number) {
+  const row = await findCustomerById(env, user.id);
+  if (!row || (expectedSessionVersion !== undefined && row.sessionVersion !== expectedSessionVersion)) throw new HttpError(401, "Please sign in again.");
+  const payload = base64UrlEncode(JSON.stringify({ sub: user.id, email: user.email, version: row.sessionVersion, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + CUSTOMER_SESSION_TTL_SECONDS }));
   return signValue(payload, customerSessionSecret(env)).then((signature) => {
     const headers = new Headers(response.headers);
     headers.append("Set-Cookie", CUSTOMER_SESSION_COOKIE + "=" + payload + "." + signature + "; Max-Age=" + CUSTOMER_SESSION_TTL_SECONDS + "; Path=/; HttpOnly; Secure; SameSite=Lax");
@@ -3657,7 +3680,7 @@ async function getOptionalCustomerSession(request: Request, env: Env): Promise<A
   const id = text(claims.sub, 120);
   if (!id) return null;
   const row = await findCustomerById(env, id);
-  return row ? authenticatedCustomer(customerAccountFromRow(row), id) : null;
+  return row && claims.version === row.sessionVersion ? authenticatedCustomer(customerAccountFromRow(row), id) : null;
 }
 
 async function requireCustomerSession(request: Request, env: Env): Promise<AuthenticatedCustomer> {
@@ -3712,7 +3735,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   }
 
   if (request.method === "POST" && path === "auth/signup") {
-    await enforcePublicRateLimit(request, env, "customer-signup", 10, 3600);
+    await enforcePublicRateLimit(request, env, "customer-signup", 5, 3600);
     const body = await parseBody(request);
     const email = normalizeCustomerEmail(body.email);
     const password = customerPassword(body.password);
@@ -3735,7 +3758,10 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   }
 
   if (request.method === "POST" && path === "auth/login") {
+    await enforcePublicRateLimit(request, env, "customer-login-ip", 20, 600);
     const body = await parseBody(request);
+    const email = normalizeCustomerEmail(body.email);
+    await enforcePublicRateLimit(request, env, "customer-login-email", 10, 600, email);
     const turnstileToken = text(body["cf-turnstile-response"], 2000);
     const loginHostname = new URL(request.url).hostname.toLowerCase();
     if (!(await verifyTurnstile(env, turnstileToken, request.headers.get("CF-Connecting-IP"), {
@@ -3744,16 +3770,21 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
     }))) {
       throw new HttpError(400, "Security verification failed. Please try again.");
     }
-    const email = normalizeCustomerEmail(body.email);
     const password = text(body.password, 200);
     const account = await findCustomerByEmail(env, email);
     if (!account || !(await verifyCustomerPassword(password, text(account.passwordSalt, 200), text(account.passwordHash, 300)))) {
       throw new HttpError(401, "The email or password is incorrect.");
     }
+    if (needsPasswordUpgrade(text(account.passwordHash, 300))) {
+      const upgraded = await deriveCustomerPassword(password);
+      const upgrade = await env.DB.prepare("UPDATE customer_accounts SET password_salt = ?1, password_hash = ?2 WHERE id = ?3 AND password_hash = ?4")
+        .bind(upgraded.salt, upgraded.hash, account.id, account.passwordHash).run();
+      if (!upgrade.meta?.changes) throw new HttpError(409, "Your credentials changed. Please sign in again.");
+    }
     await env.DB.prepare("UPDATE customer_accounts SET last_login_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1").bind(account.id).run();
     const refreshed = await findCustomerById(env, text(account.id, 120));
     const user = authenticatedCustomer(customerAccountFromRow(refreshed || account));
-    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user);
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user, Number(account.sessionVersion));
   }
 
   if (request.method === "POST" && path === "auth/logout") {
@@ -3771,7 +3802,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
       const tokenHash = await signValue(token, customerSessionSecret(env));
       await env.DB.prepare("UPDATE customer_accounts SET reset_token_hash = ?1, reset_expires_at = datetime('now', '+1 hour'), updated_at = datetime('now') WHERE id = ?2").bind(tokenHash, account.id).run();
       const origin = (() => { try { return new URL(firstUrlValue(env.SITE_URL) || request.url).origin; } catch { return new URL(request.url).origin; } })();
-      const resetUrl = new URL("/account.html", origin);
+      const resetUrl = new URL("/account", origin);
       resetUrl.searchParams.set("reset", token);
       resetUrl.searchParams.set("email", email);
       try {
@@ -3792,22 +3823,24 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   }
 
   if (request.method === "POST" && path === "auth/reset-password") {
+    await enforcePublicRateLimit(request, env, "password-reset-submit", 10, 3600);
     const body = await parseBody(request);
     const email = normalizeCustomerEmail(body.email);
     const token = text(body.token, 500);
     const password = customerPassword(body.password);
     const account = await env.DB.prepare(
-      "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE lower(email) = ?1 AND reset_expires_at > datetime('now')",
+      "SELECT id, email, display_name AS displayName, shipping_address AS shippingAddress, created_at AS createdAt, updated_at AS updatedAt, last_login_at AS lastLoginAt, password_salt AS passwordSalt, password_hash AS passwordHash, session_version AS sessionVersion, reset_token_hash AS resetTokenHash, reset_expires_at AS resetExpiresAt FROM customer_accounts WHERE lower(email) = ?1 AND reset_expires_at > datetime('now')",
     ).bind(email).first<Record<string, unknown>>();
     if (!account || !token) throw new HttpError(400, "That password reset link is invalid or expired.");
     const tokenHash = await signValue(token, customerSessionSecret(env));
     if (!constantTimeEqual(tokenHash, text(account.resetTokenHash, 300))) throw new HttpError(400, "That password reset link is invalid or expired.");
     const passwordData = await deriveCustomerPassword(password);
-    await env.DB.prepare("UPDATE customer_accounts SET password_salt = ?1, password_hash = ?2, reset_token_hash = '', reset_expires_at = '', updated_at = datetime('now'), last_login_at = datetime('now') WHERE id = ?3")
-      .bind(passwordData.salt, passwordData.hash, account.id).run();
+    const changed = await env.DB.prepare("UPDATE customer_accounts SET password_salt = ?1, password_hash = ?2, reset_token_hash = '', reset_expires_at = '', session_version = session_version + 1, updated_at = datetime('now'), last_login_at = datetime('now') WHERE id = ?3 AND reset_token_hash = ?4 AND reset_expires_at > datetime('now')")
+      .bind(passwordData.salt, passwordData.hash, account.id, tokenHash).run();
+    if (!changed.meta?.changes) throw new HttpError(400, "That password reset link is invalid or expired.");
     const refreshed = await findCustomerById(env, text(account.id, 120));
     const user = authenticatedCustomer(customerAccountFromRow(refreshed || account));
-    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user);
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user }), env, user, Number(account.sessionVersion) + 1);
   }
 
   if (request.method === "GET" && path === "profile") {
@@ -3827,21 +3860,22 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
       const existing = await findCustomerByEmail(env, email);
       if (existing && text(existing.id, 120) !== user.id) throw new HttpError(409, "That email is already in use.");
     }
-    await env.DB.prepare("UPDATE customer_accounts SET email = ?1, display_name = ?2, shipping_address = ?3, updated_at = datetime('now') WHERE id = ?4")
-      .bind(email, displayName, shippingAddress, user.id).run();
     const newPassword = text(body.newPassword, 200);
+    let passwordData = { salt: text(current.passwordSalt, 200), hash: text(current.passwordHash, 300) };
     if (newPassword) {
+      await enforcePublicRateLimit(request, env, "password-change", 10, 3600, user.id);
       const currentPassword = text(body.currentPassword, 200);
-      if (!currentPassword || !(await verifyCustomerPassword(currentPassword, text(current.passwordSalt, 200), text(current.passwordHash, 300)))) {
+      if (!currentPassword || !(await verifyCustomerPassword(currentPassword, passwordData.salt, passwordData.hash))) {
         throw new HttpError(400, "Enter your current password to set a new password.");
       }
-      const passwordData = await deriveCustomerPassword(customerPassword(newPassword));
-      await env.DB.prepare("UPDATE customer_accounts SET password_salt = ?1, password_hash = ?2, updated_at = datetime('now') WHERE id = ?3")
-        .bind(passwordData.salt, passwordData.hash, user.id).run();
+      passwordData = await deriveCustomerPassword(customerPassword(newPassword));
     }
+    const changed = await env.DB.prepare("UPDATE customer_accounts SET email = ?1, display_name = ?2, shipping_address = ?3, password_salt = ?4, password_hash = ?5, session_version = session_version + ?6, reset_token_hash = CASE WHEN ?6 = 1 THEN '' ELSE reset_token_hash END, reset_expires_at = CASE WHEN ?6 = 1 THEN '' ELSE reset_expires_at END, updated_at = datetime('now') WHERE id = ?7 AND password_hash = ?8 AND session_version = ?9")
+      .bind(email, displayName, shippingAddress, passwordData.salt, passwordData.hash, newPassword ? 1 : 0, user.id, current.passwordHash, current.sessionVersion).run();
+    if (!changed.meta?.changes) throw new HttpError(409, "Your account changed. Please refresh and try again.");
     const refreshed = await findCustomerById(env, user.id);
     const updatedUser = authenticatedCustomer(customerAccountFromRow(refreshed || current));
-    return issueCustomerSessionCookie(json(request, env, { ok: true, user: updatedUser }), env, updatedUser);
+    return issueCustomerSessionCookie(json(request, env, { ok: true, user: updatedUser }), env, updatedUser, Number(current.sessionVersion) + (newPassword ? 1 : 0));
   }
 
   if (request.method === "GET" && path === "purchases") {
@@ -3881,7 +3915,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
           "INSERT INTO newsletter_subscribers (email, first_seen_at, last_seen_at, consent, status, source, notes) VALUES (?1, datetime('now'), datetime('now'), 1, 'active', 'resource_library', '') ON CONFLICT(email) DO UPDATE SET consent = 1, status = 'active', last_seen_at = datetime('now') WHERE newsletter_subscribers.status != 'Unsubscribed'",
         ).bind(customer.email).run();
       }
-      const libraryUrl = new URL("/resources.html?library=1", firstUrlValue(env.SITE_URL) || request.url).toString();
+      const libraryUrl = new URL("/resources?library=1", firstUrlValue(env.SITE_URL) || request.url).toString();
       try {
         await sendEmail(env, {
           to: customer.email,
@@ -4142,34 +4176,41 @@ function categorizeReferrer(referrer: string, siteUrls: string) {
   }
 }
 
-async function hashVisitorId(request: Request) {
+async function hashVisitorId(request: Request, env: Env) {
   const ip = request.headers.get("cf-connecting-ip") || "";
   const userAgent = request.headers.get("user-agent") || "";
   const day = new Date().toISOString().slice(0, 10);
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${ip}|${userAgent}|${day}`));
-  return bytesToHex(new Uint8Array(digest)).slice(0, 24);
+  return (await signValue(`${ip}|${userAgent}|${day}`, env.UNSUBSCRIBE_SECRET)).slice(0, 24);
 }
 
 async function handleAnalyticsEvent(request: Request, env: Env): Promise<Response> {
   if (!env.DB) return json(request, env, { ok: false, error: "Not configured." }, 404);
+  requireTrustedMutationOrigin(request, env);
+  await enforcePublicRateLimit(request, env, "analytics", 120, 60);
   const body = await parseBody(request);
   const eventType = text(body.eventType, 40);
   if (!ANALYTICS_EVENT_TYPES.has(eventType)) {
     return json(request, env, { ok: false, error: "Unknown event type." }, 400);
   }
-  const pagePath = text(body.pagePath, 300);
+  const pagePath = text(body.pagePath, 300).split(/[?#]/)[0];
   const bookId = text(body.bookId, 40);
   let meta = "{}";
   if (body.meta) {
     try {
-      meta = JSON.stringify(JSON.parse(body.meta)).slice(0, 2000);
+      const supplied = JSON.parse(body.meta);
+      const safe: Record<string, string | number> = {};
+      for (const key of ["formType", "itemCount", "packageKey"]) {
+        if (typeof supplied?.[key] === "number" && Number.isFinite(supplied[key])) safe[key] = supplied[key];
+        else if (typeof supplied?.[key] === "string") safe[key] = supplied[key].replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 60);
+      }
+      meta = JSON.stringify(safe);
     } catch {
       meta = "{}";
     }
   }
   const referrerCategory = categorizeReferrer(request.headers.get("referer") || "", env.SITE_URL);
   const deviceCategory = categorizeDevice(request.headers.get("user-agent") || "");
-  const visitorHash = await hashVisitorId(request);
+  const visitorHash = await hashVisitorId(request, env);
 
   await env.DB.prepare(
     "INSERT INTO analytics_events (id, event_type, page_path, referrer_category, device_category, book_id, meta_json, visitor_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",

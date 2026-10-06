@@ -47,7 +47,7 @@
                 rel="noopener noreferrer"
                 aria-label="Follow Jackrabbit Punkin Publishing on Facebook"
               >
-                <img src="/assets/icons/facebook.png" alt="" />
+                <img src="/assets/icons/facebook.png" alt="" / width="160" height="160" decoding="async">
               </a>
               <a
                 href="https://www.linkedin.com/in/barbara-ratliff-765"
@@ -55,7 +55,7 @@
                 rel="noopener noreferrer"
                 aria-label="Follow Barbara J. Ratliff on LinkedIn"
               >
-                <img src="/assets/icons/linkedIN.png" alt="" />
+                <img src="/assets/icons/linkedIN.png" alt="" / width="160" height="160" decoding="async">
               </a>
               <a
                 href="https://www.tiktok.com/@barbararatliff765"
@@ -63,7 +63,7 @@
                 rel="noopener noreferrer"
                 aria-label="Follow Barbara J. Ratliff on TikTok"
               >
-                <img src="/assets/icons/tiktok.png" alt="" />
+                <img src="/assets/icons/tiktok.png" alt="" / width="160" height="160" decoding="async">
               </a>
             </div>
           </div>
@@ -77,7 +77,7 @@
             class="brand-logo"
             src="/assets/icons/jrppLogo2.png"
             alt=""
-          />
+          / width="640" height="396" decoding="async">
           <p>Opening soon</p>
         </div>
       </section>
@@ -87,23 +87,6 @@
         <span>Independent publishing with purpose</span>
       </footer>
     </main>
-    <script>
-      (function () {
-        var logo = document.querySelector(".brand-logo");
-        if (!logo) return;
-        var taps = [];
-        logo.addEventListener("click", function () {
-          var now = Date.now();
-          taps.push(now);
-          taps = taps.filter(function (t) {
-            return now - t <= 3000;
-          });
-          if (taps.length >= 5) {
-            window.localStorage.setItem("jppSiteUnlocked", "1");
-            window.location.href = "/index.html";
-          }
-        });
-      })();
-    </script>
+
   </body>
 </html>

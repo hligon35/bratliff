@@ -62,6 +62,10 @@ export interface Env {
   PUBLIC_API_URL: string;
   ADMIN_AUTH_MODE?: string;
   INVENTORY_AUTHORITY?: "local" | "square";
+  SITE_LAUNCH_STATE?: "closed" | "open";
+  STORE_TAX_MODE?: "unconfigured" | "none" | "fixed";
+  STORE_TAX_PERCENTAGE?: string;
+  STORE_TAX_SHIPPING?: string;
   ADMIN_BOOTSTRAP_EMAILS: string;
   ADMIN_BOOTSTRAP_NAMES?: string;
   ADMIN_DEVELOPER_EMAILS?: string;

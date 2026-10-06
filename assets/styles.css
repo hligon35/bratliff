@@ -2135,7 +2135,7 @@ body.document-viewer-open {
 }
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr 0.8fr 1.2fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(300px, 1.2fr);
   column-gap: 3rem;
   row-gap: 3.5rem;
 }
@@ -2819,3 +2819,19 @@ body.document-viewer-open {
 .menu-toggle .material-icons-round{font-size:1.6rem}
 .account-overlay-close .material-icons-round,.document-viewer-close .material-icons-round,.store-cart-close .material-icons-round{font-size:1.4rem}
 .author-social-icon .material-icons-round{font-size:1.1rem}
+
+/* Intrinsic form/widget widths must not expand the footer grid. */
+.footer-grid > *, .footer-signup form, .newsletter-names > * { min-width: 0; }
+.footer-signup input { width: 100%; min-width: 0; }
+.footer-grid a { overflow-wrap: anywhere; }
+.cf-turnstile { max-width: 100%; }
+@media (max-width: 1200px) and (min-width: 701px) {
+  .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .footer-grid { grid-template-columns: minmax(0, 1fr); }
+  .footer-grid > * { grid-column: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

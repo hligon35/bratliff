@@ -88,6 +88,7 @@ test("committed site config targets the production domain", () => {
 
 test("the intentional site gate remains in place", () => {
   const home = read("index.html");
-  assert.match(home, /TEMPORARY LAUNCH REDIRECT/);
-  assert.match(home, /jppSiteUnlocked/);
+  assert.match(home, /SITE_LAUNCH_STATE/);
+  assert.doesNotMatch(home, /jppSiteUnlocked/);
+  assert.match(read("cloudflare/src/app.ts"), /env.SITE_LAUNCH_STATE !== "open"/);
 });

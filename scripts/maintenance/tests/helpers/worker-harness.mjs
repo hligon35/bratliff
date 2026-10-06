@@ -29,6 +29,9 @@ export function loadWorker(fetchMock = () => { throw new Error('Unexpected netwo
     if (/[\\/]namecheap-mail\.ts$/.test(filename)) source += '\nexport const review = { parseEmail, ProtocolReader };';
     const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     function requireLocal(name) {
+      // Noble validates plain objects by realm. Keep the real KDF while adapting
+      // VM-created options to the library's native realm (the Worker has one realm).
+      if (name === '@noble/hashes/pbkdf2.js') return { pbkdf2Async: (hash, password, salt, opts) => nativeRequire(name).pbkdf2Async(hash, password, salt, { ...opts }) };
       if (name === 'cloudflare:sockets') return { connect: socketMock || (() => { throw new Error('Unexpected socket access'); }) };
       if (name === 'jose') return joseMock || { createRemoteJWKSet: () => ({}), jwtVerify: () => { throw new Error('JWT provider access is not permitted in offline tests'); } };
       if (name.startsWith('.')) {
