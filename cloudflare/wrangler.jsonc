@@ -68,8 +68,8 @@
 	"vars": {
 		"ADMIN_BOOTSTRAP_EMAILS": "barbarajratliff@hotmail.com, barbarajratliff67@gmail.com, jacrat2016@gmail.com, cratliff44@gmail.com",
 		"ADMIN_NOTIFICATION_EMAIL": "hligon@getsparqd.com",
-		"CF_ACCESS_AUD": "8fba7a668d5dd50c41d183cc22f9e3955da162172b55235c522815b2e65657fc",
-		"CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkinpublishing.cloudflareaccess.com",
+		"CF_ACCESS_AUD": "bb67586ab532654928f7880d330d113cd16d969a1b8b73acc4ebfbcac9ba3119",
+		"CF_ACCESS_TEAM_DOMAIN": "jackrabbitpunkin.cloudflareaccess.com",
 		"CORS_ORIGIN": "https://jackrabbitpunkinpublishing.com",
 		"GOOGLE_CLIENT_ID": "269647684139-vlj1v2rvvp092qv08s40h7h1rej9gen4.apps.googleusercontent.com",
 		"MAIL_FROM_EMAIL": "no-reply@jackrabbitpunkinpublishing.com",

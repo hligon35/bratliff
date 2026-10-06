@@ -52,7 +52,7 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `CORS_ORIGIN`: origin allowed for browser requests to the Worker.
 - `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
 - `GOOGLE_CLIENT_ID`: Google Identity Services web client ID used by the branded login screen.
-- `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`: optional Cloudflare Access team domain and Application Audience tag. When both are set, the Worker trusts the `Cf-Access-Jwt-Assertion` header instead of the Google session cookie for every `/api/admin/*` request. Leave blank to keep using Google sign-in. See "Cloudflare Access (optional)" below.
+- `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`: Cloudflare Access team domain and Application Audience tag. In Access mode the Worker verifies the assertion header or signed `CF_Authorization` application cookie for every admin request. `ADMIN_AUTH_MODE=google` explicitly selects the separate Google session flow. See "Cloudflare Access (optional)" below.
 - `SQUARE_ACCESS_TOKEN`: Square API access token used to create Payment Links for store and sponsorship checkout.
 - `SQUARE_WEBHOOK_SIGNATURE_KEY`: signing key used to verify `POST /square/webhook` notifications.
 - `SQUARE_LOCATION_ID`: the Square location used for all generated orders.
@@ -144,7 +144,8 @@ By default the admin API is protected by the built-in Google Identity Services s
 2. Choose an identity provider (Google, One-time PIN, etc.) and add a policy that allows only the emails already listed in `ADMIN_BOOTSTRAP_EMAILS` / the `admins` D1 table.
 3. Copy the application's **Audience (AUD) tag** and your **team domain** (`<team-name>.cloudflareaccess.com`) from the application's Overview tab.
 4. Set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` in `cloudflare/wrangler.jsonc`'s `vars` block (or `.env`/`.env.local` for local reference) and redeploy the Worker.
-5. Once both values are non-empty, `authorizeAdmin()` in `cloudflare/src/app.ts` verifies the `Cf-Access-Jwt-Assertion` header against Cloudflare's JWKS (`https://<team-domain>/cdn-cgi/access/certs`) instead of the Google session cookie, and still checks the resolved email against the `admins` table for role/permission lookup.
+5. In Access mode, `authorizeAdmin()` verifies the `Cf-Access-Jwt-Assertion` header against Cloudflare's JWKS (`https://<team-domain>/cdn-cgi/access/certs`). When the edge does not supply the header, it verifies the `CF_Authorization` application cookie with the same signature, issuer, audience and expiration requirements. Both paths check the email against the `admins` table. The admin uses `/api/admin/session` and `/api/admin/logout`; `/api/auth/session` remains available for public session probes.
+6. Keep the Access cookie path at `/` (disable the Cookie Path Attribute) so requests from `/admin/*` to `/api/admin/*` receive it. Include `/api/admin/*` in the same Access application as `/admin/*`; this also supplies the verified header on session/logout requests. `PUBLIC_ADMIN_URL` must point to a host protected by that application: the branded login page uses it even when opened on www.
 
 This is intentionally opt-in and additive: leaving both variables blank keeps the current Google sign-in flow working exactly as before, so there is no risk of being locked out of `/admin/*` by deploying this change alone. Actually restricting access at Cloudflare's edge requires completing steps 1-4 above in the Zero Trust dashboard, which only an account owner should perform (a misconfigured Access policy can lock out all admins, including the person setting it up, until the policy is fixed from the dashboard).
 
