@@ -20,6 +20,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .nav-item.active{background:var(--gold);color:var(--navy)}
 .nav-item[hidden]{display:none}
 .nav-icon{width:20px;text-align:center;font-size:17px}
+.shell-svg-icon{display:inline-block;flex-shrink:0;vertical-align:middle}
 .nav-count{margin-left:auto;border-radius:12px;background:rgba(255,255,255,.15);padding:2px 7px;font-size:10px}
 .nav-item.active .nav-count{background:rgba(10,22,40,.12)}
 .drawer-bottom{margin-top:auto;padding:14px 5px 0;border-top:1px solid rgba(255,255,255,.14)}
