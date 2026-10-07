@@ -5,7 +5,7 @@ import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import { MailDeliveryUncertainError, sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
 import { cleanLegacyEmailText } from "./email-html";
-import { syncSquareInventory } from "./square-inventory";
+import { listSquareCatalog, setSquareVariationCount, syncSquareInventory } from "./square-inventory";
 import type {
   AdminRole,
   AdminUser,
@@ -1493,6 +1493,92 @@ async function handleAdminApi(
     const squareSync = await syncSquareInventory(env, { force: true, limit: 100 });
     await writeAuditLog(env, admin, "square_inventory_sync", "inventory", "all", "Square physical inventory counts synchronized from bookstore stock.");
     return json(request, env, { ok: squareSync.configured && squareSync.failed === 0, ...squareSync }, squareSync.configured ? 200 : 503);
+  }
+  if (request.method === "GET" && path === "inventory/square-catalog") {
+    try {
+      const catalog = await listSquareCatalog(env, text(url.searchParams.get("cursor"), 2000));
+      return json(request, env, { ok: true, ...catalog });
+    } catch (error) {
+      throw new HttpError(502, "Square catalog could not be loaded: " + getErrorMessage(error).slice(0, 300));
+    }
+  }
+  if (request.method === "POST" && path === "inventory/square-count") {
+    requireRole(admin, "manager");
+    const body = await parseBody(request);
+    const variationId = text(body.variationId, 200);
+    const quantity = Number(body.quantity);
+    if (!variationId || !Number.isSafeInteger(quantity) || quantity < 0 || quantity > 1000000) {
+      throw new HttpError(400, "Choose a Square variation and enter a whole-number count from 0 to 1,000,000.");
+    }
+    const linked = await env.DB.prepare("SELECT id AS bookId FROM books WHERE square_catalog_variation_id = ?1 ORDER BY id LIMIT 2")
+      .bind(variationId).all<{ bookId: string }>();
+    if ((linked.results || []).length > 1) throw new HttpError(409, "More than one bookstore book is linked to this Square variation. Resolve the duplicate mapping first.");
+    const linkedBook = linked.results?.[0];
+    if (linkedBook) {
+      const book = await getStoreBookById(env, linkedBook.bookId);
+      if (!book) throw new HttpError(404, "The linked bookstore book could not be found.");
+      const nextStatus = book.status === "Published" || book.status === "Out of Stock"
+        ? (quantity > 0 ? "Published" : "Out of Stock")
+        : book.status;
+      await env.DB.prepare("UPDATE books SET stock = ?2, status = ?3, updated_at = datetime('now') WHERE id = ?1")
+        .bind(book.bookId, quantity, nextStatus).run();
+      if (quantity !== book.stock) {
+        await env.DB.prepare("INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Square catalog admin adjustment', '', ?8, ?9)")
+          .bind(crypto.randomUUID(), book.bookId, book.sku, book.title, quantity - book.stock, book.stock, quantity, admin.email, text(body.notes, 1000)).run();
+      }
+      const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+      return json(request, env, { ok: true, linkedBook: true, quantity, squareSync });
+    }
+    try {
+      await setSquareVariationCount(env, variationId, quantity);
+      return json(request, env, { ok: true, linkedBook: false, quantity });
+    } catch (error) {
+      throw new HttpError(502, "Square inventory could not be updated: " + getErrorMessage(error).slice(0, 300));
+    }
+  }
+  if (request.method === "GET" && path === "inventory/square-catalog") {
+    try {
+      const catalog = await listSquareCatalog(env, text(url.searchParams.get("cursor"), 2000));
+      return json(request, env, { ok: true, ...catalog });
+    } catch (error) {
+      throw new HttpError(502, "Square catalog could not be loaded: " + getErrorMessage(error).slice(0, 300));
+    }
+  }
+  if (request.method === "POST" && path === "inventory/square-count") {
+    requireRole(admin, "manager");
+    const body = await parseBody(request);
+    const variationId = text(body.variationId, 200);
+    const quantity = Number(body.quantity);
+    if (!variationId || !Number.isSafeInteger(quantity) || quantity < 0 || quantity > 1000000) {
+      throw new HttpError(400, "Choose a Square variation and enter a whole-number count from 0 to 1,000,000.");
+    }
+    const linked = await env.DB.prepare("SELECT id AS bookId FROM books WHERE square_catalog_variation_id = ?1 ORDER BY id LIMIT 2")
+      .bind(variationId).all<{ bookId: string }>();
+    if ((linked.results || []).length > 1) throw new HttpError(409, "More than one bookstore book is linked to this Square variation. Resolve the duplicate mapping first.");
+    const linkedBook = linked.results?.[0];
+    if (linkedBook) {
+      const book = await getStoreBookById(env, linkedBook.bookId);
+      if (!book) throw new HttpError(404, "The linked bookstore book could not be found.");
+      const nextStatus = !book.preorder && book.status !== "Draft" && book.status !== "Archived"
+        ? (quantity > 0 ? "Published" : "Out of Stock")
+        : book.status;
+      await env.DB.prepare("UPDATE books SET stock = ?2, status = ?3, updated_at = datetime('now') WHERE id = ?1")
+        .bind(book.bookId, quantity, nextStatus).run();
+      if (quantity !== book.stock) {
+        await env.DB.prepare("INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Square catalog admin adjustment', '', ?8, ?9)")
+          .bind(crypto.randomUUID(), book.bookId, book.sku, book.title, quantity - book.stock, book.stock, quantity, admin.email, text(body.notes, 1000)).run();
+      }
+      const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+      await writeAuditLog(env, admin, "square_inventory_count_adjusted", "book", book.bookId, "Set linked Square catalog stock to " + quantity + ".");
+      return json(request, env, { ok: true, linkedBook: true, quantity, squareSync });
+    }
+    try {
+      await setSquareVariationCount(env, variationId, quantity);
+      await writeAuditLog(env, admin, "square_inventory_count_adjusted", "square_variation", variationId, "Set Square catalog physical count to " + quantity + ".");
+      return json(request, env, { ok: true, linkedBook: false, quantity });
+    } catch (error) {
+      throw new HttpError(502, "Square inventory could not be updated: " + getErrorMessage(error).slice(0, 300));
+    }
   }
   if (request.method === "GET" && path === "inventory") {
     return json(request, env, { ok: true, rows: await getInventorySummary(env) });

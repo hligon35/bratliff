@@ -29,14 +29,7 @@
 
     <div class="shell">
       <div class="main">
-        <div class="store-tabs nav" role="tablist" aria-label="Store sections">
-            <button class="active" data-store-tab="overview" data-icon="overview" aria-label="Overview" title="Overview">Overview</button>
-            <button data-store-tab="books" data-icon="books" aria-label="Books" title="Books">Books</button>
-            <button data-store-tab="orders" data-icon="orders" aria-label="Orders" title="Orders">Orders</button>
-            <button data-store-tab="inventory" data-icon="inventory" aria-label="Inventory" title="Inventory">Inventory</button>
-            <div class="store-tabs-tools" data-store-tools aria-label="Store actions"></div>
-        </div>
-        <div class="hero">
+                <div class="hero">
           <div>
             <h2>Publisher Store Manager</h2>
             <p>
@@ -261,6 +254,26 @@
                 </div>
               </div>
             </div>
+            <div class="panel square-catalog-panel">
+              <div class="panel-head">
+                <h2>Square Catalog</h2>
+                <div class="form-actions">
+                  <button class="btn alt" id="refreshSquareCatalogBtn" type="button">Load Square Products</button>
+                  <button class="btn alt" id="squareCatalogPreviousBtn" type="button" disabled>Previous</button>
+                  <button class="btn alt" id="squareCatalogNextBtn" type="button" disabled>Next</button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p class="toolbar-summary">Live products and variations from Square. Linked bookstore items update D1 and Square together; Square-only items update their Square count directly.</p>
+                <div class="toolbar-field">
+                  <label for="squareCatalogSearch">Filter loaded products</label>
+                  <input id="squareCatalogSearch" type="search" placeholder="Product, variation, or SKU" />
+                </div>
+                <div class="toolbar-summary" id="squareCatalogStatus" role="status" aria-live="polite">Load Square products to view catalog items and stock at the configured location.</div>
+                <div class="table-wrap" id="squareCatalogList"></div>
+              </div>
+            </div>
+
           </section>
         </div>
       </div>
