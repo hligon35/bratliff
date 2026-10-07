@@ -63,11 +63,10 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `SQUARE_ENVIRONMENT`: `sandbox` or `production`, selects the Square API host.
 - `RESEND_API_KEY`: API key used to send transactional and newsletter email via Resend.
 - `MAIL_FROM_EMAIL`: the verified Resend sender, `publisher@jackrabbitpunkinpublishing.com`.
-- `STRIPE_SECRET_KEY`: restricted server-side Stripe key with product read/write/search access; used only to mirror the bookstore's D1 stock and product metadata into Stripe.
 - `UNSUBSCRIBE_SECRET`: private signing secret for newsletter unsubscribe links.
 - `ADMIN_SESSION_SECRET`: HMAC secret used by the Worker to sign the admin session cookie.
 
-All forms, the store, checkout, and the admin API run natively on Cloudflare (D1 for storage, R2 for book images, Square for payments, and Resend for outbound email). Stripe receives a product metadata mirror for bookstore stock. D1 remains the authoritative, transaction-safe stock ledger because Stripe's standard product API does not provide atomic stock decrement for Checkout.
+All forms, the store, checkout, and the admin API run natively on Cloudflare (D1 for storage, R2 for book images, Square for payments and inventory, and Resend for outbound email). D1 remains the transaction-safe checkout ledger; Square catalog variations receive physical-count updates after bookstore adjustments and paid orders.
 
 ### Square webhook subscription
 

@@ -801,9 +801,9 @@ document.addEventListener("click", function (event) {
         sku: book.sku,
         stock: book.stock,
         lowStockThreshold: book.lowStockThreshold,
-        stripeSyncStatus: book.stripeInventory && book.stripeInventory.stripeSyncStatus || "pending",
-        stripeSyncedStock: book.stripeInventory ? book.stripeInventory.stripeSyncedStock : null,
-        stripeSyncError: book.stripeInventory && book.stripeInventory.stripeSyncError || "",
+        squareSyncStatus: book.squareInventory && book.squareInventory.squareSyncStatus || "pending",
+        squareSyncedStock: book.squareInventory ? book.squareInventory.squareSyncedStock : null,
+        squareSyncError: book.squareInventory && book.squareInventory.squareSyncError || "",
         low: low,
       };
     });
@@ -816,10 +816,10 @@ document.addEventListener("click", function (event) {
           { label: "SKU", key: "sku" },
           { label: "Stock", key: "stock" },
           { label: "Alert At", key: "lowStockThreshold" },
-          { label: "Stripe mirror", render: function (row) {
-            const label = row.stripeSyncStatus === "synced" ? "Synced · " + (row.stripeSyncedStock == null ? "—" : row.stripeSyncedStock) :
-              row.stripeSyncStatus === "error" ? "Needs retry" : row.stripeSyncStatus === "syncing" ? "Syncing" : "Pending";
-            return '<span class="badge ' + (row.stripeSyncStatus === "synced" ? "" : "low") + '" title="' + escapeHtml(row.stripeSyncError || "Stripe product metadata mirror") + '">' + escapeHtml(label) + "</span>";
+          { label: "Square stock", render: function (row) {
+            const label = row.squareSyncStatus === "synced" ? "Synced · " + (row.squareSyncedStock == null ? "—" : row.squareSyncedStock) :
+              row.squareSyncStatus === "unlinked" ? "Link variation" : row.squareSyncStatus === "error" ? "Needs retry" : row.squareSyncStatus === "syncing" ? "Syncing" : "Pending";
+            return '<span class="badge ' + (row.squareSyncStatus === "synced" ? "" : "low") + '" title="' + escapeHtml(row.squareSyncError || "Square inventory status") + '">' + escapeHtml(label) + "</span>";
           } },
           { label: "Status", render: function (row) { return '<span class="badge ' + (row.low ? 'low' : '') + '">' + (row.low ? 'Low stock' : 'Healthy') + '</span>'; } },
         ],
@@ -1065,10 +1065,10 @@ document.addEventListener("click", function (event) {
       }) || book;
       populateBookForm(book);
       if (fileInput) fileInput.value = "";
-      const sync = data.stripeSync || {};
-      const message = sync.configured === false ? "Saved; Stripe sync needs configuration." :
-        sync.failed ? "Saved; Stripe sync failed and will retry automatically." :
-        sync.synced ? "Saved and mirrored to Stripe." : "Saved; Stripe sync is queued.";
+      const sync = data.squareSync || {};
+      const message = sync.configured === false ? "Saved; Square sync needs configuration." :
+        sync.failed ? "Saved; Square sync failed and will retry automatically." :
+        sync.synced ? "Saved and synced to Square." : "Saved; Square sync is queued.";
       setStatus("#bookStatus", message, sync.configured !== false && !sync.failed);
     } catch (error) {
       setStatus("#bookStatus", error.message || "Book could not be saved.", false);
@@ -1158,10 +1158,10 @@ document.addEventListener("click", function (event) {
       const reason = field(form, "reason");
       if (reason) reason.value = "Admin adjustment";
       await loadBooks();
-      const sync = result.stripeSync || {};
-      const message = sync.configured === false ? "Inventory saved locally; Stripe sync needs configuration." :
-        sync.failed ? "Inventory saved locally; Stripe sync failed and will retry automatically." :
-        sync.synced ? "Inventory saved and mirrored to Stripe." : "Inventory saved; Stripe sync is queued.";
+      const sync = result.squareSync || {};
+      const message = sync.configured === false ? "Inventory saved locally; Square sync needs configuration." :
+        sync.failed ? "Inventory saved locally; Square sync failed and will retry automatically." :
+        sync.synced ? "Inventory saved and synced to Square." : "Inventory saved; Square sync is queued.";
       setStatus("#inventoryStatus", message, sync.configured !== false && !sync.failed);
     } catch (error) {
       setStatus("#inventoryStatus", error.message || "Inventory could not be updated.", false);
@@ -1188,24 +1188,24 @@ document.addEventListener("click", function (event) {
       window.alert("Publisher Store Manager is ready.");
     });
   });
-  qs("#stripeInventorySyncBtn")?.addEventListener("click", async function () {
-    const button = qs("#stripeInventorySyncBtn");
+  qs("#squareInventorySyncBtn")?.addEventListener("click", async function () {
+    const button = qs("#squareInventorySyncBtn");
     if (button) { button.disabled = true; button.textContent = "Syncing…"; }
     try {
-      const data = await api("inventory/sync-stripe", { method: "POST", body: {} });
+      const data = await api("inventory/sync-square", { method: "POST", body: {} });
       await loadBooks();
-      const status = qs("#inventoryStatus");
+      const status = qs("#squareInventorySyncStatus");
       if (status) {
-        status.textContent = data.configured === false ? "Stripe sync needs STRIPE_SECRET_KEY." :
-          data.failed ? "Stripe sync completed with " + data.failed + " item(s) needing retry." :
-          "Stripe inventory mirror updated for " + data.synced + " book(s).";
-        status.className = "status " + (data.failed || data.configured === false ? "error" : "success");
+        status.textContent = data.configured === false ? "Square inventory sync needs its access token and location." :
+          data.failed ? "Square sync completed with " + data.failed + " item(s) needing retry." :
+          "Square sync: " + data.synced + " updated, " + (data.unlinked || 0) + " unlinked, " + (data.failed || 0) + " needing retry.";
+        status.className = "status " + (data.failed || data.unlinked || data.configured === false ? "error" : "success");
       }
     } catch (error) {
       const status = qs("#inventoryStatus");
-      if (status) { status.textContent = error.message || "Stripe inventory sync failed."; status.className = "status error"; }
+      if (status) { status.textContent = error.message || "Square inventory sync failed."; status.className = "status error"; }
     } finally {
-      if (button) { button.disabled = false; button.textContent = "Sync Stripe Inventory"; }
+      if (button) { button.disabled = false; button.textContent = "Sync Square Inventory"; }
     }
   });
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);

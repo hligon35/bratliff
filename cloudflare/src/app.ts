@@ -5,7 +5,7 @@ import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import { MailDeliveryUncertainError, sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
 import { cleanLegacyEmailText } from "./email-html";
-import { syncStripeInventory } from "./stripe-inventory";
+import { syncSquareInventory } from "./square-inventory";
 import type {
   AdminRole,
   AdminUser,
@@ -875,72 +875,6 @@ async function createSquarePaymentLink(
   };
 }
 
-async function fetchSquareInventoryCounts(env: Env, catalogObjectIds: string[]): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  const ids = catalogObjectIds.filter(Boolean);
-  if (!ids.length) return counts;
-  const response = await fetch(`${squareApiBase(env)}/v2/inventory/batch-retrieve-counts`, {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + env.SQUARE_ACCESS_TOKEN,
-      "Content-Type": "application/json",
-      "Square-Version": env.SQUARE_API_VERSION || "2024-10-17",
-    },
-    body: JSON.stringify({
-      catalog_object_ids: ids,
-      location_ids: env.SQUARE_LOCATION_ID ? [env.SQUARE_LOCATION_ID] : undefined,
-      states: ["IN_STOCK"],
-    }),
-  });
-  if (!response.ok) return counts;
-  const data = (await response.json()) as Record<string, JsonValue>;
-  const rows = Array.isArray(data.counts) ? (data.counts as Record<string, JsonValue>[]) : [];
-  for (const row of rows) {
-    const id = text(row.catalog_object_id, 200);
-    if (!id) continue;
-    counts.set(id, (counts.get(id) || 0) + Number(row.quantity || 0));
-  }
-  return counts;
-}
-
-// Square import is explicitly opt-in. Production uses the local inventory ledger.
-// Do not enable Square authority until checkout also updates Square catalog counts.
-async function syncBookInventoryFromSquare(env: Env): Promise<number> {
-  // Checkout and admin adjustments use local stock. Importing Square counts here
-  // would resurrect stock sold through ad hoc payment-link line items.
-  if (env.INVENTORY_AUTHORITY !== "square") return 0;
-  if (!env.SQUARE_ACCESS_TOKEN || env.SQUARE_ACCESS_TOKEN.startsWith("replace-")) return 0;
-  const rows = await env.DB.prepare(
-    "SELECT id AS bookId, sku, title, stock, preorder, status, square_catalog_variation_id AS variationId FROM books WHERE square_catalog_variation_id != '' AND status != 'Archived'",
-  ).all<Record<string, unknown>>();
-  const books = rows.results || [];
-  if (!books.length) return 0;
-
-  const counts = await fetchSquareInventoryCounts(env, books.map((book) => text(book.variationId, 200)));
-  let updated = 0;
-  for (const book of books) {
-    const variationId = text(book.variationId, 200);
-    if (!counts.has(variationId)) continue;
-    const bookId = text(book.bookId, 120);
-    const previous = Number(book.stock || 0);
-    const next = Math.max(0, Math.floor(counts.get(variationId) || 0));
-    if (next === previous) continue;
-    const preorder = Boolean(Number(book.preorder || 0));
-    const status = text(book.status, 40);
-    const nextStatus = !preorder && status !== "Draft" && status !== "Archived" ? (next > 0 ? "Published" : "Out of Stock") : status;
-    await env.DB.prepare("UPDATE books SET stock = ?2, status = ?3, updated_at = datetime('now') WHERE id = ?1")
-      .bind(bookId, next, nextStatus)
-      .run();
-    await env.DB.prepare(
-      "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Square inventory sync', '', 'Square', '')",
-    )
-      .bind(crypto.randomUUID(), bookId, text(book.sku, 120), text(book.title, 300), next - previous, previous, next)
-      .run();
-    updated += 1;
-  }
-  return updated;
-}
-
 async function handleStoreCheckout(
   request: Request,
   env: Env,
@@ -1351,6 +1285,8 @@ async function recordPaidOrderFromSquarePayment(env: Env, squareEventId: string,
     }
     throw error;
   }
+  // Settlement updates D1 inventory; scheduled sync retries provider failures.
+  await syncSquareInventory(env, { force: true, limit: 100 });
 }
 
 async function recordPaidSponsorFromSquarePayment(
@@ -1538,31 +1474,25 @@ async function handleAdminApi(
   if (request.method === "GET" && path === "books") {
     const [books, inventory] = await Promise.all([listAllStoreBooks(env), getInventorySummary(env)]);
     const syncByBook = new Map(inventory.map((row) => [row.bookId, row]));
-    return json(request, env, { ok: true, books: books.map((book) => ({ ...book, stripeInventory: syncByBook.get(book.bookId) || null })) });
+    return json(request, env, { ok: true, books: books.map((book) => ({ ...book, squareInventory: syncByBook.get(book.bookId) || null })) });
   }
   if (request.method === "POST" && path === "books") {
     requireRole(admin, "manager");
     const book = await saveBook(env, admin, await parseBody(request));
-    const stripeSync = await syncStripeInventory(env, { bookId: book.bookId, force: true, limit: 1 });
-    return json(request, env, { ok: true, book, stripeSync });
+    const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+    return json(request, env, { ok: true, book, squareSync });
   }
   if (request.method === "POST" && path === "inventory/adjust") {
     requireRole(admin, "manager");
     const book = await adjustInventory(env, admin, await parseBody(request));
-    const stripeSync = await syncStripeInventory(env, { bookId: book.bookId, force: true, limit: 1 });
-    return json(request, env, { ok: true, book, stripeSync });
-  }
-  if (request.method === "POST" && path === "inventory/sync-stripe") {
-    requireRole(admin, "manager");
-    const stripeSync = await syncStripeInventory(env, { force: true, limit: 100 });
-    await writeAuditLog(env, admin, "stripe_inventory_sync", "inventory", "all", "Stripe inventory metadata sync requested.");
-    return json(request, env, { ok: stripeSync.configured, ...stripeSync }, stripeSync.configured ? 200 : 503);
+    const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+    return json(request, env, { ok: true, book, squareSync });
   }
   if (request.method === "POST" && path === "inventory/sync-square") {
     requireRole(admin, "manager");
-    if (env.INVENTORY_AUTHORITY !== "square") throw new HttpError(409, "Local inventory is authoritative. Record receipts and physical returns with an inventory adjustment.");
-    const updated = await syncBookInventoryFromSquare(env);
-    return json(request, env, { ok: true, updated, books: await listAllStoreBooks(env) });
+    const squareSync = await syncSquareInventory(env, { force: true, limit: 100 });
+    await writeAuditLog(env, admin, "square_inventory_sync", "inventory", "all", "Square physical inventory counts synchronized from bookstore stock.");
+    return json(request, env, { ok: squareSync.configured && squareSync.failed === 0, ...squareSync }, squareSync.configured ? 200 : 503);
   }
   if (request.method === "GET" && path === "inventory") {
     return json(request, env, { ok: true, rows: await getInventorySummary(env) });
@@ -3223,23 +3153,8 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
   };
 }
 async function getInventorySummary(env: Env) {
-  const rows = await env.DB.prepare(
-    "SELECT b.id AS bookId, b.sku, b.title, b.stock, b.low_stock_threshold AS lowStockThreshold, b.status, CASE WHEN b.status = 'Published' AND b.stock <= b.low_stock_threshold THEN 1 ELSE 0 END AS lowStock, m.stripe_product_id AS stripeProductId, m.synced_stock AS stripeSyncedStock, m.sync_status AS stripeSyncStatus, m.last_synced_at AS stripeLastSyncedAt, m.last_error AS stripeSyncError FROM books b LEFT JOIN stripe_inventory_mirror m ON m.book_id = b.id ORDER BY b.title COLLATE NOCASE",
-  ).all<Record<string, unknown>>();
-  return (rows.results || []).map((row) => ({
-    bookId: text(row.bookId, 120),
-    sku: text(row.sku, 120),
-    title: text(row.title, 300),
-    stock: Number(row.stock || 0),
-    lowStockThreshold: Number(row.lowStockThreshold || 0),
-    status: text(row.status, 40),
-    lowStock: Boolean(Number(row.lowStock || 0)),
-    stripeProductId: text(row.stripeProductId, 200),
-    stripeSyncedStock: row.stripeSyncedStock == null ? null : Number(row.stripeSyncedStock),
-    stripeSyncStatus: text(row.stripeSyncStatus, 20) || "pending",
-    stripeLastSyncedAt: text(row.stripeLastSyncedAt, 50),
-    stripeSyncError: text(row.stripeSyncError, 400),
-  }));
+  const rows = await env.DB.prepare("SELECT b.id AS bookId,b.sku,b.title,b.stock,b.low_stock_threshold AS lowStockThreshold,b.status,b.square_catalog_variation_id AS squareCatalogVariationId,CASE WHEN b.status='Published' AND b.stock<=b.low_stock_threshold THEN 1 ELSE 0 END AS lowStock,m.synced_stock AS squareSyncedStock,m.sync_status AS squareSyncStatus,m.last_synced_at AS squareLastSyncedAt,m.last_error AS squareSyncError FROM books b LEFT JOIN square_inventory_sync m ON m.book_id=b.id ORDER BY b.title COLLATE NOCASE").all<Record<string,unknown>>();
+  return (rows.results||[]).map(row=>({bookId:text(row.bookId,120),sku:text(row.sku,120),title:text(row.title,300),stock:Number(row.stock||0),lowStockThreshold:Number(row.lowStockThreshold||0),status:text(row.status,40),lowStock:Boolean(Number(row.lowStock||0)),squareCatalogVariationId:text(row.squareCatalogVariationId,200),squareSyncedStock:row.squareSyncedStock==null?null:Number(row.squareSyncedStock),squareSyncStatus:text(row.squareSyncStatus,20)||"pending",squareLastSyncedAt:text(row.squareLastSyncedAt,50),squareSyncError:text(row.squareSyncError,400)}));
 }
 
 async function adjustInventory(env: Env, admin: AuthenticatedAdmin, body: Record<string, string>) {
@@ -4217,11 +4132,9 @@ async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
   await sendDueCampaigns(env);
   await processSubmissionEmails(env);
   await processNewsletterQueue(env);
-  // Mirror queued D1 inventory changes to Stripe; D1 remains authoritative.
-  await syncStripeInventory(env, { limit: 5 });
+  await syncSquareInventory(env, { limit: 100 });
   if (Math.floor(scheduledTime / 60000) % 15 === 0) {
     await rollupAnalyticsEvents(env);
-    await syncBookInventoryFromSquare(env);
     await env.DB.batch([
       env.DB.prepare("DELETE FROM public_rate_limits WHERE window_start < ?1").bind(Math.floor(Date.now() / 1000) - 86400),
       env.DB.prepare("DELETE FROM checkout_reservations WHERE datetime(expires_at) <= datetime('now')"),
