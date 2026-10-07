@@ -222,7 +222,7 @@ test("page-specific editing and management controls remain available", () => {
     activity: ["activityLogTable", "activityLogStatus", "activityRefreshBtn"],
     profile: ["adminForm", "adminFormDialog", "adminList"],
     settings: ["settingsForm", "settingsAvatar", "settingsStatus"],
-    store: ["bookForm", "setupBtn", "syncSquareStockBtn", "bookList"],
+    store: ["bookForm", "setupBtn", "squareInventorySyncBtn", "bookList"],
   };
   for (const [page, ids] of Object.entries(controls)) {
     const html = read(`admin/${page}.html`);

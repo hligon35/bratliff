@@ -101,9 +101,48 @@ test('invalid quantities are rejected and duplicate cart SKUs are coalesced befo
   assert.equal(items.length,1);assert.equal(items[0].quantity,3);
 });
 
-test('local inventory authority never imports Square counts', async () => {
+test('local inventory authority exports bookstore counts to Square without importing provider counts', async () => {
   const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked'");
-  assert.equal(await loadWorker().review.syncBookInventoryFromSquare(f.env),0);
+  f.env.SQUARE_LOCATION_ID='location1';
+  const requests=[];
+  const {review}=loadWorker(async (url, options) => {
+    requests.push({url:String(url),method:options.method,body:JSON.parse(options.body)});
+    return Response.json({counts:[{catalog_object_id:'linked',quantity:'999',state:'IN_STOCK'}]});
+  });
+  const result=await review.syncSquareInventory(f.env);
+  assert.equal(result.configured,true);
+  assert.equal(result.requested,1);
+  assert.equal(result.synced,1);
+  assert.equal(result.failed,0);
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].url,'https://connect.squareupsandbox.com/v2/inventory/changes/batch-create');
+  assert.equal(requests[0].method,'POST');
+  assert.equal(requests[0].body.changes[0].type,'PHYSICAL_COUNT');
+  assert.equal(requests[0].body.changes[0].physical_count.catalog_object_id,'linked');
+  assert.equal(requests[0].body.changes[0].physical_count.location_id,'location1');
+  assert.equal(requests[0].body.changes[0].physical_count.quantity,'5');
+  assert.equal(value(f.sqlite,'SELECT synced_stock FROM square_inventory_sync').synced_stock,5);
+  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,5);
+});
+
+test('unconfigured Square inventory sync makes no provider calls and preserves bookstore stock', async () => {
+  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked'");
+  const result=await loadWorker().review.syncSquareInventory(f.env);
+  assert.equal(result.configured,false);
+  assert.equal(result.requested,0);
+  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,5);
+});
+
+test('failed Square inventory sync records an explicit retryable error without changing bookstore stock', async () => {
+  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked'");
+  f.env.SQUARE_LOCATION_ID='location1';
+  const {review}=loadWorker(async () => Response.json({errors:[{detail:'Provider unavailable'}]},{status:503}));
+  const result=await review.syncSquareInventory(f.env);
+  assert.equal(result.synced,0);
+  assert.equal(result.failed,1);
+  const sync=value(f.sqlite,'SELECT sync_status,last_error FROM square_inventory_sync');
+  assert.equal(sync.sync_status,'error');
+  assert.equal(sync.last_error,'Provider unavailable');
   assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,5);
 });
 
