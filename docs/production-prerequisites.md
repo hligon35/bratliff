@@ -4,7 +4,7 @@ Target: https://jackrabbitpunkinpublishing.com. This branch changes code only. I
 
 ## Before release: account-dependent work
 
-1. Export/backup production D1 and record the current Worker deployment/version and applied migrations. Confirm a usable restore point. Review all outstanding migrations through **0017**, including **0013_mailbox_email_html.sql** and **0017_stripe_inventory_mirror.sql**. Historical 0003/0006 rebuild tables; the migration chain is not entirely additive. Rehearse upgrades on a copy with representative existing data before applying them remotely.
+1. Export/backup production D1 and record the current Worker deployment/version and applied migrations. Confirm a usable restore point. Review all outstanding migrations through **0017**, including **0013_mailbox_email_html.sql** and **0017_square_inventory_sync.sql**. Historical 0003/0006 rebuild tables; the migration chain is not entirely additive. Rehearse upgrades on a copy with representative existing data before applying them remotely.
 2. Review and apply approved migrations before publishing this Worker. The queue, rate limits, refunds and settlement require 0014; reader session revocation requires 0015; durable admin bootstrap and the form email outbox require 0016. Do not deploy this code against an older schema. Review commands, then run them from the repo root only when release is authorized:
    ```sh
    npx wrangler d1 migrations list DB --remote --config cloudflare/wrangler.jsonc
@@ -22,7 +22,7 @@ Target: https://jackrabbitpunkinpublishing.com. This branch changes code only. I
 
 ## Inventory, payments and reconciliation
 
-Production and sandbox use D1 as the transaction-safe inventory authority. The admin bookstore is a second inventory UI: catalog stock changes are queued and mirrored to each Stripe Product's metadata, and paid Square orders queue the new quantity as well. Stripe's standard Product API does not atomically decrement a stock counter during hosted Checkout, so do not treat Stripe metadata as enforcement; the Worker checks, reserves, and settles stock in D1. Sync failures remain visible and retry automatically. Configure `STRIPE_SECRET_KEY` as a Worker secret with restricted product read/write/search access. Stock receipts/physical returns are recorded through the admin inventory adjustment with a reason.
+D1 remains the transaction-safe authority for checkout reservations and settlements. The admin bookstore syncs physical counts to linked Square catalog variations after stock edits and paid orders. Pending and failed syncs retry on the scheduled Worker, and the inventory view shows unlinked variations and sync errors. Configure `SQUARE_ACCESS_TOKEN` with the Square `INVENTORY_WRITE` permission and set `SQUARE_LOCATION_ID`. Add each book's Square Catalog Variation ID in its bookstore form. Stock receipts and physical returns are recorded through the admin inventory adjustment with a reason.
 
 A checkout atomically saves the order/cart and reserves nonpreorder stock for 30 minutes. Completed Square payments atomically create a settlement ledger row, order items and inventory events, decrement stock and mark Paid. Duplicate notifications cannot repeat these effects. Guest name/email/address are copied from Square; a missing provider response or shipping address leaves the notification retryable. A Square order reference can recover a crash before the Square ID was saved locally.
 
