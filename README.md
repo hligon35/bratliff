@@ -57,7 +57,7 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
 - `GOOGLE_CLIENT_ID`: Google Identity Services web client ID used by the branded login screen.
 - `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`: Cloudflare Access team domain and Application Audience tag. In Access mode the Worker verifies the assertion header or signed `CF_Authorization` application cookie for every admin request. `ADMIN_AUTH_MODE=google` explicitly selects the separate Google session flow. See "Cloudflare Access (optional)" below.
-- `SQUARE_ACCESS_TOKEN`: Square API access token used to create Payment Links for store and sponsorship checkout.
+- `SQUARE_ACCESS_TOKEN`: Square API access token used for checkout, catalog reads (`ITEMS_READ`), and inventory reads/updates (`INVENTORY_READ`, `INVENTORY_WRITE`). The admin Square Catalog view lists live Square products and variations; quantity edits update Square directly and also update D1 for variations linked to bookstore books.
 - `SQUARE_WEBHOOK_SIGNATURE_KEY`: signing key used to verify `POST /square/webhook` notifications.
 - `SQUARE_LOCATION_ID`: the Square location used for all generated orders.
 - `SQUARE_ENVIRONMENT`: `sandbox` or `production`, selects the Square API host.

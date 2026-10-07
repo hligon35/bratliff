@@ -816,7 +816,8 @@ document.addEventListener("click", function (event) {
           { label: "SKU", key: "sku" },
           { label: "Stock", key: "stock" },
           { label: "Alert At", key: "lowStockThreshold" },
-          { label: "Square stock", render: function (row) {
+          { label: "Bookstore link", render: function (row) { return row.linkedBookTitle ? escapeHtml(row.linkedBookTitle) : "Square only"; } },
+      { label: "Square stock", render: function (row) {
             const label = row.squareSyncStatus === "synced" ? "Synced · " + (row.squareSyncedStock == null ? "—" : row.squareSyncedStock) :
               row.squareSyncStatus === "unlinked" ? "Link variation" : row.squareSyncStatus === "error" ? "Needs retry" : row.squareSyncStatus === "syncing" ? "Syncing" : "Pending";
             return '<span class="badge ' + (row.squareSyncStatus === "synced" ? "" : "low") + '" title="' + escapeHtml(row.squareSyncError || "Square inventory status") + '">' + escapeHtml(label) + "</span>";
@@ -839,6 +840,59 @@ document.addEventListener("click", function (event) {
     }
     const summary = qs("#inventoryFilterSummary");
     if (summary) summary.textContent = rows.length + " of " + state.books.length + " books shown";
+  }
+
+  let squareCatalogRows = [];
+  let squareCatalogCursorStack = [""];
+  let squareCatalogNextCursor = "";
+
+  function renderSquareCatalog() {
+    const root = qs("#squareCatalogList");
+    if (!root) return;
+    const needle = String(qs("#squareCatalogSearch")?.value || "").trim().toLowerCase();
+    const rows = squareCatalogRows.filter(function (row) {
+      return [row.itemName, row.variationName, row.sku, row.variationId].join(" ").toLowerCase().includes(needle);
+    });
+    root.innerHTML = tableMarkup("table", [
+      { label: "Square product", render: function (row) { return "<b>" + escapeHtml(row.itemName) + "</b>"; } },
+      { label: "Variation", render: function (row) { return escapeHtml(row.variationName || "Default"); } },
+      { label: "SKU", render: function (row) { return escapeHtml(row.sku || "—"); } },
+      { label: "Price", render: function (row) { return row.priceCents == null ? "—" : escapeHtml(row.currency + " " + (row.priceCents / 100).toFixed(2)); } },
+      { label: "Square stock", render: function (row) {
+        return row.quantity == null ? (row.trackInventory === false ? "Not tracked" : "No count") : escapeHtml(String(row.quantity));
+      } },
+      { label: "Variation ID", render: function (row) { return '<code title="' + escapeHtml(row.variationId) + '">' + escapeHtml(row.variationId) + "</code>"; } },
+      { label: "Set physical count", render: function (row) {
+        const value = row.quantity == null ? "" : String(row.quantity);
+        return '<div class="form-actions"><input data-square-count type="number" min="0" max="1000000" step="1" aria-label="New count for ' + escapeHtml(row.itemName + " " + row.variationName) + '" value="' + escapeHtml(value) + '" placeholder="Count" style="width:92px;min-height:38px" /><button class="btn alt" type="button" data-square-save="' + escapeHtml(row.variationId) + '">Save</button></div>';
+      } },
+    ], rows, "No Square catalog variations found.");
+    const previous = qs("#squareCatalogPreviousBtn");
+    const next = qs("#squareCatalogNextBtn");
+    if (previous) previous.disabled = squareCatalogCursorStack.length < 2;
+    if (next) next.disabled = !squareCatalogNextCursor;
+  }
+
+  async function loadSquareCatalog(cursor, reset) {
+    const status = qs("#squareCatalogStatus");
+    if (reset) {
+      squareCatalogCursorStack = [""];
+      cursor = "";
+    }
+    if (status) { status.textContent = "Loading Square products…"; status.className = "toolbar-summary"; }
+    try {
+      const query = cursor ? "?cursor=" + encodeURIComponent(cursor) : "";
+      const data = await api("inventory/square-catalog" + query);
+      squareCatalogRows = Array.isArray(data.variations) ? data.variations : [];
+      squareCatalogNextCursor = data.nextCursor || "";
+      renderSquareCatalog();
+      if (status) {
+        status.textContent = squareCatalogRows.length + " Square catalog variations loaded for location " + (data.locationId || "not configured") + ". Search filters this page.";
+        status.className = "toolbar-summary";
+      }
+    } catch (error) {
+      if (status) { status.textContent = error.message || "Square catalog could not be loaded."; status.className = "status error"; }
+    }
   }
 
   function renderBooks() {
@@ -1188,6 +1242,20 @@ document.addEventListener("click", function (event) {
       window.alert("Publisher Store Manager is ready.");
     });
   });
+  qs("#refreshSquareCatalogBtn")?.addEventListener("click", function () {
+    loadSquareCatalog("", true);
+  });
+  qs("#squareCatalogSearch")?.addEventListener("input", renderSquareCatalog);
+  qs("#squareCatalogNextBtn")?.addEventListener("click", function () {
+    if (!squareCatalogNextCursor) return;
+    squareCatalogCursorStack.push(squareCatalogNextCursor);
+    loadSquareCatalog(squareCatalogNextCursor, false);
+  });
+  qs("#squareCatalogPreviousBtn")?.addEventListener("click", function () {
+    if (squareCatalogCursorStack.length < 2) return;
+    squareCatalogCursorStack.pop();
+    loadSquareCatalog(squareCatalogCursorStack[squareCatalogCursorStack.length - 1] || "", false);
+  });
   qs("#squareInventorySyncBtn")?.addEventListener("click", async function () {
     const button = qs("#squareInventorySyncBtn");
     if (button) { button.disabled = true; button.textContent = "Syncing…"; }
@@ -1280,12 +1348,41 @@ document.addEventListener("click", function (event) {
     reader.readAsDataURL(file);
   });
 
-document.addEventListener("click", function (event) {
+document.addEventListener("click", async function (event) {
     const storeTab = event.target.closest("[data-store-tab]");
     if (storeTab) {
       showStoreView(storeTab.getAttribute("data-store-tab"));
+      if (storeTab.getAttribute("data-store-tab") === "inventory") loadSquareCatalog("", true);
       if (state.page === "store") {
         window.history.replaceState(null, "", "#" + storeTab.getAttribute("data-store-tab"));
+      }
+      return;
+    }
+
+    const squareSaveButton = event.target.closest("[data-square-save]");
+    if (squareSaveButton) {
+      const row = squareSaveButton.closest("tr");
+      const input = row && row.querySelector("[data-square-count]");
+      const quantity = Number(input && input.value);
+      const variationId = squareSaveButton.getAttribute("data-square-save");
+      if (!Number.isSafeInteger(quantity) || quantity < 0 || quantity > 1000000) {
+        setStatus("#squareCatalogStatus", "Enter a whole-number stock count from 0 to 1,000,000.", false);
+        return;
+      }
+      squareSaveButton.disabled = true;
+      squareSaveButton.textContent = "Saving…";
+      try {
+        const result = await api("inventory/square-count", { method: "POST", body: { variationId: variationId, quantity: quantity } });
+        if (result.linkedBook) await loadBooks();
+        await loadSquareCatalog(squareCatalogCursorStack[squareCatalogCursorStack.length - 1] || "", false);
+        setStatus("#squareCatalogStatus", result.linkedBook
+          ? (result.squareSync && result.squareSync.failed ? "Bookstore count saved; Square sync needs retry." : "Bookstore and Square counts updated.")
+          : "Square physical count updated.", !(result.squareSync && result.squareSync.failed));
+      } catch (error) {
+        setStatus("#squareCatalogStatus", error.message || "Square inventory could not be updated.", false);
+      } finally {
+        squareSaveButton.disabled = false;
+        squareSaveButton.textContent = "Save";
       }
       return;
     }
@@ -1324,7 +1421,9 @@ bulkConfigs.books = {
 };
 pageLoaders.store = async function () {
   await Promise.all([loadBooks(), loadOrders()]);
-  showStoreView(window.location.hash.replace(/^#/, "") || "overview");
+  const initialView = window.location.hash.replace(/^#/, "") || "overview";
+  showStoreView(initialView);
+  if (initialView === "inventory") await loadSquareCatalog("", true);
 };
 initAdminIcons();
 
