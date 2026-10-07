@@ -11,9 +11,9 @@ try {
   const health = await get('/healthz');
   checks.push({ check: 'Production Worker health', passed: health.ok && (await health.json()).ok === true });
   const auth = await get('/api/auth/config');
-  checks.push({ check: 'Production expects Cloudflare Access', passed: auth.ok && (await auth.json()).mode === 'access' });
+  checks.push({ check:   'Production expects Google sign-in', passed: auth.ok && (await auth.json()).mode === 'google' });
   const admin = await get('/admin/');
-  checks.push({ check: 'Admin edge Access gate', passed: admin.status === 302 && new URL(admin.headers.get('location') || origin).hostname === 'jackrabbitpunkin.cloudflareaccess.com' });
+    checks.push({ check: 'Admin page served without an Access redirect', passed: admin.status === 200 });
   const www = await get('/admin/', 'https://www.jackrabbitpunkinpublishing.com');
   checks.push({ check: 'WWW admin uses canonical host', passed: [301, 302, 307, 308].includes(www.status) && new URL(www.headers.get('location') || '/', origin).origin === origin });
   const books = await get('/api/store/books');
