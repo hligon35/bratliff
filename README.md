@@ -62,11 +62,11 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `SQUARE_LOCATION_ID`: the Square location used for all generated orders.
 - `SQUARE_ENVIRONMENT`: `sandbox` or `production`, selects the Square API host.
 - `RESEND_API_KEY`: API key used to send transactional and newsletter email via Resend.
-- `MAIL_FROM_EMAIL`: the sending address used with Resend for all transactional and newsletter email.
+- `MAIL_FROM_EMAIL`: the verified Resend sender, `publisher@jackrabbitpunkinpublishing.com`.
 - `UNSUBSCRIBE_SECRET`: private signing secret for newsletter unsubscribe links.
 - `ADMIN_SESSION_SECRET`: HMAC secret used by the Worker to sign the admin session cookie.
 
-All forms, the store, checkout, and the admin API run natively on Cloudflare (D1 for storage, R2 for book images, Square for payments, and Resend for outbound email). There is no external relay.
+All forms, the store, checkout, and the admin API run natively on Cloudflare (D1 for storage, R2 for book images, Square for payments and inventory, and Resend for outbound email). D1 remains the transaction-safe checkout ledger; Square catalog variations receive physical-count updates after bookstore adjustments and paid orders.
 
 ### Square webhook subscription
 

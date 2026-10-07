@@ -801,6 +801,9 @@ document.addEventListener("click", function (event) {
         sku: book.sku,
         stock: book.stock,
         lowStockThreshold: book.lowStockThreshold,
+        squareSyncStatus: book.squareInventory && book.squareInventory.squareSyncStatus || "pending",
+        squareSyncedStock: book.squareInventory ? book.squareInventory.squareSyncedStock : null,
+        squareSyncError: book.squareInventory && book.squareInventory.squareSyncError || "",
         low: low,
       };
     });
@@ -813,6 +816,11 @@ document.addEventListener("click", function (event) {
           { label: "SKU", key: "sku" },
           { label: "Stock", key: "stock" },
           { label: "Alert At", key: "lowStockThreshold" },
+          { label: "Square stock", render: function (row) {
+            const label = row.squareSyncStatus === "synced" ? "Synced · " + (row.squareSyncedStock == null ? "—" : row.squareSyncedStock) :
+              row.squareSyncStatus === "unlinked" ? "Link variation" : row.squareSyncStatus === "error" ? "Needs retry" : row.squareSyncStatus === "syncing" ? "Syncing" : "Pending";
+            return '<span class="badge ' + (row.squareSyncStatus === "synced" ? "" : "low") + '" title="' + escapeHtml(row.squareSyncError || "Square inventory status") + '">' + escapeHtml(label) + "</span>";
+          } },
           { label: "Status", render: function (row) { return '<span class="badge ' + (row.low ? 'low' : '') + '">' + (row.low ? 'Low stock' : 'Healthy') + '</span>'; } },
         ],
         rows,
@@ -1057,7 +1065,11 @@ document.addEventListener("click", function (event) {
       }) || book;
       populateBookForm(book);
       if (fileInput) fileInput.value = "";
-      setStatus("#bookStatus", "Saved.", true);
+      const sync = data.squareSync || {};
+      const message = sync.configured === false ? "Saved; Square sync needs configuration." :
+        sync.failed ? "Saved; Square sync failed and will retry automatically." :
+        sync.synced ? "Saved and synced to Square." : "Saved; Square sync is queued.";
+      setStatus("#bookStatus", message, sync.configured !== false && !sync.failed);
     } catch (error) {
       setStatus("#bookStatus", error.message || "Book could not be saved.", false);
     }
@@ -1133,7 +1145,7 @@ document.addEventListener("click", function (event) {
     const form = event.currentTarget;
     setStatus("#inventoryStatus", "Applying adjustment...", null);
     try {
-      await api("inventory/adjust", {
+      const result = await api("inventory/adjust", {
         method: "POST",
         body: {
           bookId: safeValue(field(form, "bookId")),
@@ -1146,7 +1158,11 @@ document.addEventListener("click", function (event) {
       const reason = field(form, "reason");
       if (reason) reason.value = "Admin adjustment";
       await loadBooks();
-      setStatus("#inventoryStatus", "Inventory updated.", true);
+      const sync = result.squareSync || {};
+      const message = sync.configured === false ? "Inventory saved locally; Square sync needs configuration." :
+        sync.failed ? "Inventory saved locally; Square sync failed and will retry automatically." :
+        sync.synced ? "Inventory saved and synced to Square." : "Inventory saved; Square sync is queued.";
+      setStatus("#inventoryStatus", message, sync.configured !== false && !sync.failed);
     } catch (error) {
       setStatus("#inventoryStatus", error.message || "Inventory could not be updated.", false);
     }
@@ -1172,17 +1188,24 @@ document.addEventListener("click", function (event) {
       window.alert("Publisher Store Manager is ready.");
     });
   });
-  qs("#syncSquareStockBtn")?.addEventListener("click", async function () {
-    const button = qs("#syncSquareStockBtn");
-    if (button) { button.disabled = true; button.textContent = "Syncing..."; }
+  qs("#squareInventorySyncBtn")?.addEventListener("click", async function () {
+    const button = qs("#squareInventorySyncBtn");
+    if (button) { button.disabled = true; button.textContent = "Syncing…"; }
     try {
-      const data = await api("inventory/sync-square", { method: "POST" });
+      const data = await api("inventory/sync-square", { method: "POST", body: {} });
       await loadBooks();
-      window.alert("Square stock sync complete. " + (data.updated || 0) + " book(s) updated.");
+      const status = qs("#squareInventorySyncStatus");
+      if (status) {
+        status.textContent = data.configured === false ? "Square inventory sync needs its access token and location." :
+          data.failed ? "Square sync completed with " + data.failed + " item(s) needing retry." :
+          "Square sync: " + data.synced + " updated, " + (data.unlinked || 0) + " unlinked, " + (data.failed || 0) + " needing retry.";
+        status.className = "status " + (data.failed || data.unlinked || data.configured === false ? "error" : "success");
+      }
     } catch (error) {
-      window.alert(error.message || "Square stock sync failed.");
+      const status = qs("#inventoryStatus");
+      if (status) { status.textContent = error.message || "Square inventory sync failed."; status.className = "status error"; }
     } finally {
-      if (button) { button.disabled = false; button.textContent = "Sync Square Stock"; }
+      if (button) { button.disabled = false; button.textContent = "Sync Square Inventory"; }
     }
   });
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);
