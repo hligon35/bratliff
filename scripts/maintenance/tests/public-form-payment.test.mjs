@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {root} from './helpers/worker-harness.mjs';
 
-const source=readFileSync(path.join(root,'assets/site.js'),'utf8');
+const source=readFileSync(path.join(root,'assets/site.js'),'utf8').replace(/\r\n/g,'\n');
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
 test('public form retries keep a receipt ID after network failure; edited forms start a new request',async()=>{

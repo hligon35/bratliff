@@ -105,7 +105,7 @@
 		"INVENTORY_AUTHORITY": "local",
 		"SITE_LAUNCH_STATE": "closed",
 		"STORE_TAX_MODE": "unconfigured",
-		"ADMIN_AUTH_MODE": "access"
+		"ADMIN_AUTH_MODE": "google"
 	},
 	"secrets": {
 		"required": [
