@@ -606,12 +606,11 @@ document.addEventListener("click", function (event) {
 
 
   function showStoreView(name) {
-    qsa("[data-store-tab]").forEach(function (button) {
-      button.classList.toggle("active", button.getAttribute("data-store-tab") === name);
-    });
     qsa("[data-store-view]").forEach(function (view) {
       view.classList.toggle("show", view.getAttribute("data-store-view") === name);
     });
+    const squareSyncButton = qs("#squareInventorySyncBtn");
+    if (squareSyncButton) squareSyncButton.hidden = name !== "inventory";
   }
 
 
@@ -1421,7 +1420,8 @@ bulkConfigs.books = {
 };
 pageLoaders.store = async function () {
   await Promise.all([loadBooks(), loadOrders()]);
-  const initialView = window.location.hash.replace(/^#/, "") || "overview";
+  const requestedView = window.location.hash.replace(/^#/, "");
+  const initialView = ["overview", "books", "orders", "inventory"].includes(requestedView) ? requestedView : "overview";
   showStoreView(initialView);
   if (initialView === "inventory") await loadSquareCatalog("", true);
 };

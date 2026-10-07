@@ -1,13 +1,17 @@
 (function () {
   "use strict";
 
-  const page = document.body.dataset.adminPage || "orders";
+  const storeSection = window.location.hash.replace(/^#/, "");
+  const storeSectionPages = { overview: "store", books: "catalog", orders: "orders", inventory: "inventory" };
+  const page = document.body.dataset.adminPage === "store"
+    ? (storeSectionPages[storeSection] || "store")
+    : (document.body.dataset.adminPage || "orders");
   const groups = [
     { label: "Bookstore", items: [
-      { key: "orders", label: "Orders", icon: "receipt_long", view: true, count: "orderNavCount" },
-      { key: "catalog", label: "Catalog", icon: "menu_book", view: true },
-      { key: "inventory", label: "Inventory", icon: "inventory_2", view: true },
-      { key: "store", label: "Store manager", icon: "storefront" },
+      { key: "orders", label: "Orders", icon: "receipt_long", href: "/admin/store.html#orders", count: "orderNavCount" },
+      { key: "catalog", label: "Catalog", icon: "menu_book", href: "/admin/store.html#books" },
+      { key: "inventory", label: "Inventory", icon: "inventory_2", href: "/admin/store.html#inventory" },
+      { key: "store", label: "Store manager", icon: "storefront", href: "/admin/store.html#overview" },
     ] },
     { label: "Customer work", items: [
       { key: "mailbox", label: "Mailbox", icon: "mail", view: true, count: "mailNavCount" },
@@ -61,7 +65,7 @@
     groups.map(function (group) {
       return '<div class="nav-label">' + group.label.toUpperCase() + '</div><nav class="primary-nav" aria-label="' + group.label + '">' +
         group.items.map(function (item) {
-          const href = item.view ? "/admin/index.html?view=" + item.key : "/admin/" + item.key + ".html";
+          const href = item.href || (item.view ? "/admin/index.html?view=" + item.key : "/admin/" + item.key + ".html");
           return '<a class="nav-item" href="' + href + '" data-shell-page="' + item.key + '" title="' + item.label + '" aria-label="' + item.label + '"' +
             (item.view && !document.body.dataset.adminPage ? ' data-view="' + item.key + '"' : "") +
             (item.restricted ? " data-shell-restricted hidden" : "") + '>' + icon(item.icon, "nav-icon") +
