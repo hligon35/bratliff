@@ -3157,7 +3157,7 @@ async function getInventorySummary(env: Env) {
   return (rows.results||[]).map(row=>({bookId:text(row.bookId,120),sku:text(row.sku,120),title:text(row.title,300),stock:Number(row.stock||0),lowStockThreshold:Number(row.lowStockThreshold||0),status:text(row.status,40),lowStock:Boolean(Number(row.lowStock||0)),squareCatalogVariationId:text(row.squareCatalogVariationId,200),squareSyncedStock:row.squareSyncedStock==null?null:Number(row.squareSyncedStock),squareSyncStatus:text(row.squareSyncStatus,20)||"pending",squareLastSyncedAt:text(row.squareLastSyncedAt,50),squareSyncError:text(row.squareSyncError,400)}));
 }
 
-async function adjustInventory(env: Env, admin: AuthenticatedAdmin, body: Record<string, string>) {
+async function adjustInventory(env: Env, admin: AuthenticatedAdmin, body: Record<string, string>): Promise<BookRecord> {
   const bookId = text(body.bookId, 120);
   const book = await getStoreBookById(env, bookId);
   if (!book) throw new HttpError(404, "Book not found.");
@@ -3174,7 +3174,9 @@ async function adjustInventory(env: Env, admin: AuthenticatedAdmin, body: Record
   )
     .bind(crypto.randomUUID(), bookId, book.sku, book.title, delta, book.stock, next, text(body.reason, 200) || "Admin adjustment", admin.email, text(body.notes, 1000))
     .run();
-  return getStoreBookById(env, bookId);
+  const updated = await getStoreBookById(env, bookId);
+  if (!updated) throw new Error("Book could not be reloaded after adjusting inventory.");
+  return updated;
 }
 
 async function listOrders(env: Env, limit: number, offset = 0) {
