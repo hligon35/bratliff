@@ -1853,15 +1853,16 @@ async function handleAdminApi(
   if (request.method === "GET" && path === "resources/summary") {
     requireRole(admin, "manager");
     const registrations = await env.DB.prepare("SELECT email, first_name AS firstName, last_name AS lastName, organization, audience, selected_resource AS selectedResource, marketing_opt_in AS marketingOptIn, created_at AS createdAt FROM resource_registrations ORDER BY created_at DESC LIMIT 100").all<Record<string, unknown>>();
-    const selected = await env.DB.prepare("SELECT selected_resource AS slug, COUNT(*) AS count FROM resource_registrations GROUP BY selected_resource").all<Record<string, unknown>>();
+    const views = await env.DB.prepare("SELECT resource_slug AS slug, COUNT(*) AS count FROM resource_view_sessions WHERE viewed_at != '' GROUP BY resource_slug").all<Record<string, unknown>>();
     const downloads = await env.DB.prepare("SELECT resource_slug AS slug, COUNT(*) AS count FROM resource_downloads GROUP BY resource_slug").all<Record<string, unknown>>();
-    const selectedCounts = new Map((selected.results || []).map((row) => [String(row.slug), Number(row.count)]));
+    const viewCounts = new Map((views.results || []).map((row) => [String(row.slug), Number(row.count)]));
     const downloadCounts = new Map((downloads.results || []).map((row) => [String(row.slug), Number(row.count)]));
     return json(request, env, {
       ok: true,
       totalRegistrations: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_registrations"),
+      totalViews: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_view_sessions WHERE viewed_at != ''"),
       totalDownloads: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_downloads"),
-      guides: RESOURCE_CATALOG.map((resource) => ({ slug: resource.slug, title: resource.title, selected: selectedCounts.get(resource.slug) || 0, downloads: downloadCounts.get(resource.slug) || 0 })),
+      guides: RESOURCE_CATALOG.map((resource) => ({ slug: resource.slug, title: resource.title, views: viewCounts.get(resource.slug) || 0, downloads: downloadCounts.get(resource.slug) || 0 })),
       registrations: registrations.results || [],
     });
   }
@@ -3907,6 +3908,7 @@ async function buildCustomerResourceList(env: Env) {
       title: resource.title,
       description: resource.description,
       available,
+      viewUrl: available ? "/api/customer/resources/" + resource.slug + "/view" : "",
       downloadUrl: available ? "/api/customer/resources/" + resource.slug + "/download" : "",
     };
   }));
@@ -4135,6 +4137,53 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   if (request.method === "GET" && path === "resources") {
     const { registration } = await requireResourceRegistration(request, env);
     return json(request, env, { ok: true, selectedResource: registration.selectedResource, resources: await buildCustomerResourceList(env) });
+  }
+
+  if (request.method === "POST" && path === "resources/view/start") {
+    requireTrustedMutationOrigin(request, env);
+    const { customer } = await requireResourceRegistration(request, env);
+    await enforcePublicRateLimit(request, env, "resource-view-start", 90, 600, customer.id);
+    const body = await parseBody(request);
+    const resource = customerResourceBySlug(text(body.slug, 100));
+    if (!resource) throw new HttpError(404, "Resource not found.");
+    if (!(await env.BOOK_ASSETS.head("resource-guides/" + resource.slug + ".pdf"))) throw new HttpError(404, "This guide is not available yet.");
+    await env.DB.prepare("DELETE FROM resource_view_sessions WHERE customer_id = ?1 AND viewed_at = '' AND started_at <= datetime('now', '-1 day')").bind(customer.id).run();
+    const viewId = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO resource_view_sessions (view_id, customer_id, resource_slug) VALUES (?1, ?2, ?3)").bind(viewId, customer.id, resource.slug).run();
+    return json(request, env, { ok: true, viewId });
+  }
+
+  if (request.method === "POST" && path === "resources/view/complete") {
+    requireTrustedMutationOrigin(request, env);
+    const { customer } = await requireResourceRegistration(request, env);
+    await enforcePublicRateLimit(request, env, "resource-view-complete", 90, 600, customer.id);
+    const body = await parseBody(request);
+    const viewId = text(body.viewId, 80);
+    if (!/^[0-9a-f-]{36}$/i.test(viewId)) throw new HttpError(400, "Invalid resource view.");
+    const completed = await env.DB.prepare(
+      "UPDATE resource_view_sessions SET viewed_at = datetime('now') WHERE view_id = ?1 AND customer_id = ?2 AND viewed_at = '' AND started_at <= datetime('now', '-10 seconds') RETURNING view_id",
+    ).bind(viewId, customer.id).first<{ viewId: string }>();
+    if (completed) return json(request, env, { ok: true, counted: true });
+    const existing = await env.DB.prepare("SELECT viewed_at AS viewedAt FROM resource_view_sessions WHERE view_id = ?1 AND customer_id = ?2").bind(viewId, customer.id).first<{ viewedAt: string }>();
+    if (!existing) throw new HttpError(404, "Resource view not found.");
+    return json(request, env, { ok: true, counted: Boolean(existing.viewedAt) });
+  }
+
+  const viewMatch = path.match(/^resources\/([^/]+)\/view$/);
+  if (request.method === "GET" && viewMatch) {
+    await requireResourceRegistration(request, env);
+    const resource = customerResourceBySlug(viewMatch[1]);
+    if (!resource) throw new HttpError(404, "Resource not found.");
+    const object = await env.BOOK_ASSETS.get("resource-guides/" + resource.slug + ".pdf");
+    if (!object?.body) throw new HttpError(404, "This guide is not available yet.");
+    return new Response(object.body, { headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": 'inline; filename="' + resource.slug + '.pdf"',
+      "Cache-Control": "private, no-store",
+      "Content-Security-Policy": "frame-ancestors 'self'",
+      "X-Frame-Options": "SAMEORIGIN",
+      "X-Content-Type-Options": "nosniff",
+    } });
   }
 
   const downloadMatch = path.match(/^resources\/([^/]+)\/download$/);

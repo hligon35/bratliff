@@ -2797,6 +2797,14 @@ body.document-viewer-open {
 .resource-feedback { min-height: 1.5rem; color: #a51d2d; }
 .resource-dialog { width: min(620px, calc(100% - 1.5rem)); max-height: min(85dvh, 760px); overflow-y: auto; padding: 2rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
 .resource-dialog::backdrop { background: rgba(10, 22, 40, .72); }
+.resource-viewer-dialog { width: min(1100px, calc(100% - 1rem)); max-width: none; height: min(90dvh, 900px); max-height: calc(100dvh - 1rem); padding: 1rem; overflow: hidden; }
+.resource-viewer-dialog h2 { margin: .25rem 3rem 0 0; font: 700 1.5rem/1.2 var(--serif); }
+.resource-viewer-dialog [data-resource-viewer-status] { min-height: 1.5rem; margin: .6rem 0; color: var(--muted); font-size: .9rem; }
+.resource-viewer-dialog iframe { display: block; width: 100%; height: calc(90dvh - 6rem); min-height: 240px; border: 1px solid var(--line); background: white; }
+@media (max-width: 600px) {
+  .resource-viewer-dialog { width: calc(100% - .5rem); height: 94dvh; max-height: calc(100dvh - .5rem); padding: .75rem; }
+  .resource-viewer-dialog iframe { height: calc(94dvh - 7rem); min-height: 180px; }
+}
 .resource-dialog-close { float: right; border: 0; background: transparent; font-size: 1.7rem; cursor: pointer; }
 .resource-dialog h2 { font: 700 1.7rem/1.2 var(--serif); }
 .resource-dialog form { display: grid; gap: .8rem; }

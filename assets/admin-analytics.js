@@ -613,13 +613,14 @@ document.addEventListener("click", function (event) {
     if (metrics) {
       metrics.innerHTML =
         '<div class="metric"><strong>' + escapeHtml(String(data.totalRegistrations || 0)) + '</strong><span>Registrations</span></div>' +
+        '<div class="metric"><strong>' + escapeHtml(String(data.totalViews || 0)) + '</strong><span>Guide Views</span></div>' +
         '<div class="metric"><strong>' + escapeHtml(String(data.totalDownloads || 0)) + '</strong><span>Guide Downloads</span></div>';
     }
     const guideBreakdown = qs("#resourceGuideBreakdown");
     if (guideBreakdown) {
       guideBreakdown.innerHTML = tableMarkup("table", [
         { label: "Guide", render: function (row) { return escapeHtml(row.title); } },
-        { label: "Selected", render: function (row) { return escapeHtml(String(row.selected || 0)); } },
+        { label: "Viewed", render: function (row) { return escapeHtml(String(row.views || 0)); } },
         { label: "Downloads", render: function (row) { return escapeHtml(String(row.downloads || 0)); } },
       ], data.guides || [], "No guides configured.");
     }
