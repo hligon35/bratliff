@@ -32,7 +32,7 @@ export const FORM_ROUTES: Record<
     rateLimitWindowSeconds: 20,
   },
   bookNotification: {
-    required: ["email", "title"],
+    required: ["firstName", "lastName", "email", "title"],
     summaryLabel: "Book Notifications",
     rateLimitWindowSeconds: 20,
   },
