@@ -76,8 +76,7 @@ button,input,select,textarea{font: inherit;}
 .metric span{color: var(--muted);}
 #analyticsMetrics{grid-template-columns: repeat(4, minmax(0, 1fr));}
 .analytics-chart{width: 100%;
-  height: auto;
-  aspect-ratio: 720 / 260;
+  height: 280px;
   display: block;}
 .analytics-chart-grid{stroke: var(--line);
   stroke-width: 1;}
@@ -176,13 +175,6 @@ button,input,select,textarea{font: inherit;}
   flex-direction: column;
   gap: 18px;}
 .analytics-main .hero{margin-bottom: 0;}
-.analytics-panels-grid{display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  align-items: start;}
-@media (max-width: 1050px){
-.analytics-panels-grid{grid-template-columns: minmax(0, 1fr);}
-}
 .jrpp-icon{display: inline-block;
   width: 3.45em;
   height: 3.45em;
