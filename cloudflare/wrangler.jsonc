@@ -74,7 +74,8 @@
 		{
 			"binding": "DB",
 			"database_name": "bratliff-platform-db",
-			"database_id": "490e1480-46ca-4a06-88f7-994b7dc4acc4"
+			"database_id": "490e1480-46ca-4a06-88f7-994b7dc4acc4",
+			"migrations_dir": "migrations"
 		}
 	],
 	"r2_buckets": [
@@ -167,7 +168,8 @@
 				{
 					"binding": "DB",
 					"database_name": "bratliff-platform-sandbox",
-					"database_id": "36927122-24a8-45c5-a284-3692a896dac6"
+					"database_id": "36927122-24a8-45c5-a284-3692a896dac6",
+					"migrations_dir": "migrations"
 				}
 			],
 			"r2_buckets": [

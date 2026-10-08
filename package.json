@@ -7,15 +7,17 @@
     "admin:build": "node scripts/build-admin-assets.mjs",
     "worker:prepare": "npm run admin:build && node scripts/stage-cloudflare-assets.js",
     "worker:dev": "npm run prepare:config && npm run worker:prepare && wrangler dev --config cloudflare/wrangler.jsonc",
-    "worker:deploy": "node scripts/write-site-config.js --production && npm run release:check && npm run worker:check && npm run test:maintenance && npm run worker:prepare && wrangler deploy --env=\"\" --config cloudflare/wrangler.jsonc",
-    "worker:deploy:sandbox": "node scripts/write-site-config.js --sandbox && npm run worker:prepare && wrangler deploy --config cloudflare/wrangler.jsonc --env sandbox && node scripts/write-site-config.js --production",
+    "worker:deploy": "node scripts/write-site-config.js --production && npm run release:check && npm run worker:check && npm run test:maintenance && npm run worker:prepare && npm run d1:migrate:production && wrangler deploy --env=\"\" --config cloudflare/wrangler.jsonc",
+    "worker:deploy:sandbox": "node scripts/write-site-config.js --sandbox && npm run worker:prepare && npm run d1:migrate:sandbox && wrangler deploy --config cloudflare/wrangler.jsonc --env sandbox && node scripts/write-site-config.js --production",
     "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit",
     "maintenance:run": "node scripts/monthly-maintenance.mjs --trigger local",
     "maintenance:dry-run": "node scripts/monthly-maintenance.mjs --trigger local --dry-run",
     "test:maintenance": "node --test scripts/maintenance/tests/*.test.mjs scripts/admin-shell.test.mjs",
     "review-data:generate": "node scripts/generate-review-data.mjs",
     "release:check": "node scripts/check-release.mjs",
-    "production:verify": "node scripts/verify-production.mjs"
+    "production:verify": "node scripts/verify-production.mjs",
+    "d1:migrate:production": "wrangler d1 migrations apply bratliff-platform-db --remote --config cloudflare/wrangler.jsonc",
+    "d1:migrate:sandbox": "wrangler d1 migrations apply bratliff-platform-sandbox --remote --config cloudflare/wrangler.jsonc --env sandbox"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

@@ -1,9 +1,18 @@
-  function renderAdmins() {
-    const canManage = Boolean(state.viewer && state.viewer.role === "owner");
+  function canManageAdmins() {
+    return String(state.viewer && state.viewer.role || "").toLowerCase() === "owner";
+  }
+
+  function renderAdminAccessControls() {
+    const canManage = canManageAdmins();
     const form = qs("#adminForm");
     if (form) form.hidden = !canManage;
     const addButton = qs("#openAdminFormBtn");
     if (addButton) addButton.hidden = !canManage;
+  }
+
+  function renderAdmins() {
+    const canManage = canManageAdmins();
+    renderAdminAccessControls();
     const root = qs("#adminList");
     if (!root) return;
     root.innerHTML = tableMarkup("table", [
@@ -25,6 +34,8 @@
   }
 
   async function loadAdmins() {
+    // Make owner controls available after session verification, even if the list API fails.
+    renderAdminAccessControls();
     const data = await api("admins");
     state.admins = Array.isArray(data.admins) ? data.admins : [];
     renderAdmins();
@@ -104,9 +115,17 @@
   }
 
   qs("#openAdminFormBtn")?.addEventListener("click", function () {
-    if (!state.viewer || state.viewer.role !== "owner") return;
+    if (!canManageAdmins()) {
+      setStatus("#adminStatus", "Only an owner can send administrator invitations.", false);
+      return;
+    }
+    const dialog = qs("#adminFormDialog");
+    if (!dialog || typeof dialog.showModal !== "function") {
+      setStatus("#adminStatus", "The administrator form could not be opened in this browser.", false);
+      return;
+    }
     resetAdminForm();
-    qs("#adminFormDialog")?.showModal();
+    dialog.showModal();
   });
   qs("#closeAdminFormBtn")?.addEventListener("click", function () { qs("#adminFormDialog")?.close(); });
   qs("#adminFormDialog")?.addEventListener("close", resetAdminForm);
