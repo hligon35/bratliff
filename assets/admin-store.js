@@ -611,7 +611,7 @@ document.addEventListener("click", function (event) {
       view.classList.toggle("show", view.getAttribute("data-store-view") === name);
     });
     const squareSyncButton = qs("#squareInventorySyncBtn");
-    if (squareSyncButton) squareSyncButton.hidden = name !== "inventory";
+    if (squareSyncButton) squareSyncButton.hidden = name !== "books" && name !== "inventory";
   }
 
 
@@ -856,6 +856,7 @@ document.addEventListener("click", function (event) {
     root.innerHTML = tableMarkup("table", [
       { label: "Square product", render: function (row) { return "<b>" + escapeHtml(row.itemName) + "</b>"; } },
       { label: "Variation", render: function (row) { return escapeHtml(row.variationName || "Default"); } },
+      { label: "Website catalog", render: function (row) { return row.linkedBookTitle ? escapeHtml(row.linkedBookTitle) : "Not linked"; } },
       { label: "SKU", render: function (row) { return escapeHtml(row.sku || "—"); } },
       { label: "Price", render: function (row) { return row.priceCents == null ? "—" : escapeHtml(row.currency + " " + (row.priceCents / 100).toFixed(2)); } },
       { label: "Square stock", render: function (row) {
@@ -1119,11 +1120,29 @@ document.addEventListener("click", function (event) {
       }) || book;
       populateBookForm(book);
       if (fileInput) fileInput.value = "";
+      await loadSquareCatalog("", true);
+      const catalogSync = data.squareCatalogSync || {};
       const sync = data.squareSync || {};
-      const message = sync.configured === false ? "Saved; Square sync needs configuration." :
-        sync.failed ? "Saved; Square sync failed and will retry automatically." :
-        sync.synced ? "Saved and synced to Square." : "Saved; Square sync is queued.";
-      setStatus("#bookStatus", message, sync.configured !== false && !sync.failed);
+      let message;
+      let ok = true;
+      if (catalogSync.failed) {
+        message = catalogSync.message || "Book saved, but the Square catalog update failed. Save again to retry.";
+        ok = false;
+      } else if (catalogSync.configured === false) {
+        message = "Book saved; Square catalog access is not configured.";
+        ok = false;
+      } else if (sync.configured === false) {
+        message = "Square catalog product saved, but the Square location is not configured for inventory.";
+        ok = false;
+      } else if (sync.failed) {
+        message = "Square catalog product saved; inventory sync failed and will retry automatically.";
+        ok = false;
+      } else if (sync.synced) {
+        message = "Book, Square product, and inventory saved and synced.";
+      } else {
+        message = "Square product saved; inventory sync is queued.";
+      }
+      setStatus("#bookStatus", message, ok);
     } catch (error) {
       setStatus("#bookStatus", error.message || "Book could not be saved.", false);
     }
@@ -1424,7 +1443,7 @@ pageLoaders.store = async function () {
   const requestedView = window.location.hash.replace(/^#/, "");
   const initialView = ["overview", "books", "orders", "inventory"].includes(requestedView) ? requestedView : "overview";
   showStoreView(initialView);
-  if (initialView === "inventory") await loadSquareCatalog("", true);
+  if (initialView === "books") await loadSquareCatalog("", true);
 };
 initAdminIcons();
 

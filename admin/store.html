@@ -54,7 +54,7 @@
             <div class="split">
               <div class="panel">
                 <div class="panel-head">
-                  <h2>Books</h2>
+                  <h2>Book Catalog</h2>
                   <button class="btn" id="newBookBtn" type="button">+ Add Book</button>
                 </div>
                 <div class="panel-body">
@@ -122,7 +122,7 @@
                         <label>Square Catalog Item ID</label><input name="squareCatalogItemId" title="Square Catalog Item ID" placeholder="Optional" />
                       </div>
                       <div class="field full">
-                        <small>When linked to a Square Catalog Variation ID, bookstore stock remains the source of truth and Square receives matching physical counts after stock edits and paid orders. Failed updates retry on the scheduled sync; use Sync Square Inventory to retry immediately.</small>
+                        <small>Saving a book creates a Square item or updates the linked Square item, variation, price, SKU, description, and inventory count. Existing Square variations with a matching SKU are linked automatically. Use the Square Catalog below to review products and set stock.</small>
                       </div>
                       <div class="field full">
                         <label>Short Description</label><textarea name="shortDescription" title="Short Description"></textarea>
@@ -165,6 +165,25 @@
                     <div class="status" id="bookStatus"></div>
                   </form>
                 </div>
+              </div>
+            </div>
+          <div class="panel square-catalog-panel">
+              <div class="panel-head">
+                <h2>Square Catalog &amp; Site Inventory</h2>
+                <div class="form-actions">
+                  <button class="btn alt" id="refreshSquareCatalogBtn" type="button">Load Square Products</button>
+                  <button class="btn alt" id="squareCatalogPreviousBtn" type="button" disabled>Previous</button>
+                  <button class="btn alt" id="squareCatalogNextBtn" type="button" disabled>Next</button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <p class="toolbar-summary">Manage Square products and inventory from the bookstore catalog. Saving a book creates or updates its Square item and variation; stock changes for linked products update the website and Square together.</p>
+                <div class="toolbar-field">
+                  <label for="squareCatalogSearch">Filter loaded products</label>
+                  <input id="squareCatalogSearch" type="search" placeholder="Product, variation, or SKU" />
+                </div>
+                <div class="toolbar-summary" id="squareCatalogStatus" role="status" aria-live="polite">Load Square products to view catalog items and stock at the configured location.</div>
+                <div class="table-wrap" id="squareCatalogList"></div>
               </div>
             </div>
           </section>
@@ -217,7 +236,7 @@
               <div class="panel">
                 <div class="panel-head"><h2>Inventory</h2></div>
                 <div class="panel-body">
-                  <p class="toolbar-summary">Bookstore stock is authoritative. Linked Square catalog variations are updated with the same physical count after inventory changes, paid orders, and scheduled retries.</p>
+                  <p class="toolbar-summary">D1 keeps website checkout reservations safe. Linked Square on-hand counts sync after admin stock edits and paid orders; Square inventory webhooks also bring Square-originated count changes back to the website.</p>
                   <div class="toolbar toolbar-inventory">
                     <div class="toolbar-field"><label for="inventorySearch">Search</label><input id="inventorySearch" title="Search inventory" placeholder="Title, SKU, author, category" /></div>
                     <div class="toolbar-field"><label for="inventoryStatusFilter">Status</label><select id="inventoryStatusFilter" title="Inventory status filter"><option value="">All statuses</option><option value="Published">Published</option><option value="Coming Soon">Coming Soon</option><option value="Out of Stock">Out of Stock</option><option value="Draft">Draft</option><option value="Archived">Archived</option></select></div>
@@ -254,25 +273,7 @@
                 </div>
               </div>
             </div>
-            <div class="panel square-catalog-panel">
-              <div class="panel-head">
-                <h2>Square Catalog</h2>
-                <div class="form-actions">
-                  <button class="btn alt" id="refreshSquareCatalogBtn" type="button">Load Square Products</button>
-                  <button class="btn alt" id="squareCatalogPreviousBtn" type="button" disabled>Previous</button>
-                  <button class="btn alt" id="squareCatalogNextBtn" type="button" disabled>Next</button>
-                </div>
-              </div>
-              <div class="panel-body">
-                <p class="toolbar-summary">Live products and variations from Square. Linked bookstore items update D1 and Square together; Square-only items update their Square count directly.</p>
-                <div class="toolbar-field">
-                  <label for="squareCatalogSearch">Filter loaded products</label>
-                  <input id="squareCatalogSearch" type="search" placeholder="Product, variation, or SKU" />
-                </div>
-                <div class="toolbar-summary" id="squareCatalogStatus" role="status" aria-live="polite">Load Square products to view catalog items and stock at the configured location.</div>
-                <div class="table-wrap" id="squareCatalogList"></div>
-              </div>
-            </div>
+            
 
           </section>
         </div>

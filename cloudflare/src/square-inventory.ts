@@ -1,25 +1,41 @@
-import type { Env } from "./types";
+import type { BookRecord, Env } from "./types";
 
 type SyncOptions = { bookId?: string; force?: boolean; limit?: number };
 type SyncRow = { bookId: string; variationId: string; desiredStock: number };
 type SquareError = { detail?: string; code?: string };
-type SquarePayload = { errors?: SquareError[]; objects?: CatalogObject[]; cursor?: string; counts?: InventoryCount[] };
+type SquareIdMapping = { client_object_id?: string; object_id?: string };
+type SquarePayload = {
+  errors?: SquareError[];
+  objects?: CatalogObject[];
+  cursor?: string;
+  counts?: InventoryCount[];
+  catalog_object?: CatalogObject;
+  id_mappings?: SquareIdMapping[];
+};
 type CatalogObject = {
   id?: string;
   type?: string;
+  version?: number;
   is_deleted?: boolean;
+  created_at?: string;
+  updated_at?: string;
   item_data?: {
     name?: string;
     description?: string;
     variations?: CatalogObject[];
+    [key: string]: unknown;
   };
   item_variation_data?: {
+    item_id?: string;
     name?: string;
     sku?: string;
-    price_money?: { amount?: number; currency?: string };
+    price_money?: { amount?: number; currency?: string; [key: string]: unknown };
+    pricing_type?: string;
     track_inventory?: boolean;
-    location_overrides?: Array<{ location_id?: string; track_inventory?: boolean; price_money?: { amount?: number; currency?: string } }>;
+    location_overrides?: Array<{ location_id?: string; track_inventory?: boolean; price_money?: { amount?: number; currency?: string; [key: string]: unknown }; [key: string]: unknown }>;
+    [key: string]: unknown;
   };
+  [key: string]: unknown;
 };
 type InventoryCount = {
   catalog_object_id?: string;
@@ -151,6 +167,156 @@ export async function listSquareCatalog(env: Env, cursor = "") {
     nextCursor: catalog.cursor || "",
     locationId,
   };
+}
+
+export async function upsertSquareBookCatalog(
+  env: Env,
+  book: Pick<BookRecord, "bookId" | "sku" | "title" | "shortDescription" | "synopsis" | "format" | "price" | "squareCatalogItemId" | "squareCatalogVariationId">,
+): Promise<{ configured: boolean; created: boolean; itemId: string; variationId: string }> {
+  const token = String(env.SQUARE_ACCESS_TOKEN || "").trim();
+  if (!token || token.startsWith("replace-")) {
+    return { configured: false, created: false, itemId: "", variationId: "" };
+  }
+
+  let itemId = clean(book.squareCatalogItemId, 200);
+  let variationId = clean(book.squareCatalogVariationId, 200);
+  let existingItem: CatalogObject | null = null;
+
+  if (!itemId && !variationId) {
+    let cursor = "";
+    let pages = 0;
+    const matches: SquareCatalogVariation[] = [];
+    do {
+      const page = await listSquareCatalog(env, cursor);
+      matches.push(...page.variations.filter((variation) => variation.sku.trim().toUpperCase() === book.sku.trim().toUpperCase()));
+      cursor = page.nextCursor;
+      pages++;
+    } while (cursor && pages < 100);
+    if (cursor) throw new Error("Square catalog is too large to safely match this SKU. Add the Square item and variation IDs manually.");
+    if (matches.length > 1) {
+      throw new Error("More than one Square variation uses this SKU. Set the intended Square item and variation IDs on the book before saving.");
+    }
+    if (matches.length === 1) {
+      itemId = matches[0].itemId;
+      variationId = matches[0].variationId;
+    }
+  }
+
+  if (variationId && !itemId) {
+    const response = await squareRequest<SquarePayload>(env, "/v2/catalog/object/" + encodeURIComponent(variationId), "GET");
+    itemId = clean(response.catalog_object?.item_variation_data?.item_id, 200);
+    if (!itemId) throw new Error("Square could not resolve the parent item for this variation. Enter the Square Catalog Item ID and try again.");
+  }
+
+  if (variationId) {
+    const duplicateLink = await env.DB.prepare(
+      "SELECT id AS bookId FROM books WHERE square_catalog_variation_id = ?1 AND id != ?2 LIMIT 1",
+    ).bind(variationId, book.bookId).first<{ bookId: string }>();
+    if (duplicateLink) throw new Error("This Square variation is already linked to another bookstore book.");
+  }
+
+  if (itemId) {
+    const response = await squareRequest<SquarePayload>(env, "/v2/catalog/object/" + encodeURIComponent(itemId) + "?include_related_objects=true", "GET");
+    existingItem = response.catalog_object || null;
+    if (!existingItem || existingItem.type !== "ITEM" || existingItem.is_deleted) {
+      throw new Error("The linked Square catalog item could not be found or is archived.");
+    }
+    const variations = existingItem.item_data?.variations || [];
+    if (!variationId) variationId = clean(variations[0]?.id, 200);
+    if (!variationId || !variations.some((variation) => variation.id === variationId)) {
+      throw new Error("The selected Square variation does not belong to the linked catalog item.");
+    }
+
+    const item = structuredClone(existingItem);
+    const itemData = { ...(item.item_data || {}) };
+    const description = clean(book.shortDescription || book.synopsis, 5000);
+    itemData.name = clean(book.title, 255);
+    if (description) itemData.description = description;
+    else delete itemData.description;
+
+    const priceCents = Math.round(Number(book.price) * 100);
+    if (!Number.isSafeInteger(priceCents) || priceCents < 0) throw new Error("Book price is not a valid Square price.");
+    const format = clean(book.format || "Default", 255);
+    const locationId = clean(env.SQUARE_LOCATION_ID, 200);
+    itemData.variations = variations.map((variation) => {
+      if (variation.id !== variationId) return variation;
+      const variationData = { ...(variation.item_variation_data || {}) };
+      if (!Array.isArray(itemData.item_options) || itemData.item_options.length === 0) variationData.name = format;
+      variationData.sku = clean(book.sku, 100);
+      variationData.price_money = { amount: priceCents, currency: "USD" };
+      variationData.pricing_type = "FIXED_PRICING";
+      variationData.track_inventory = true;
+      const overrides = Array.isArray(variationData.location_overrides) ? variationData.location_overrides : [];
+      variationData.location_overrides = overrides.map((override) => override.location_id === locationId
+        ? { ...override, price_money: { amount: priceCents, currency: "USD" }, track_inventory: true }
+        : override);
+      return { ...variation, item_variation_data: variationData };
+    });
+    item.item_data = itemData;
+    const writableItem = stripCatalogReadOnlyFields(item);
+    const saved = await squareRequest<SquarePayload>(env, "/v2/catalog/object", "POST", {
+      idempotency_key: crypto.randomUUID(),
+      object: writableItem,
+    });
+    const savedItemId = clean(saved.catalog_object?.id || itemId, 200);
+    if (!savedItemId) throw new Error("Square updated the catalog but did not return its item ID.");
+    return { configured: true, created: false, itemId: savedItemId, variationId };
+  }
+
+  const priceCents = Math.round(Number(book.price) * 100);
+  if (!Number.isSafeInteger(priceCents) || priceCents < 0) throw new Error("Book price is not a valid Square price.");
+  const clientItemId = "#book-" + crypto.randomUUID();
+  const clientVariationId = "#variation-" + crypto.randomUUID();
+  const description = clean(book.shortDescription || book.synopsis, 5000);
+  const itemData: Record<string, unknown> = {
+    name: clean(book.title, 255),
+    product_type: "REGULAR",
+    variations: [{
+      id: clientVariationId,
+      type: "ITEM_VARIATION",
+      item_variation_data: {
+        item_id: clientItemId,
+        name: clean(book.format || "Default", 255),
+        sku: clean(book.sku, 100),
+        price_money: { amount: priceCents, currency: "USD" },
+        pricing_type: "FIXED_PRICING",
+        track_inventory: true,
+      },
+    }],
+  };
+  if (description) itemData.description = description;
+  const saved = await squareRequest<SquarePayload>(env, "/v2/catalog/object", "POST", {
+    idempotency_key: crypto.randomUUID(),
+    object: { id: clientItemId, type: "ITEM", item_data: itemData },
+  });
+  const itemId = clean(
+    saved.catalog_object?.id || saved.id_mappings?.find((mapping) => mapping.client_object_id === clientItemId)?.object_id,
+    200,
+  );
+  const variationId = clean(
+    saved.catalog_object?.item_data?.variations?.find((variation) => variation.id !== clientVariationId)?.id ||
+      saved.id_mappings?.find((mapping) => mapping.client_object_id === clientVariationId)?.object_id,
+    200,
+  );
+  if (!itemId || !variationId) throw new Error("Square created the catalog item but did not return both item and variation IDs.");
+  return { configured: true, created: true, itemId, variationId };
+}
+
+function stripCatalogReadOnlyFields(object: CatalogObject): CatalogObject {
+  const copy = structuredClone(object);
+  delete copy.created_at;
+  delete copy.updated_at;
+  delete copy.is_deleted;
+  if (copy.item_data && Array.isArray(copy.item_data.variations)) {
+    copy.item_data.variations = copy.item_data.variations.map((variation) => {
+      const writableVariation = structuredClone(variation);
+      delete writableVariation.created_at;
+      delete writableVariation.updated_at;
+      delete writableVariation.is_deleted;
+      return writableVariation;
+    });
+  }
+  return copy;
 }
 
 export async function setSquareVariationCount(env: Env, variationId: string, quantity: number) {
