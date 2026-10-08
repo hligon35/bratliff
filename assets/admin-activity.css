@@ -278,3 +278,4 @@ button.admin-icon-only .material-icons-round.jrpp-icon,.settings-avatar-button.a
 @media (max-width: 1050px){
 .page-content .split{grid-template-columns: minmax(0, 1fr);}
 }
+body[data-admin-page="profile"] .table th:nth-last-child(2),body[data-admin-page="profile"] .table td:nth-last-child(2){white-space: nowrap;}
