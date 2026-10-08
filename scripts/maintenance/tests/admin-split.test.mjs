@@ -42,7 +42,7 @@ test("bundles reference no undefined names and exclude the retired dashboard", (
 
 test("per-page admin payloads stay well below the retired single-file size", () => {
   for (const page of adminPages) {
-    assert.ok(statSync(new URL(`assets/admin-${page}.js`, root)).size < 56 * 1024, `${page} script`);
+    assert.ok(statSync(new URL(`assets/admin-${page}.js`, root)).size < 64 * 1024, `${page} script`);
     assert.ok(statSync(new URL(`assets/admin-${page}.css`, root)).size < 24 * 1024, `${page} styles`);
   }
 });

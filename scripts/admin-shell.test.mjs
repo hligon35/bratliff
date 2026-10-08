@@ -88,6 +88,7 @@ function createShell({ page = "author", mobile = false, collapsed = false, missi
   if (collapsed) document.documentElement.classList.add("drawer-collapsed");
   const media = { matches: mobile, addEventListener(type, listener) { this[type] = listener; } };
   const window = {
+    location: { hash: "" },
     matchMedia: () => media,
     localStorage: { setItem: (key, value) => preferences.set(key, value) },
   };
@@ -132,7 +133,7 @@ test("the shell uses native links and preserves in-page workspace navigation", (
   assert.match(workspace.drawer.markup, /href="\/admin\/index.html\?view=mailbox"[^>]*data-view="mailbox"/);
   const editor = createShell();
   assert.doesNotMatch(editor.drawer.markup, /data-view=/);
-  assert.match(editor.drawer.markup, /href="\/admin\/index.html\?view=orders"/);
+  assert.match(editor.drawer.markup, /href="\/admin\/store.html#orders"/);
   assert.equal(editor.links.length, 13);
 });
 
