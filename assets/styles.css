@@ -2892,3 +2892,71 @@ body.document-viewer-open {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+
+/* Centered privacy choices banner shared by public pages. */
+.cookie-consent[hidden] { display: none !important; }
+.cookie-consent {
+  position: fixed;
+  z-index: 9999;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  width: min(48rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid var(--gold, #c39b4a);
+  border-radius: 1rem;
+  background: var(--cream, #fffaf0);
+  color: var(--navy, #17243c);
+  box-shadow: 0 1rem 3rem rgb(15 23 42 / 28%);
+}
+.cookie-consent-copy h2 { margin: 0 0 .35rem; font-size: 1rem; }
+.cookie-consent-copy p { margin: 0; max-width: 56ch; font-size: .9rem; line-height: 1.5; }
+.cookie-consent-copy a { color: var(--purple, #5b3b83); font-weight: 700; text-underline-offset: .15em; }
+.cookie-consent-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+.cookie-consent-button {
+  min-height: 2.65rem;
+  padding: .55rem .8rem;
+  border: 1px solid var(--purple, #5b3b83);
+  border-radius: .55rem;
+  background: transparent;
+  color: var(--navy, #17243c);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cookie-consent-button:hover { background: rgb(91 59 131 / 8%); }
+.cookie-consent-button:focus-visible, .cookie-settings-link:focus-visible {
+  outline: 3px solid var(--gold, #c39b4a);
+  outline-offset: 3px;
+}
+.cookie-consent-button-primary, .cookie-consent-primary {
+  background: var(--purple, #5b3b83);
+  color: #fff;
+}
+.cookie-consent-primary:hover { background: var(--navy, #17243c); }
+.cookie-settings-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  .cookie-consent { grid-template-columns: minmax(0, 1fr); gap: .85rem; }
+  .cookie-consent-actions { justify-content: stretch; }
+  .cookie-consent-button { flex: 1 1 auto; }
+}
+@media (max-width: 460px) {
+  .cookie-consent { width: calc(100vw - 1rem); bottom: calc(.5rem + env(safe-area-inset-bottom, 0px)); padding: 1rem; }
+  .cookie-consent-actions { display: grid; grid-template-columns: 1fr; }
+}
