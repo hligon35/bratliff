@@ -230,7 +230,7 @@ function footer() {
       .slice(0, 10)
       .map(([label, href]) => `<a href="${href}">${label}</a>`)
       .join("")}</div></div>
-    <div><h3>Policies</h3><div class="footer-links"><a href="/policies#privacy">Privacy Policy</a><a href="/policies#terms">Terms & Conditions</a><a href="/policies#refund">Refund Policy</a><a href="/policies#shipping">Shipping Policy</a><a href="/policies#accessibility">Accessibility</a><a href="/policies#copyright">Copyright</a></div></div>
+    <div><h3>Policies</h3><div class="footer-links"><a href="/policies#privacy">Privacy Policy</a><a href="/policies#terms">Terms & Conditions</a><a href="/policies#refund">Refund Policy</a><a href="/policies#shipping">Shipping Policy</a><a href="/policies#accessibility">Accessibility</a><a href="/policies#copyright">Copyright</a><button class="cookie-settings-link" type="button" data-cookie-settings>Cookie settings</button></div></div>
     <div class="footer-signup"><h3>Stay Connected</h3><p>Get news about books, author events, and Read It Forward.</p><form data-form-type="newsletter" data-success-message="Thank you for subscribing."><div class="newsletter-names"><label>First name<input type="text" name="firstName" autocomplete="given-name" maxlength="100" required></label><label>Last name<input type="text" name="lastName" autocomplete="family-name" maxlength="100" required></label></div><label>Email address<input type="email" name="email" autocomplete="email" required></label><input type="hidden" name="consent" value="true"><div class="cf-turnstile" data-action="turnstile-spin-v1"></div><button class="button" type="submit">Subscribe</button><p class="newsletter-note">Unsubscribe at any time.</p><div class="form-message" role="status"></div></form></div>
   </div><div class="container footer-bottom"><span>© 2026 Jackrabbit Punkin Publishing LLC. All rights reserved.</span><span>Community literacy · Veteran stories · Enduring books</span></div></footer>`;
 }
@@ -1102,9 +1102,69 @@ function resolvePublicApiBase() {
   }
 }
 
+const COOKIE_CONSENT_KEY = "jrpp-cookie-consent-v1";
+let analyticsConsentGranted = false;
+
+function initCookieConsent() {
+  let savedChoice = "";
+  try {
+    savedChoice = window.localStorage.getItem(COOKIE_CONSENT_KEY) || "";
+  } catch (error) {
+    savedChoice = "";
+  }
+  analyticsConsentGranted = savedChoice === "all";
+
+  const bannerMarkup = `<aside class="cookie-consent" data-cookie-consent-banner role="region" aria-labelledby="cookie-consent-title" aria-describedby="cookie-consent-copy" hidden>
+    <div class="cookie-consent-copy">
+      <h2 id="cookie-consent-title">Your privacy choices</h2>
+      <p id="cookie-consent-copy">Essential cookies keep sign-in and security working. Accept All also allows limited page and interaction analytics. Reject All and Accept Essential keep optional analytics off. <a href="/policies#privacy">Privacy Policy</a></p>
+    </div>
+    <div class="cookie-consent-actions" aria-label="Cookie consent options">
+      <button type="button" class="cookie-consent-button cookie-consent-secondary" data-cookie-choice="rejected">Reject All</button>
+      <button type="button" class="cookie-consent-button cookie-consent-secondary" data-cookie-choice="essential">Accept Essential</button>
+      <button type="button" class="cookie-consent-button cookie-consent-primary" data-cookie-choice="all">Accept All</button>
+    </div>
+  </aside>`;
+
+  document.body.insertAdjacentHTML("beforeend", bannerMarkup);
+  const banner = document.querySelector("[data-cookie-consent-banner]");
+  if (!banner) return;
+
+  if (!["all", "essential", "rejected"].includes(savedChoice)) {
+    banner.hidden = false;
+  }
+
+  banner.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-cookie-choice]");
+    if (!button) return;
+
+    const nextChoice = button.dataset.cookieChoice;
+    if (!["all", "essential", "rejected"].includes(nextChoice)) return;
+
+    const wasAnalyticsEnabled = analyticsConsentGranted;
+    analyticsConsentGranted = nextChoice === "all";
+    savedChoice = nextChoice;
+    try {
+      window.localStorage.setItem(COOKIE_CONSENT_KEY, nextChoice);
+    } catch (error) {
+      // Keep the choice for this page view when storage is unavailable.
+    }
+    banner.hidden = true;
+
+    if (!wasAnalyticsEnabled && analyticsConsentGranted) {
+      trackEvent("page_view");
+    }
+  });
+
+  document.querySelector("[data-cookie-settings]")?.addEventListener("click", () => {
+    banner.hidden = false;
+    banner.querySelector("[data-cookie-choice='essential']")?.focus();
+  });
+}
+
 function trackEvent(eventType, extra) {
   const apiBase = resolvePublicApiBase();
-  if (!apiBase || document.body.dataset.page === "login") return;
+  if (!analyticsConsentGranted || !apiBase || document.body.dataset.page === "login") return;
   const payload = new URLSearchParams();
   payload.set("eventType", eventType);
   payload.set("pagePath", window.location.pathname);
@@ -1124,7 +1184,9 @@ function trackEvent(eventType, extra) {
   }
 }
 
-trackEvent("page_view");
+initCookieConsent();
+
+  trackEvent("page_view");
 
 function escapeHtmlSponsor(value) {
   return String(value == null ? "" : value).replace(
