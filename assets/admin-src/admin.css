@@ -348,8 +348,7 @@ textarea {
 
 .analytics-chart {
   width: 100%;
-  height: auto;
-  aspect-ratio: 720 / 260;
+  height: 280px;
   display: block;
 }
 
@@ -1685,19 +1684,6 @@ textarea {
 }
 .analytics-main .hero {
   margin-bottom: 0;
-}
-
-.analytics-panels-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  align-items: start;
-}
-
-@media (max-width: 1050px) {
-  .analytics-panels-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 
