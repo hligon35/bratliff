@@ -2,6 +2,15 @@
     return String(state.viewer && state.viewer.role || "").toLowerCase() === "owner";
   }
 
+  function showAdminPageNotice(message, success) {
+    const notice = qs("#workspaceNotice");
+    if (!notice) return;
+    notice.textContent = message;
+    notice.hidden = false;
+    notice.classList.toggle("success", Boolean(success));
+    notice.classList.toggle("error", !success);
+  }
+
   function renderAdminAccessControls() {
     const canManage = canManageAdmins();
     const form = qs("#adminForm");
@@ -114,18 +123,25 @@
     await loadAdmins();
   }
 
-  qs("#openAdminFormBtn")?.addEventListener("click", function () {
+  document.addEventListener("click", function (event) {
+    const target = event.target instanceof Element ? event.target.closest("#openAdminFormBtn") : null;
+    if (!target) return;
+    event.preventDefault();
     if (!canManageAdmins()) {
-      setStatus("#adminStatus", "Only an owner can send administrator invitations.", false);
+      showAdminPageNotice("Only an owner can send administrator invitations.", false);
       return;
     }
     const dialog = qs("#adminFormDialog");
     if (!dialog || typeof dialog.showModal !== "function") {
-      setStatus("#adminStatus", "The administrator form could not be opened in this browser.", false);
+      showAdminPageNotice("The administrator form could not be opened. Refresh the page and try again.", false);
       return;
     }
-    resetAdminForm();
-    dialog.showModal();
+    try {
+      resetAdminForm();
+      dialog.showModal();
+    } catch (error) {
+      showAdminPageNotice("The administrator form could not be opened. " + (error.message || "Refresh the page and try again."), false);
+    }
   });
   qs("#closeAdminFormBtn")?.addEventListener("click", function () { qs("#adminFormDialog")?.close(); });
   qs("#adminFormDialog")?.addEventListener("close", resetAdminForm);
