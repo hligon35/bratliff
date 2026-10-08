@@ -4,7 +4,7 @@ window.siteConfig = (function freeze(value) {
   });
   return Object.freeze(value);
 })({
-  "siteUrl": "https://sandbox.jackrabbitpunkinpublishing.com",
+  "siteUrl": "https://jackrabbitpunkinpublishing.com",
   "publicApiUrl": "",
   "formEndpoint": "/api/forms/submit",
   "storeBooksEndpoint": "/api/store/books",
