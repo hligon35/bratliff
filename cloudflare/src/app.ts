@@ -5,7 +5,7 @@ import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
 import { ADMIN_ROLE_ORDER, FORM_ROUTES, NEWSLETTER_DEFAULTS, SPONSOR_PACKAGES, STORE_BOOK_PRICES, STORE_SHIPPING_PER_BOOK_CENTS } from "./config";
 import { MailDeliveryUncertainError, sendNamecheapEmail, syncNamecheapInbox } from "./namecheap-mail";
 import { cleanLegacyEmailText } from "./email-html";
-import { listSquareCatalog, setSquareVariationCount, syncSquareInventory } from "./square-inventory";
+import { listSquareCatalog, setSquareVariationCount, upsertSquareBookCatalog, syncSquareInventory } from "./square-inventory";
 import type {
   AdminRole,
   AdminUser,
@@ -1209,6 +1209,9 @@ async function handleSquareWebhook(request: Request, env: Env): Promise<Response
     } else if (event.type === "refund.created" || event.type === "refund.updated") {
       const refund = (dataObject.refund as Record<string, JsonValue>) || {};
       await recordRefundFromSquareEvent(env, refund);
+    } else if (event.type === "inventory.count.updated") {
+      const counts = Array.isArray(dataObject.inventory_counts) ? dataObject.inventory_counts : [];
+      await recordSquareInventoryUpdates(env, counts, eventId);
     }
     await env.DB.prepare("UPDATE webhook_events SET status = 'processed' WHERE event_id = ?1")
       .bind(eventId)
@@ -1219,6 +1222,46 @@ async function handleSquareWebhook(request: Request, env: Env): Promise<Response
       .bind(eventId, getErrorMessage(error).slice(0, 500))
       .run();
     return new Response(getErrorMessage(error), { status: 500 });
+  }
+}
+
+async function recordSquareInventoryUpdates(env: Env, counts: JsonValue[], eventId: string): Promise<void> {
+  const locationId = text(env.SQUARE_LOCATION_ID, 200);
+  if (!locationId) return;
+  for (const value of counts) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const count = value as Record<string, JsonValue>;
+    const variationId = text(count.catalog_object_id, 200);
+    const countLocationId = text(count.location_id, 200);
+    const quantity = Number(count.quantity);
+    if (!variationId || countLocationId !== locationId || text(count.state, 40) !== "IN_STOCK" ||
+        !Number.isSafeInteger(quantity) || quantity < 0 || quantity > 1000000) continue;
+
+    const matches = await env.DB.prepare(
+      "SELECT id AS bookId FROM books WHERE square_catalog_variation_id = ?1 ORDER BY id LIMIT 2",
+    ).bind(variationId).all<{ bookId: string }>();
+    if ((matches.results || []).length !== 1) continue;
+    const book = await getStoreBookById(env, matches.results![0].bookId);
+    if (!book || book.stock === quantity) continue;
+
+    const nextStatus = !book.preorder && book.status !== "Draft" && book.status !== "Archived"
+      ? (quantity > 0 ? "Published" : "Out of Stock")
+      : book.status;
+    await env.DB.prepare(
+      "UPDATE books SET stock = ?2, status = ?3, updated_at = datetime('now') WHERE id = ?1 AND stock != ?2",
+    ).bind(book.bookId, quantity, nextStatus).run();
+    await env.DB.prepare(
+      "INSERT INTO inventory_events (id, created_at, book_id, sku, title, change_qty, previous_qty, new_qty, reason, order_number, admin_email, notes) VALUES (?1, datetime('now'), ?2, ?3, ?4, ?5, ?6, ?7, 'Square inventory update', '', 'square-webhook', ?8)",
+    ).bind(
+      crypto.randomUUID(),
+      book.bookId,
+      book.sku,
+      book.title,
+      quantity - book.stock,
+      book.stock,
+      quantity,
+      "Square inventory event " + eventId,
+    ).run();
   }
 }
 
@@ -1478,9 +1521,62 @@ async function handleAdminApi(
   }
   if (request.method === "POST" && path === "books") {
     requireRole(admin, "manager");
-    const book = await saveBook(env, admin, await parseBody(request));
+    let book = await saveBook(env, admin, await parseBody(request));
+    let squareCatalogSync: {
+      configured: boolean;
+      synced: boolean;
+      created?: boolean;
+      failed?: boolean;
+      error?: string;
+      itemId?: string;
+      variationId?: string;
+      message?: string;
+    } = { configured: false, synced: false, message: "Square catalog access is not configured." };
+
+    const squareToken = String(env.SQUARE_ACCESS_TOKEN || "").trim();
+    if (squareToken && !squareToken.startsWith("replace-")) {
+      try {
+        const catalogSync = await upsertSquareBookCatalog(env, book);
+        if (catalogSync.configured) {
+          const duplicateLink = await env.DB.prepare(
+            "SELECT id AS bookId FROM books WHERE square_catalog_variation_id = ?1 AND id != ?2 LIMIT 1",
+          ).bind(catalogSync.variationId, book.bookId).first<{ bookId: string }>();
+          if (duplicateLink) throw new HttpError(409, "This Square variation is already linked to another bookstore book.");
+          await env.DB.prepare(
+            "UPDATE books SET square_catalog_item_id = ?2, square_catalog_variation_id = ?3, updated_at = datetime('now') WHERE id = ?1",
+          ).bind(book.bookId, catalogSync.itemId, catalogSync.variationId).run();
+          const refreshedBook = await getStoreBookById(env, book.bookId);
+          if (!refreshedBook) throw new Error("Book could not be reloaded after linking its Square catalog item.");
+          book = refreshedBook;
+          squareCatalogSync = {
+            configured: true,
+            synced: true,
+            created: catalogSync.created,
+            itemId: catalogSync.itemId,
+            variationId: catalogSync.variationId,
+            message: catalogSync.created ? "Square catalog item created and linked." : "Square catalog item updated and linked.",
+          };
+          await writeAuditLog(
+            env,
+            admin,
+            "square_catalog_item_synced",
+            "book",
+            book.bookId,
+            (catalogSync.created ? "Created" : "Updated") + " Square item " + catalogSync.itemId + " and variation " + catalogSync.variationId + ".",
+          );
+        }
+      } catch (error) {
+        squareCatalogSync = {
+          configured: true,
+          synced: false,
+          failed: true,
+          error: getErrorMessage(error).slice(0, 500),
+          message: "Book saved locally, but Square catalog update failed. Save again to retry.",
+        };
+      }
+    }
     const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
-    return json(request, env, { ok: true, book, squareSync });
+    return json(request, env, { ok: true, book, squareCatalogSync, squareSync });
   }
   if (request.method === "POST" && path === "inventory/adjust") {
     requireRole(admin, "manager");
