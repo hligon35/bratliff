@@ -289,8 +289,9 @@
       squareCatalogNextCursor = data.nextCursor || "";
       renderSquareCatalog();
       if (status) {
-        status.textContent = squareCatalogRows.length + " Square catalog variations loaded for location " + (data.locationId || "not configured") + ". Search filters this page.";
-        status.className = "toolbar-summary";
+        const summary = squareCatalogRows.length + " Square catalog variations loaded for location " + (data.locationId || "not configured") + ". Search filters this page.";
+        status.textContent = data.inventoryError ? summary + " " + data.inventoryError : summary;
+        status.className = data.inventoryError ? "status error" : "toolbar-summary";
       }
     } catch (error) {
       if (status) { status.textContent = error.message || "Square catalog could not be loaded."; status.className = "status error"; }

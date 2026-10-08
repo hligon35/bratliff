@@ -102,25 +102,33 @@ export async function listSquareCatalog(env: Env, cursor = "") {
     .map((variation) => variation.id as string));
   const quantityByVariation = new Map<string, number>();
   const locationId = String(env.SQUARE_LOCATION_ID || "").trim();
-  if (variationIds.length && locationId) {
-    for (let offset = 0; offset < variationIds.length; offset += 1000) {
-      let countCursor = "";
-      do {
-        const body: Record<string, unknown> = {
-          catalog_object_ids: variationIds.slice(offset, offset + 1000),
-          location_ids: [locationId],
-          states: ["IN_STOCK"],
-          limit: 1000,
-        };
-        if (countCursor) body.cursor = countCursor;
-        const inventory = await squareRequest<SquarePayload>(env, "/v2/inventory/counts/batch-retrieve", "POST", body);
-        for (const count of inventory.counts || []) {
-          if (count.catalog_object_id && count.state === "IN_STOCK" && count.location_id === locationId) {
-            quantityByVariation.set(count.catalog_object_id, (quantityByVariation.get(count.catalog_object_id) || 0) + Number(count.quantity || 0));
+  let inventoryError = "";
+  if (variationIds.length && !locationId) {
+    inventoryError = "Square products loaded, but SQUARE_LOCATION_ID is not configured; inventory counts are unavailable.";
+  } else if (variationIds.length) {
+    try {
+      for (let offset = 0; offset < variationIds.length; offset += 1000) {
+        let countCursor = "";
+        do {
+          const body: Record<string, unknown> = {
+            catalog_object_ids: variationIds.slice(offset, offset + 1000),
+            location_ids: [locationId],
+            states: ["IN_STOCK"],
+            limit: 1000,
+          };
+          if (countCursor) body.cursor = countCursor;
+          const inventory = await squareRequest<SquarePayload>(env, "/v2/inventory/counts/batch-retrieve", "POST", body);
+          for (const count of inventory.counts || []) {
+            if (count.catalog_object_id && count.state === "IN_STOCK" && count.location_id === locationId) {
+              quantityByVariation.set(count.catalog_object_id, (quantityByVariation.get(count.catalog_object_id) || 0) + Number(count.quantity || 0));
+            }
           }
-        }
-        countCursor = inventory.cursor || "";
-      } while (countCursor);
+          countCursor = inventory.cursor || "";
+        } while (countCursor);
+      }
+    } catch (error) {
+      quantityByVariation.clear();
+      inventoryError = "Square products loaded, but inventory counts could not be read: " + clean(error instanceof Error ? error.message : error, 240);
     }
   }
   const variations: SquareCatalogVariation[] = [];
@@ -166,6 +174,7 @@ export async function listSquareCatalog(env: Env, cursor = "") {
     })),
     nextCursor: catalog.cursor || "",
     locationId,
+    inventoryError,
   };
 }
 
