@@ -700,7 +700,7 @@ document.addEventListener("click", function (event) {
       })
       .join("");
     return (
-      '<svg class="analytics-chart" viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Daily page views line chart">' +
+      '<svg class="analytics-chart" viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none" role="img" aria-label="Daily page views line chart">' +
       gridLines +
       xLabels +
       '<path class="analytics-chart-line" d="' + linePath + '"></path>' +
