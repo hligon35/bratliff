@@ -63,7 +63,6 @@
     state.checkout = data.checkout || { available: false };
     reconcileCart();
     renderCart();
-    updateDirectPurchaseButtons();
     return state.books;
   }
 
@@ -82,20 +81,6 @@
     });
     saveCart();
     if (JSON.stringify(state.cart) !== previous && previous !== '[]') toast('Your cart was updated to the current prices and availability.');
-  }
-
-  function directPurchaseBook(button) {
-    const normalize = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    const matches = state.books.filter(book => button.dataset.storeDirectSku
-      ? book.sku === button.dataset.storeDirectSku
-      : normalize(book.title) === normalize(button.dataset.storeDirectTitle) && normalize(book.format) === normalize(button.dataset.storeDirectFormat));
-    return matches.length === 1 ? matches[0] : null;
-  }
-
-  function updateDirectPurchaseButtons() {
-    document.querySelectorAll('[data-store-direct-title], [data-store-direct-sku]').forEach(button => {
-      button.hidden = !state.checkout.available || !availableQuantity(directPurchaseBook(button));
-    });
   }
 
   function renderStore() {
@@ -265,13 +250,6 @@
   }
 
   document.addEventListener('click', event => {
-    const direct = event.target.closest('[data-store-direct-title], [data-store-direct-sku]');
-    if (direct) {
-      event.preventDefault();
-      const book = directPurchaseBook(direct);
-      if (state.checkout.available && book) addToCart(book.sku);
-      return;
-    }
     const add = event.target.closest('[data-add-sku]'); if (add) return addToCart(add.dataset.addSku);
     const trigger = event.target.closest('[data-store-cart-trigger]'); if (trigger) return openCart();
     if (event.target.closest('.store-cart-close')) return closeCart();

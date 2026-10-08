@@ -51,7 +51,7 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `SITE_URL`: the public website URL.
 - `PUBLIC_API_URL`: the Worker base URL used by forms, checkout, media, and admin API requests.
 - `PUBLIC_ADMIN_URL`: the admin dashboard URL shown after successful sign-in.
-- Direct book sales use the native catalog/cart and `/api/store/checkout`. The featured paperback button appears only for one available catalog entry with matching title and `Paperback` format, and configured checkout. Static Square book links are no longer used.
+- The featured paperback’s **Buy Direct from JPP** link opens its Square checkout page for that specific item. The Live Catalog separately uses the native cart and `/api/store/checkout`.
 - `SQUARE_PAGE_PAL_URL`, `SQUARE_CHAPTER_CHAMPION_URL`, `SQUARE_BOOKSHELF_BUILDER_URL`, and `SQUARE_LITERACY_TRAILBLAZER_URL`: legacy static Square sponsorship links, superseded by the dynamic `/api/sponsors/checkout` flow but left wired for backward compatibility.
 - `CORS_ORIGIN`: origin allowed for browser requests to the Worker.
 - `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
