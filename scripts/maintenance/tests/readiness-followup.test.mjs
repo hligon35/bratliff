@@ -137,3 +137,19 @@ test('sponsorship confirmation requires persisted paid state and exposes no paye
   f.sqlite.exec("UPDATE sponsor_payments SET status='refunded' WHERE id='sp1'");
   assert.equal((await (await confirm()).json()).paid,false);
 });
+
+test('book release notifications require first and last name and greet the reader by first name', async () => {
+  const f=forms();
+  const response=await f.submit({formType:'bookNotification',name:'',firstName:'Maya',lastName:'Jones',title:'The Fading Lighthouse'});
+  assert.equal(response.status,200);
+  assert.equal(f.sqlite.prepare("SELECT name FROM form_submissions WHERE form_type='bookNotification'").get().name,'Maya Jones');
+  const reply=f.sent.find(({message})=>message.to[0]==='offline@example.org');
+  assert.ok(reply);
+  assert.match(reply.message.text,/Hi Maya,/);
+  assert.match(reply.message.html,/Hi Maya,/);
+
+  const missingName=forms();
+  assert.equal((await missingName.submit({formType:'bookNotification',name:'',firstName:'Maya',lastName:'',title:'The Fading Lighthouse'})).status,400);
+  assert.equal(count(missingName,'form_submissions'),0);
+});
+

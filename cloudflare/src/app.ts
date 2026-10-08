@@ -196,6 +196,11 @@ const app: AppHandler = {
         return await handleCustomerApi(request, env, url);
       }
 
+      if (url.pathname === "/api/admin/invitations/accept") {
+        if (request.method !== "POST") return json(request, env, { ok: false, error: "Method not allowed." }, 405);
+        return await acceptAdminInvitation(request, env, await parseBody(request));
+      }
+
       if (url.pathname.startsWith("/api/admin/")) {
         return await handleAdminApi(request, env, ctx, url);
       }
@@ -1853,15 +1858,16 @@ async function handleAdminApi(
   if (request.method === "GET" && path === "resources/summary") {
     requireRole(admin, "manager");
     const registrations = await env.DB.prepare("SELECT email, first_name AS firstName, last_name AS lastName, organization, audience, selected_resource AS selectedResource, marketing_opt_in AS marketingOptIn, created_at AS createdAt FROM resource_registrations ORDER BY created_at DESC LIMIT 100").all<Record<string, unknown>>();
-    const selected = await env.DB.prepare("SELECT selected_resource AS slug, COUNT(*) AS count FROM resource_registrations GROUP BY selected_resource").all<Record<string, unknown>>();
+    const views = await env.DB.prepare("SELECT resource_slug AS slug, COUNT(*) AS count FROM resource_view_sessions WHERE viewed_at != '' GROUP BY resource_slug").all<Record<string, unknown>>();
     const downloads = await env.DB.prepare("SELECT resource_slug AS slug, COUNT(*) AS count FROM resource_downloads GROUP BY resource_slug").all<Record<string, unknown>>();
-    const selectedCounts = new Map((selected.results || []).map((row) => [String(row.slug), Number(row.count)]));
+    const viewCounts = new Map((views.results || []).map((row) => [String(row.slug), Number(row.count)]));
     const downloadCounts = new Map((downloads.results || []).map((row) => [String(row.slug), Number(row.count)]));
     return json(request, env, {
       ok: true,
       totalRegistrations: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_registrations"),
+      totalViews: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_view_sessions WHERE viewed_at != ''"),
       totalDownloads: await countQuery(env, "SELECT COUNT(*) AS count FROM resource_downloads"),
-      guides: RESOURCE_CATALOG.map((resource) => ({ slug: resource.slug, title: resource.title, selected: selectedCounts.get(resource.slug) || 0, downloads: downloadCounts.get(resource.slug) || 0 })),
+      guides: RESOURCE_CATALOG.map((resource) => ({ slug: resource.slug, title: resource.title, views: viewCounts.get(resource.slug) || 0, downloads: downloadCounts.get(resource.slug) || 0 })),
       registrations: registrations.results || [],
     });
   }
@@ -1896,7 +1902,38 @@ async function handleAdminApi(
   }
   if (request.method === "POST" && path === "admins") {
     requireRole(admin, "owner");
-    return json(request, env, { ok: true, admin: await saveAdmin(env, admin, await parseBody(request)) });
+    return json(request, env, { ok: true, invitation: await createAdminInvitation(env, admin, await parseBody(request)) });
+  }
+  if (request.method === "PUT" && path.startsWith("admins/")) {
+    requireRole(admin, "owner");
+    const email = decodeURIComponent(path.slice("admins/".length)).toLowerCase();
+    const body = await parseBody(request);
+    if (email === admin.email.toLowerCase() && text(body.role, 40) !== admin.role) throw new HttpError(400, "You cannot change your own role.");
+    const role = text(body.role, 40) as AdminRole;
+    if (!ADMIN_ROLE_ORDER.includes(role)) throw new HttpError(400, "Select a valid admin role.");
+    const target = await env.DB.prepare("SELECT role FROM admins WHERE lower(email) = ?1").bind(email).first<{ role: string }>();
+    if (!target) throw new HttpError(404, "Admin not found.");
+    try {
+      await env.DB.prepare("UPDATE admins SET role = ?1, full_name = ?2, display_name = ?2, updated_at = datetime('now') WHERE lower(email) = ?3")
+        .bind(role, text(body.firstName, 100) + " " + text(body.lastName, 100), email).run();
+    } catch (error) {
+      if (getErrorMessage(error).includes("The last owner cannot be demoted")) throw new HttpError(409, "The last owner cannot be demoted.");
+      throw error;
+    }
+    await writeAuditLog(env, admin, "admin_saved", "admin", email, "Admin access saved with role " + role + ".");
+    return json(request, env, { ok: true });
+  }
+  if (request.method === "PUT" && path.startsWith("admin-invitations/")) {
+    requireRole(admin, "owner");
+    return json(request, env, { ok: true, invitation: await updateAdminInvitation(env, admin, decodeURIComponent(path.slice("admin-invitations/".length)), await parseBody(request)) });
+  }
+  if (request.method === "DELETE" && path.startsWith("admin-invitations/")) {
+    requireRole(admin, "owner");
+    const invitationId = decodeURIComponent(path.slice("admin-invitations/".length));
+    const result = await env.DB.prepare("UPDATE admin_invitations SET status = 'Revoked', token_hash = '', updated_at = datetime('now') WHERE id = ?1 AND status = 'Pending'").bind(invitationId).run();
+    if (!result.meta?.changes) throw new HttpError(404, "Pending invitation not found.");
+    await writeAuditLog(env, admin, "admin_invitation_revoked", "admin_invitation", invitationId, "Pending admin invitation revoked.");
+    return json(request, env, { ok: true });
   }
   if (request.method === "DELETE" && path.startsWith("admins/")) {
     requireRole(admin, "owner");
@@ -3536,10 +3573,134 @@ function normalizeNewsletterPayload(body: Record<string, string>) {
 }
 
 async function listAdmins(env: Env): Promise<AdminUser[]> {
+  await env.DB.prepare("UPDATE admin_invitations SET status = 'Expired', token_hash = '', updated_at = datetime('now') WHERE status = 'Pending' AND julianday(expires_at) <= julianday('now')").run();
   const rows = await env.DB.prepare(
     "SELECT email, role, display_name AS displayName, full_name AS name, avatar_url AS avatarUrl, created_at AS createdAt, updated_at AS updatedAt FROM admins ORDER BY email ASC",
   ).all<AdminUser>();
-  return rows.results || [];
+  const active = (rows.results || []).map((row) => ({ ...row, status: "Active" }));
+  const invites = await env.DB.prepare(
+    "SELECT id AS invitationId, email, first_name AS firstName, last_name AS lastName, role, expires_at AS expiresAt, created_at AS createdAt, updated_at AS updatedAt FROM admin_invitations WHERE status = 'Pending' ORDER BY email ASC",
+  ).all<{ invitationId: string; email: string; firstName: string; lastName: string; role: AdminRole; expiresAt: string; createdAt: string; updatedAt: string }>();
+  return active.concat((invites.results || []).map((invite) => ({
+    ...invite, name: [invite.firstName, invite.lastName].filter(Boolean).join(" "),
+    displayName: [invite.firstName, invite.lastName].filter(Boolean).join(" "),
+    avatarUrl: "", status: "Pending",
+  }))).sort((a, b) => a.email.localeCompare(b.email));
+}
+
+async function createAdminInvitation(env: Env, actor: AuthenticatedAdmin, body: Record<string, unknown>) {
+  const email = text(body.email, 320).toLowerCase();
+  const firstName = text(body.firstName, 100);
+  const lastName = text(body.lastName, 100);
+  const role = text(body.role, 40) as AdminRole;
+  if (!isValidEmail(email)) throw new HttpError(400, "Enter a valid email address.");
+  if (!firstName || !lastName) throw new HttpError(400, "Enter the administrator's first and last name.");
+  if (!ADMIN_ROLE_ORDER.includes(role)) throw new HttpError(400, "Select a valid admin role.");
+  await env.DB.prepare("UPDATE admin_invitations SET status = 'Expired', token_hash = '', updated_at = datetime('now') WHERE status = 'Pending' AND julianday(expires_at) <= julianday('now')").run();
+  await env.DB.prepare("UPDATE admin_invitations SET status = 'Expired', token_hash = '', updated_at = datetime('now') WHERE status = 'Pending' AND julianday(expires_at) <= julianday('now')").run();
+  const existing = await env.DB.prepare("SELECT email FROM admins WHERE lower(email) = ?1").bind(email).first();
+  if (existing) throw new HttpError(409, "This email already has admin access.");
+  const pending = await env.DB.prepare("SELECT id FROM admin_invitations WHERE lower(email) = ?1 AND status = 'Pending' AND julianday(expires_at) > julianday('now')").bind(email).first();
+  if (pending) throw new HttpError(409, "A pending invitation already exists for this email.");
+  const id = crypto.randomUUID();
+  const token = randomInvitationToken();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const inviteUrl = new URL("/admin/invite.html", firstUrlValue(env.SITE_URL) || "https://jackrabbitpunkinpublishing.com");
+  inviteUrl.searchParams.set("token", token);
+  await env.DB.prepare(
+    "INSERT INTO admin_invitations (id, email, first_name, last_name, role, token_hash, status, expires_at, invited_by, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'Pending', ?7, ?8, datetime('now'), datetime('now'))",
+  ).bind(id, email, firstName, lastName, role, await hashInvitationToken(token), expiresAt, actor.email).run();
+  try {
+    await sendAdminInvitationEmail(env, { email, firstName, role, inviteUrl: inviteUrl.toString(), expiresAt, id });
+  } catch (error) {
+    await env.DB.prepare("DELETE FROM admin_invitations WHERE id = ?1 AND status = 'Pending'").bind(id).run();
+    throw new HttpError(502, "The invitation was not saved because the email could not be sent. " + getErrorMessage(error));
+  }
+  await writeAuditLog(env, actor, "admin_invited", "admin_invitation", email, "Admin invitation sent with role " + role + ".");
+  return { id, email, firstName, lastName, role, status: "Pending", expiresAt };
+}
+
+async function updateAdminInvitation(env: Env, actor: AuthenticatedAdmin, id: string, body: Record<string, unknown>) {
+  const current = await env.DB.prepare("SELECT id FROM admin_invitations WHERE id = ?1 AND status = 'Pending'").bind(id).first<{ id: string }>();
+  if (!current) throw new HttpError(404, "Pending invitation not found.");
+  const email = text(body.email, 320).toLowerCase();
+  const firstName = text(body.firstName, 100);
+  const lastName = text(body.lastName, 100);
+  const role = text(body.role, 40) as AdminRole;
+  if (!isValidEmail(email) || !firstName || !lastName) throw new HttpError(400, "Enter a valid email address and first and last name.");
+  if (!ADMIN_ROLE_ORDER.includes(role)) throw new HttpError(400, "Select a valid admin role.");
+  const existing = await env.DB.prepare("SELECT email FROM admins WHERE lower(email) = ?1").bind(email).first();
+  if (existing) throw new HttpError(409, "This email already has admin access.");
+  const duplicate = await env.DB.prepare("SELECT id FROM admin_invitations WHERE lower(email) = ?1 AND id != ?2 AND status = 'Pending' AND julianday(expires_at) > julianday('now')").bind(email, id).first();
+  if (duplicate) throw new HttpError(409, "A pending invitation already exists for this email.");
+  const token = randomInvitationToken();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const inviteUrl = new URL("/admin/invite.html", firstUrlValue(env.SITE_URL) || "https://jackrabbitpunkinpublishing.com");
+  inviteUrl.searchParams.set("token", token);
+  try {
+    await sendAdminInvitationEmail(env, { email, firstName, role, inviteUrl: inviteUrl.toString(), expiresAt, id });
+  } catch (error) {
+    throw new HttpError(502, "The invitation email could not be sent. " + getErrorMessage(error));
+  }
+  const saved = await env.DB.prepare("UPDATE admin_invitations SET email = ?1, first_name = ?2, last_name = ?3, role = ?4, token_hash = ?5, expires_at = ?6, updated_at = datetime('now') WHERE id = ?7 AND status = 'Pending'")
+    .bind(email, firstName, lastName, role, await hashInvitationToken(token), expiresAt, id).run();
+  if (!saved.meta?.changes) throw new HttpError(409, "Invitation changed while it was being edited. Please reload.");
+  await writeAuditLog(env, actor, "admin_invitation_updated", "admin_invitation", email, "Admin invitation updated and resent.");
+  return { id, email, firstName, lastName, role, status: "Pending", expiresAt };
+}
+
+async function acceptAdminInvitation(request: Request, env: Env, body: Record<string, unknown>) {
+  const token = text(body.token, 200);
+  if (!token || !env.DB) throw new HttpError(400, "This invitation link is invalid or expired.");
+  await enforcePublicRateLimit(request, env, "admin-invitation-accept", 10, 600);
+  const tokenHash = await hashInvitationToken(token);
+  const invite = await env.DB.prepare(
+    "SELECT id, email, first_name AS firstName, last_name AS lastName, role FROM admin_invitations WHERE token_hash = ?1 AND status = 'Pending' AND julianday(expires_at) > julianday('now')",
+  ).bind(tokenHash).first<{ id: string; email: string; firstName: string; lastName: string; role: AdminRole }>();
+  if (!invite) throw new HttpError(410, "This invitation link is invalid, expired, or already used.");
+  const existing = await env.DB.prepare("SELECT email FROM admins WHERE lower(email) = ?1").bind(invite.email).first();
+  if (existing) throw new HttpError(409, "This email already has admin access.");
+  const consumed = await env.DB.prepare(
+    "UPDATE admin_invitations SET status = 'Accepted', token_hash = '', accepted_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND status = 'Pending' AND token_hash = ?2 AND julianday(expires_at) > julianday('now')",
+  ).bind(invite.id, tokenHash).run();
+  if (!consumed.meta?.changes) throw new HttpError(410, "This invitation link has already been used or expired.");
+  try {
+    await env.DB.prepare(
+      "INSERT INTO admins (email, role, display_name, full_name, created_at, updated_at) VALUES (?1, ?2, ?3, ?3, datetime('now'), datetime('now')) ON CONFLICT(email) DO NOTHING",
+    ).bind(invite.email, invite.role, [invite.firstName, invite.lastName].join(" ")).run();
+  } catch (error) {
+    await env.DB.prepare("UPDATE admin_invitations SET status = 'Pending', accepted_at = NULL WHERE id = ?1 AND status = 'Accepted'").bind(invite.id).run();
+    throw error;
+  }
+  return json(request, env, { ok: true, email: invite.email });
+}
+
+function randomInvitationToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function hashInvitationToken(token: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function sendAdminInvitationEmail(
+  env: Env,
+  invite: { email: string; firstName: string; role: AdminRole; inviteUrl: string; expiresAt: string; id: string },
+) {
+  const name = invite.firstName.replace(/[&<>"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[character] || character));
+  const expiry = new Date(invite.expiresAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }) + " UTC";
+  await sendEmail(env, {
+    to: invite.email,
+    subject: "Your Jackrabbit Punkin Publishing admin invitation",
+    text: "Hi " + invite.firstName + ",\n\nYou have been invited as a " + invite.role + ". Accept your invitation within 7 days: " + invite.inviteUrl + "\n\nThis single-use link can only be used once.",
+    html: "<p>Hi " + name + ",</p><p>You have been invited to the Jackrabbit Punkin Publishing admin workspace as a <strong>" + invite.role + "</strong>.</p><p><a href=\"" + invite.inviteUrl + "\">Accept invitation</a></p><p>This single-use link expires in 7 days (by " + expiry + ").</p>",
+    replyTo: env.ADMIN_NOTIFICATION_EMAIL || env.MAIL_FROM_EMAIL,
+    fromName: "Jackrabbit Punkin Publishing",
+    fromEmail: env.MAIL_FROM_EMAIL,
+    idempotencyKey: "admin-invitation:" + invite.id + ":" + invite.email + ":" + invite.expiresAt,
+  });
 }
 
 async function saveAdmin(env: Env, actor: AuthenticatedAdmin, body: Record<string, string>): Promise<AdminUser> {
@@ -3907,6 +4068,7 @@ async function buildCustomerResourceList(env: Env) {
       title: resource.title,
       description: resource.description,
       available,
+      viewUrl: available ? "/api/customer/resources/" + resource.slug + "/view" : "",
       downloadUrl: available ? "/api/customer/resources/" + resource.slug + "/download" : "",
     };
   }));
@@ -4135,6 +4297,53 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
   if (request.method === "GET" && path === "resources") {
     const { registration } = await requireResourceRegistration(request, env);
     return json(request, env, { ok: true, selectedResource: registration.selectedResource, resources: await buildCustomerResourceList(env) });
+  }
+
+  if (request.method === "POST" && path === "resources/view/start") {
+    requireTrustedMutationOrigin(request, env);
+    const { customer } = await requireResourceRegistration(request, env);
+    await enforcePublicRateLimit(request, env, "resource-view-start", 90, 600, customer.id);
+    const body = await parseBody(request);
+    const resource = customerResourceBySlug(text(body.slug, 100));
+    if (!resource) throw new HttpError(404, "Resource not found.");
+    if (!(await env.BOOK_ASSETS.head("resource-guides/" + resource.slug + ".pdf"))) throw new HttpError(404, "This guide is not available yet.");
+    await env.DB.prepare("DELETE FROM resource_view_sessions WHERE customer_id = ?1 AND viewed_at = '' AND started_at <= datetime('now', '-1 day')").bind(customer.id).run();
+    const viewId = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO resource_view_sessions (view_id, customer_id, resource_slug) VALUES (?1, ?2, ?3)").bind(viewId, customer.id, resource.slug).run();
+    return json(request, env, { ok: true, viewId });
+  }
+
+  if (request.method === "POST" && path === "resources/view/complete") {
+    requireTrustedMutationOrigin(request, env);
+    const { customer } = await requireResourceRegistration(request, env);
+    await enforcePublicRateLimit(request, env, "resource-view-complete", 90, 600, customer.id);
+    const body = await parseBody(request);
+    const viewId = text(body.viewId, 80);
+    if (!/^[0-9a-f-]{36}$/i.test(viewId)) throw new HttpError(400, "Invalid resource view.");
+    const completed = await env.DB.prepare(
+      "UPDATE resource_view_sessions SET viewed_at = datetime('now') WHERE view_id = ?1 AND customer_id = ?2 AND viewed_at = '' AND started_at <= datetime('now', '-10 seconds') RETURNING view_id",
+    ).bind(viewId, customer.id).first<{ viewId: string }>();
+    if (completed) return json(request, env, { ok: true, counted: true });
+    const existing = await env.DB.prepare("SELECT viewed_at AS viewedAt FROM resource_view_sessions WHERE view_id = ?1 AND customer_id = ?2").bind(viewId, customer.id).first<{ viewedAt: string }>();
+    if (!existing) throw new HttpError(404, "Resource view not found.");
+    return json(request, env, { ok: true, counted: Boolean(existing.viewedAt) });
+  }
+
+  const viewMatch = path.match(/^resources\/([^/]+)\/view$/);
+  if (request.method === "GET" && viewMatch) {
+    await requireResourceRegistration(request, env);
+    const resource = customerResourceBySlug(viewMatch[1]);
+    if (!resource) throw new HttpError(404, "Resource not found.");
+    const object = await env.BOOK_ASSETS.get("resource-guides/" + resource.slug + ".pdf");
+    if (!object?.body) throw new HttpError(404, "This guide is not available yet.");
+    return new Response(object.body, { headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": 'inline; filename="' + resource.slug + '.pdf"',
+      "Cache-Control": "private, no-store",
+      "Content-Security-Policy": "frame-ancestors 'self'",
+      "X-Frame-Options": "SAMEORIGIN",
+      "X-Content-Type-Options": "nosniff",
+    } });
   }
 
   const downloadMatch = path.match(/^resources\/([^/]+)\/download$/);

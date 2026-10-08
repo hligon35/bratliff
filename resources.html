@@ -95,6 +95,12 @@
       <ul data-resource-details-list></ul>
       <a class="button ghost" data-resource-details-link></a>
     </dialog>
+    <dialog class="resource-dialog resource-viewer-dialog" data-resource-viewer aria-labelledby="resource-viewer-title">
+      <button class="resource-dialog-close" type="button" data-resource-viewer-close aria-label="Close guide viewer">&times;</button>
+      <h2 id="resource-viewer-title" data-resource-viewer-title>Resource guide</h2>
+      <p data-resource-viewer-status role="status" aria-live="polite"></p>
+      <iframe data-resource-viewer-frame title="Resource guide PDF viewer" src="about:blank" loading="eager" referrerpolicy="same-origin"></iframe>
+    </dialog>
     <div data-footer></div>
   </body>
 </html>

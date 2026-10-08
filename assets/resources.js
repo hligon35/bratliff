@@ -10,6 +10,10 @@
   const feedback = page.querySelector("[data-resource-feedback]");
   const auth = document.querySelector("[data-resource-auth]");
   const details = document.querySelector("[data-resource-details]");
+  const viewer = document.querySelector("[data-resource-viewer]");
+  const viewerFrame = viewer.querySelector("[data-resource-viewer-frame]");
+  const viewerTitle = viewer.querySelector("[data-resource-viewer-title]");
+  const viewerStatus = viewer.querySelector("[data-resource-viewer-status]");
   const registerForm = auth.querySelector("[data-resource-register]");
   const signInForm = auth.querySelector("[data-resource-signin]");
   const invite = auth.querySelector("[data-resource-invite]");
@@ -17,6 +21,11 @@
   let selected = null;
   let signedIn = false;
   let availability = {};
+  let activeViewerSlug = "";
+  let activeViewGeneration = 0;
+  let activeViewStartPending = false;
+  let activeViewId = "";
+  let viewTimer = 0;
 
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: "include", ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
@@ -57,7 +66,15 @@
       const detail = element("button", "button ghost", "VIEW DETAILS");
       detail.type = "button";
       detail.addEventListener("click", () => showDetails(resource));
-      const download = element("a", "button ink", "DOWNLOAD PDF");
+      const view = element("button", "button ink", "VIEW GUIDE");
+      view.type = "button";
+      if (availability[resource.slug]?.available && availability[resource.slug]?.viewUrl) {
+        view.addEventListener("click", () => openResourceViewer(resource));
+      } else {
+        view.disabled = true;
+        view.title = "PDF pending approval";
+      }
+      const download = element("a", "button ghost", "DOWNLOAD PDF");
       if (availability[resource.slug]?.available) {
         download.href = availability[resource.slug].downloadUrl;
       } else {
@@ -65,7 +82,7 @@
         download.title = "PDF pending approval";
         body.appendChild(element("p", "resource-status", "PDF pending approval"));
       }
-      actions.append(detail, download);
+      actions.append(detail, view, download);
     } else {
       const button = element("button", "button ink", "GET FREE RESOURCE");
       button.type = "button";
@@ -88,6 +105,71 @@
     link.replaceChildren(document.createTextNode(resource.relatedLabel + " " + resource.relatedText + " "), arrow);
     details.showModal();
   }
+
+  function openResourceViewer(resource) {
+    const entry = availability[resource.slug];
+    if (!entry?.available || !entry.viewUrl) return;
+    activeViewGeneration += 1;
+    activeViewerSlug = resource.slug;
+    activeViewStartPending = false;
+    activeViewId = "";
+    window.clearTimeout(viewTimer);
+    viewTimer = 0;
+    viewerTitle.textContent = resource.title;
+    viewerFrame.title = resource.title + " PDF viewer";
+    viewerStatus.textContent = "Open this guide for at least 10 seconds to count a view.";
+    viewer.showModal();
+    viewerFrame.src = entry.viewUrl;
+  }
+
+  function stopResourceViewerTracking() {
+    activeViewGeneration += 1;
+    activeViewerSlug = "";
+    activeViewStartPending = false;
+    activeViewId = "";
+    window.clearTimeout(viewTimer);
+    viewTimer = 0;
+    viewerFrame.src = "about:blank";
+  }
+
+  viewerFrame.addEventListener("load", async () => {
+    const slug = activeViewerSlug;
+    const generation = activeViewGeneration;
+    if (!slug || !viewer.open || activeViewStartPending) return;
+    activeViewStartPending = true;
+    try {
+      const started = await api("/api/customer/resources/view/start", {
+        method: "POST",
+        body: JSON.stringify({ slug }),
+      });
+      if (!viewer.open || generation !== activeViewGeneration) return;
+      activeViewId = started.viewId;
+      if (!activeViewId) return;
+      viewerStatus.textContent = "Keep the guide open for 10 seconds to count a view.";
+      const viewId = activeViewId;
+      viewTimer = window.setTimeout(async () => {
+        if (!viewer.open || generation !== activeViewGeneration || !viewId) return;
+        try {
+          const result = await api("/api/customer/resources/view/complete", {
+            method: "POST",
+            body: JSON.stringify({ viewId }),
+          });
+          if (result.counted && viewer.open && generation === activeViewGeneration) {
+            viewerStatus.textContent = "View counted.";
+          }
+        } catch (error) {
+          // Viewing remains available if analytics cannot be recorded.
+        }
+      }, 10000);
+    } catch (error) {
+      if (viewer.open && generation === activeViewGeneration) {
+        viewerStatus.textContent = "This guide is open, but its view could not be recorded.";
+      }
+    }
+  });
+
+  viewer.querySelector("[data-resource-viewer-close]").addEventListener("click", () => viewer.close());
+  viewer.addEventListener("close", stopResourceViewerTracking);
 
   function showAuth(mode) {
     invite.hidden = mode !== "invite";

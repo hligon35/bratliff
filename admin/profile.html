@@ -39,7 +39,7 @@
               Manage the three admin roles and access levels.
             </p>
           </div>
-          <button class="btn alt icon-only" type="button" id="openAdminFormBtn" data-icon="add" aria-label="Add or update admin" title="Add or update admin" hidden></button>
+          <button class="btn alt icon-only" type="button" id="openAdminFormBtn" data-icon="add" aria-label="Add administrator" title="Add administrator" hidden></button>
         </header>
         <div class="dashboard-accent"></div>
         <div class="dashboard-body">
@@ -57,29 +57,19 @@
       </section>
     </div>
     <dialog id="adminFormDialog" class="admin-access-dialog" aria-labelledby="adminFormDialogTitle">
-      <div class="admin-dialog-header"><h2 id="adminFormDialogTitle">Add or Update Admin</h2><button class="btn alt icon-only" type="button" id="closeAdminFormBtn" data-icon="close" aria-label="Close admin form" title="Close"></button></div>
+      <div class="admin-dialog-header"><h2 id="adminFormDialogTitle">Invite administrator</h2><button class="btn alt icon-only" type="button" id="closeAdminFormBtn" data-icon="close" aria-label="Close admin form" title="Close"></button></div>
       <form id="adminForm">
-                  <div class="form-grid">
-                    <div class="field full">
-                      <label>Email</label><input name="email" type="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]{2,}" title="Enter a valid email address (e.g. name@example.com)" required />
-                    </div>
-                    <div class="field full">
-                      <label>Display Name</label><input name="displayName" title="Display Name" />
-                    </div>
-                    <div class="field full">
-                      <label>Role</label><small class="field-help">Owner manages permissions. Developer can view access but cannot change permissions. Manager cannot access logs, analytics, or access management.</small>
-                      <select name="role" title="Role">
-                        <option value="manager">Manager</option>
-                        <option value="developer">Developer</option>
-                        <option value="owner">Owner</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="form-actions">
-                    <button class="btn" type="submit">Save Admin</button>
-                  </div>
-                  <div class="status" id="adminStatus"></div>
-                </form>
+        <input type="hidden" name="recordId">
+        <input type="hidden" name="recordStatus">
+        <div class="form-grid">
+          <div class="field"><label for="adminFirstName">First name</label><input id="adminFirstName" name="firstName" autocomplete="given-name" maxlength="100" required></div>
+          <div class="field"><label for="adminLastName">Last name</label><input id="adminLastName" name="lastName" autocomplete="family-name" maxlength="100" required></div>
+          <div class="field full"><label for="adminEmail">Email</label><input id="adminEmail" name="email" type="email" autocomplete="email" pattern="[^\s@]+@[^\s@]+\.[^\s@]{2,}" required></div>
+          <div class="field full"><label for="adminRole">Role</label><small class="field-help">Owner manages access. Developers can view access and admin tools. Managers use operational tools.</small><select id="adminRole" name="role"><option value="manager">Manager</option><option value="developer">Developer</option><option value="owner">Owner</option></select></div>
+        </div>
+        <div class="form-actions"><button class="btn" type="submit" id="saveAdminBtn">Send invitation</button></div>
+        <div class="status" id="adminStatus" role="status" aria-live="polite"></div>
+      </form>
     </dialog>
           </div>
       </main>
