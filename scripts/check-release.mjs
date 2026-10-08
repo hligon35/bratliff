@@ -25,7 +25,7 @@ for (const file of readdirSync(root).filter(name => name.endsWith('.html'))) {
   }
   for (const match of html.matchAll(/(?:href|src)="([^"#]+)"/g)) {
     const target = match[1];
-    if (/^(https?:|mailto:|tel:|data:)/.test(target)) continue;
+    if (/^(https?:|mailto:|tel:|data:|about:)/.test(target)) continue;
     const pathname = target.split(/[?#]/)[0];
     if (!pathname) continue;
     const clean = pathname.replace(/^\//, '');

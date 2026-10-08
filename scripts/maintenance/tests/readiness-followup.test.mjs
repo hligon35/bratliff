@@ -22,7 +22,7 @@ function adminFixture() {
 test('revoked bootstrap owners and developers cannot return; role edits remain durable and audited', async () => {
   const f=adminFixture();
   assert.equal((await f.request('/api/admin/me')).status,200);
-  assert.equal((await f.request('/api/admin/admins','POST','owner@example.org',{email:'target@example.org',role:'manager'})).status,200);
+  assert.equal((await f.request('/api/admin/admins/target%40example.org','PUT','owner@example.org',{role:'manager',firstName:'Target',lastName:'Admin'})).status,200);
   assert.equal((await (await f.request('/api/admin/me','GET','target@example.org')).json()).viewer.role,'manager');
   for (const email of ['target@example.org','developer@example.org']) {
     assert.equal((await f.request('/api/admin/admins/'+encodeURIComponent(email),'DELETE')).status,200);
@@ -30,14 +30,15 @@ test('revoked bootstrap owners and developers cannot return; role edits remain d
   }
   assert.equal(count(f,'admin_bootstrap_state'),1);
   assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action IN ('admin_saved','admin_removed')").get().n,3);
-  assert.equal((await f.request('/api/admin/admins','POST','owner@example.org',{email:'target@example.org',role:'manager'})).status,200);
+  // Invitation acceptance inserts the admin row; simulate that regrant without the email round trip.
+  f.sqlite.exec("INSERT INTO admins (email,role) VALUES ('target@example.org','manager')");
   assert.equal((await f.request('/api/admin/me','GET','target@example.org')).status,200,'an explicit regrant is allowed');
 });
 
 test('the last owner cannot be demoted through the API or removed through competing database mutations', async () => {
   const f=adminFixture();await f.request('/api/admin/me');
   await f.request('/api/admin/admins/target%40example.org','DELETE');
-  assert.equal((await f.request('/api/admin/admins','POST','owner@example.org',{email:'owner@example.org',role:'manager'})).status,409);
+  assert.equal((await f.request('/api/admin/admins/owner%40example.org','PUT','owner@example.org',{role:'manager'})).status,400,'owners cannot change their own role');
   assert.throws(()=>f.sqlite.exec("DELETE FROM admins WHERE email='owner@example.org'"),/last owner/);
   assert.equal(f.sqlite.prepare("SELECT role FROM admins WHERE email='owner@example.org'").get().role,'owner');
 });
