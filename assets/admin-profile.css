@@ -316,3 +316,7 @@ body[data-admin-page="profile"] .dashboard-access-grid{grid-template-columns: mi
 @media (max-width: 1050px){
 .page-content .split{grid-template-columns: minmax(0, 1fr);}
 }
+
+.admin-access-actions{display:inline-flex;align-items:center;justify-content:flex-end;gap:.4rem}
+.admin-access-actions .btn{margin:0}
+body[data-admin-page="profile"] .table th:nth-last-child(2),body[data-admin-page="profile"] .table td:nth-last-child(2){white-space:nowrap}

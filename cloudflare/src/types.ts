@@ -123,6 +123,11 @@ export interface AdminUser {
   avatarUrl: string;
   createdAt: string;
   updatedAt: string;
+  status?: string;
+  firstName?: string;
+  lastName?: string;
+  invitationId?: string;
+  expiresAt?: string;
 }
 
 export interface AuthenticatedAdmin {
