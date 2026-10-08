@@ -3614,7 +3614,7 @@ async function createAdminInvitation(env: Env, actor: AuthenticatedAdmin, body: 
     await sendAdminInvitationEmail(env, { email, firstName, role, inviteUrl: inviteUrl.toString(), expiresAt, id });
   } catch (error) {
     await env.DB.prepare("DELETE FROM admin_invitations WHERE id = ?1 AND status = 'Pending'").bind(id).run();
-    throw error;
+    throw new HttpError(502, "The invitation was not saved because the email could not be sent. " + getErrorMessage(error));
   }
   await writeAuditLog(env, actor, "admin_invited", "admin_invitation", email, "Admin invitation sent with role " + role + ".");
   return { id, email, firstName, lastName, role, status: "Pending", expiresAt };
@@ -3637,7 +3637,11 @@ async function updateAdminInvitation(env: Env, actor: AuthenticatedAdmin, id: st
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
   const inviteUrl = new URL("/admin/invite.html", firstUrlValue(env.SITE_URL) || "https://jackrabbitpunkinpublishing.com");
   inviteUrl.searchParams.set("token", token);
-  await sendAdminInvitationEmail(env, { email, firstName, role, inviteUrl: inviteUrl.toString(), expiresAt, id });
+  try {
+    await sendAdminInvitationEmail(env, { email, firstName, role, inviteUrl: inviteUrl.toString(), expiresAt, id });
+  } catch (error) {
+    throw new HttpError(502, "The invitation email could not be sent. " + getErrorMessage(error));
+  }
   const saved = await env.DB.prepare("UPDATE admin_invitations SET email = ?1, first_name = ?2, last_name = ?3, role = ?4, token_hash = ?5, expires_at = ?6, updated_at = datetime('now') WHERE id = ?7 AND status = 'Pending'")
     .bind(email, firstName, lastName, role, await hashInvitationToken(token), expiresAt, id).run();
   if (!saved.meta?.changes) throw new HttpError(409, "Invitation changed while it was being edited. Please reload.");
