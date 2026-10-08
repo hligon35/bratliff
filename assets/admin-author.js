@@ -89,6 +89,7 @@
     "inventory": "inventory",
     "initialize / repair store": "initialize-repair",
     "sync square stock": "sync-square-stock",
+    "sync square inventory": "sync-square-stock",
     "add book": "add-book",
     "+ add book": "add-book",
     "save book": "save-book",

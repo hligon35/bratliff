@@ -289,17 +289,17 @@ export async function upsertSquareBookCatalog(
     idempotency_key: crypto.randomUUID(),
     object: { id: clientItemId, type: "ITEM", item_data: itemData },
   });
-  const itemId = clean(
+  const createdItemId = clean(
     saved.catalog_object?.id || saved.id_mappings?.find((mapping) => mapping.client_object_id === clientItemId)?.object_id,
     200,
   );
-  const variationId = clean(
+  const createdVariationId = clean(
     saved.catalog_object?.item_data?.variations?.find((variation) => variation.id !== clientVariationId)?.id ||
       saved.id_mappings?.find((mapping) => mapping.client_object_id === clientVariationId)?.object_id,
     200,
   );
-  if (!itemId || !variationId) throw new Error("Square created the catalog item but did not return both item and variation IDs.");
-  return { configured: true, created: true, itemId, variationId };
+  if (!createdItemId || !createdVariationId) throw new Error("Square created the catalog item but did not return both item and variation IDs.");
+  return { configured: true, created: true, itemId: createdItemId, variationId: createdVariationId };
 }
 
 function stripCatalogReadOnlyFields(object: CatalogObject): CatalogObject {
