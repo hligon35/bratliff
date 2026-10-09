@@ -1686,6 +1686,19 @@ textarea {
   margin-bottom: 0;
 }
 
+.analytics-panels-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1050px) {
+  .analytics-panels-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 
 /* Recolored symbol icons extracted from the JPP icon library. */
 .jrpp-icon {
