@@ -47,11 +47,16 @@
     return monthName + " " + Number(parts[2]);
   }
 
-  function buildTrendChart(rows) {
-    const width = 720;
+  let trendRowsForChart = [];
+
+  function buildTrendChart(rows, containerWidth) {
     const height = 260;
-    const padLeft = 44;
-    const padRight = 16;
+    const displayHeight = 280;
+    const scale = height / displayHeight;
+    const measuredWidth = Number(containerWidth) || 720;
+    const width = measuredWidth * scale;
+    const padLeft = 44 * scale;
+    const padRight = 16 * scale;
     const padTop = 16;
     const padBottom = 34;
     const plotWidth = width - padLeft - padRight;
@@ -76,16 +81,24 @@
         const y = padTop + plotHeight * (1 - fraction);
         return (
           '<line class="analytics-chart-grid" x1="' + padLeft + '" y1="' + y.toFixed(1) + '" x2="' + (width - padRight) + '" y2="' + y.toFixed(1) + '"></line>' +
-          '<text class="analytics-chart-axis" x="' + (padLeft - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end">' + escapeHtml(String(Math.round(max * fraction))) + "</text>"
+          '<text class="analytics-chart-axis" x="' + (padLeft - 8 * scale) + '" y="' + (y + 4 * scale).toFixed(1) + '" text-anchor="end">' + escapeHtml(String(Math.round(max * fraction))) + "</text>"
         );
       })
       .join("");
-    const labelStep = Math.max(1, Math.ceil(points.length / 7));
+    const axisY = height - padBottom;
+    const dayTicks = points
+      .map(function (point) {
+        return '<line class="analytics-chart-grid" x1="' + point.x.toFixed(1) + '" y1="' + axisY + '" x2="' + point.x.toFixed(1) + '" y2="' + (axisY + 5 * scale).toFixed(1) + '"></line>';
+      })
+      .join("");
+    const renderedPlotWidth = plotWidth / scale;
+    const pointSpacing = points.length > 1 ? renderedPlotWidth / (points.length - 1) : renderedPlotWidth;
+    const labelStep = Math.max(1, Math.ceil(42 / Math.max(1, pointSpacing)));
     const xLabels = points
       .map(function (point, index) {
         if (index % labelStep !== 0 && index !== points.length - 1) return "";
         return (
-          '<text class="analytics-chart-axis" x="' + point.x.toFixed(1) + '" y="' + (height - padBottom + 18) + '" text-anchor="middle">' +
+          '<text class="analytics-chart-axis" x="' + point.x.toFixed(1) + '" y="' + (axisY + 18 * scale).toFixed(1) + '" text-anchor="middle">' +
           escapeHtml(formatShortDay(point.day)) +
           "</text>"
         );
@@ -101,13 +114,23 @@
       })
       .join("");
     return (
-      '<svg class="analytics-chart" viewBox="0 0 ' + width + " " + height + '" preserveAspectRatio="none" role="img" aria-label="Daily page views line chart">' +
+      '<svg class="analytics-chart" viewBox="0 0 ' + width.toFixed(2) + " " + height + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Daily page views line chart">' +
       gridLines +
+      '<line class="analytics-chart-grid" x1="' + padLeft + '" y1="' + axisY + '" x2="' + (width - padRight) + '" y2="' + axisY + '"></line>' +
+      dayTicks +
       xLabels +
       '<path class="analytics-chart-line" d="' + linePath + '"></path>' +
       dots +
       "</svg>"
     );
+  }
+
+  function renderTrendChart() {
+    const trend = qs("#analyticsTrend");
+    if (!trend) return;
+    trend.innerHTML = trendRowsForChart.length
+      ? buildTrendChart(trendRowsForChart, trend.clientWidth)
+      : '<p class="asset-note">No page view data yet.</p>';
   }
 
   function renderAnalytics(data) {
@@ -147,11 +170,8 @@
       );
     }
 
-    const trend = qs("#analyticsTrend");
-    if (trend) {
-      const rows = data.dailyTrend || [];
-      trend.innerHTML = rows.length ? buildTrendChart(rows) : '<p class="asset-note">No page view data yet.</p>';
-    }
+    trendRowsForChart = Array.isArray(data.dailyTrend) ? data.dailyTrend : [];
+    renderTrendChart();
 
     const sponsorBreakdown = qs("#analyticsSponsorBreakdown");
     if (sponsorBreakdown) {
@@ -173,6 +193,20 @@
     state.analyticsRangeDays = parseInt(event.target.value, 10) || 30;
     loadAnalytics().catch(function () {});
   });
+
+  const trendContainer = qs("#analyticsTrend");
+  if (trendContainer && window.ResizeObserver) {
+    new window.ResizeObserver(renderTrendChart).observe(trendContainer);
+  } else {
+    let trendResizeFrame = 0;
+    window.addEventListener("resize", function () {
+      if (trendResizeFrame) return;
+      trendResizeFrame = window.requestAnimationFrame(function () {
+        trendResizeFrame = 0;
+        renderTrendChart();
+      });
+    });
+  }
 
 
 
