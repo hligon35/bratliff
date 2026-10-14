@@ -16,6 +16,12 @@ try {
     checks.push({ check: 'Admin page served without an Access redirect', passed: admin.status === 200 });
   const www = await get('/admin/', 'https://www.jackrabbitpunkinpublishing.com');
   checks.push({ check: 'WWW admin uses canonical host', passed: [301, 302, 307, 308].includes(www.status) && new URL(www.headers.get('location') || '/', origin).origin === origin });
+  const session = await get('/api/admin/session');
+  checks.push({ check: 'Unauthenticated admin API rejects access', passed: session.status === 401 && /no-store/.test(session.headers.get('cache-control') || '') });
+  const home = await get('/');
+  checks.push({ check: 'Homepage launch gate remains closed', passed: [302, 307].includes(home.status) && new URL(home.headers.get('location') || '/', origin).pathname === '/coming-soon' && /no-store/.test(home.headers.get('cache-control') || '') });
+  const comingSoon = await get('/coming-soon');
+  checks.push({ check: 'Coming-soon page available', passed: comingSoon.ok });
   const books = await get('/api/store/books');
   const catalog = books.ok ? await books.json() : {};
   checks.push({ check: 'Published native catalog', passed: catalog.ok === true && catalog.books?.length > 0 });
