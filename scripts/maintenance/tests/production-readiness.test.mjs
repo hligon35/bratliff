@@ -133,7 +133,7 @@ test('WWW protected pages redirect to the canonical Access host, while public AP
 test('the server launch switch controls home independently of browser storage, without redirect loops',async()=>{
   const f=fixture();f.env.ASSETS={fetch:async()=>new Response('homepage')}; const worker=loadWorker();
   const closed=await worker.default.fetch(new Request(origin+'/'),f.env,{});assert.equal(closed.status,302);assert.equal(closed.headers.get('location'),origin+'/coming-soon');assert.equal(closed.headers.get('cache-control'),'no-store');
-  f.env.SITE_LAUNCH_STATE='open';assert.equal(await (await worker.default.fetch(new Request(origin+'/'),f.env,{})).text(),'homepage');
+  f.env.SITE_LAUNCH_AT='2000-01-01T00:00:00.000Z';assert.equal(await (await worker.default.fetch(new Request(origin+'/'),f.env,{})).text(),'homepage');
   assert.equal((await worker.default.fetch(new Request(origin+'/index.html'),f.env,{})).headers.get('location'),origin+'/');
 });
 
