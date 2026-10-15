@@ -88,7 +88,8 @@ test("committed site config targets the production domain", () => {
 
 test("the intentional site gate remains in place", () => {
   const home = read("index.html");
-  assert.match(home, /SITE_LAUNCH_STATE/);
+  assert.match(home, /SITE_LAUNCH_AT/);
   assert.doesNotMatch(home, /jppSiteUnlocked/);
-  assert.match(read("cloudflare/src/app.ts"), /env.SITE_LAUNCH_STATE !== "open"/);
+  assert.ok(read("cloudflare/src/app.ts").includes("function isSiteLaunchOpen(env: Env)"));
+  assert.ok(read("cloudflare/wrangler.jsonc").includes('"SITE_LAUNCH_AT": "2026-10-20T04:00:00.000Z"'));
 });
