@@ -100,6 +100,14 @@ const app: AppHandler = {
           return withSecurityHeaders(Response.redirect(canonical.toString(), 308));
         }
       }
+      if (
+        env.SQUARE_ENVIRONMENT === "production" &&
+        ["/coming-soon", "/coming-soon/", "/coming-soon.html"].includes(url.pathname) &&
+        isSiteLaunchOpen(env)
+      ) {
+        return withSecurityHeaders(Response.redirect(new URL("/", url).toString(), 308));
+      }
+
       if (url.pathname === "/index.html" || url.pathname === "/index") {
         url.pathname = "/";
         return withSecurityHeaders(Response.redirect(url.toString(), 307));
@@ -334,6 +342,17 @@ function requireTrustedMutationOrigin(request: Request, env: Env): void {
   }
 }
 
+function isSiteLaunchOpen(env: Env): boolean {
+  if (env.SITE_LAUNCH_STATE === "open") return true;
+  if (env.SITE_LAUNCH_STATE !== "scheduled") return false;
+
+  const launchAt = String(env.SITE_LAUNCH_AT || "").trim();
+  // Require an explicit UTC offset so the launch instant cannot depend on a runtime timezone.
+  if (!/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(launchAt)) return false;
+  const launchTime = Date.parse(launchAt);
+  return Number.isFinite(launchTime) && Date.now() >= launchTime;
+}
+
 async function handleCompatibilityRoot(
   request: Request,
   env: Env,
@@ -365,8 +384,9 @@ async function handleCompatibilityRoot(
       });
       return withSecurityHeaders(new Response(null, { status: 302, headers }));
     }
+    const launchIsOpen = isSiteLaunchOpen(env);
     const hasSitePreview = readCookie(request, SITE_PREVIEW_COOKIE) === "1";
-    if (env.SITE_LAUNCH_STATE !== "open" && !hasSitePreview) {
+    if (!launchIsOpen && !hasSitePreview) {
       const response = Response.redirect(new URL("/coming-soon", url).toString(), 302);
       const headers = new Headers(response.headers); headers.set("Cache-Control", "no-store");
       return withSecurityHeaders(new Response(null, { status: 302, headers }));
@@ -374,7 +394,7 @@ async function handleCompatibilityRoot(
     const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);
     headers.set("Cache-Control", "no-store");
-    if (env.SITE_LAUNCH_STATE !== "open") headers.set("X-Robots-Tag", "noindex, nofollow");
+    if (!launchIsOpen) headers.set("X-Robots-Tag", "noindex, nofollow");
     return withSecurityHeaders(new Response(response.body, { status: response.status, statusText: response.statusText, headers }));
   }
 
