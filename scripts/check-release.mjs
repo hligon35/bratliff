@@ -10,11 +10,10 @@ assert.equal(vars.ADMIN_AUTH_MODE, 'google', 'Production must use Google sign-in
 assert.equal(vars.ADMIN_AUTH_MODE, config.env.sandbox.vars.ADMIN_AUTH_MODE, 'Production and sandbox auth modes must match.');
 assert.ok(vars.GOOGLE_CLIENT_ID && vars.ADMIN_BOOTSTRAP_EMAILS);
 assert.equal(new URL(vars.PUBLIC_ADMIN_URL).origin, new URL(vars.SITE_URL).origin);
-assert.ok(['closed', 'scheduled', 'open'].includes(vars.SITE_LAUNCH_STATE));
-if (vars.SITE_LAUNCH_STATE === 'scheduled') {
-  assert.ok(Number.isFinite(Date.parse(vars.SITE_LAUNCH_AT || '')), 'A scheduled launch needs a valid timestamp.');
-  assert.match(vars.SITE_LAUNCH_AT, /(?:Z|[+-]\\d{2}:\\d{2})$/i, 'The launch timestamp must include an explicit timezone.');
-}
+assert.ok(Number.isFinite(Date.parse(vars.SITE_LAUNCH_AT || '')), 'Production must have a valid launch timestamp.');
+assert.match(vars.SITE_LAUNCH_AT, /(?:Z|[+-]\d{2}:\d{2})$/i, 'The launch timestamp must include an explicit timezone.');
+assert.equal(new Date(vars.SITE_LAUNCH_AT).toISOString(), '2026-10-20T04:00:00.000Z', 'Production launch must remain 12:00 AM Eastern on October 20, 2026.');
+assert.ok(Number.isFinite(Date.parse(config.env.sandbox.vars.SITE_LAUNCH_AT || '')), 'Sandbox must have a valid launch timestamp.');
 assert.ok(['unconfigured', 'none', 'fixed'].includes(vars.STORE_TAX_MODE));
 if (vars.STORE_TAX_MODE === 'fixed') {
   assert.ok(/^\d{1,2}(\.\d{1,4})?$/.test(vars.STORE_TAX_PERCENTAGE || '') && Number(vars.STORE_TAX_PERCENTAGE) > 0 && Number(vars.STORE_TAX_PERCENTAGE) <= 25, 'Configure an approved fixed rate.');
