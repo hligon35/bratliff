@@ -48,7 +48,7 @@ for (const [origin, launchState] of [[production, 'closed'], [sandbox, 'open']])
   test(`five-click destination enables a host-only preview session on ${origin}`, async () => {
     const worker = loadWorker();
     const env = {
-      SITE_LAUNCH_STATE: launchState,
+      SITE_LAUNCH_AT: launchState === 'open' ? '2000-01-01T00:00:00.000Z' : '2999-01-01T00:00:00.000Z',
       ASSETS: { fetch: async () => new Response('homepage', { headers: { 'Cache-Control': 'public, max-age=3600' } }) },
     };
     const fetchPage = (pathname, cookie) => worker.default.fetch(
@@ -83,7 +83,7 @@ for (const [origin, launchState] of [[production, 'closed'], [sandbox, 'open']])
 test('preview access does not grant an admin or reader session', async () => {
   const worker = loadWorker();
   const { env } = fixture();
-  env.SITE_LAUNCH_STATE = 'closed';
+  env.SITE_LAUNCH_AT = new Date(Date.now() + 60_000).toISOString();
   env.GOOGLE_CLIENT_ID = 'offline.apps.googleusercontent.com';
   const headers = { Cookie: '__Host-jrpp_site_preview=1' };
   const admin = await worker.default.fetch(new Request(production + '/api/admin/session', { headers }), env, {});
@@ -96,7 +96,7 @@ test('scheduled launch keeps the site closed until its configured instant, then 
   const worker = loadWorker();
   const { env } = fixture();
   env.SQUARE_ENVIRONMENT = 'production';
-  env.SITE_LAUNCH_STATE = 'scheduled';
+
   env.SITE_LAUNCH_AT = new Date(Date.now() + 60_000).toISOString();
   env.ASSETS = { fetch: async () => new Response('homepage') };
 
@@ -119,7 +119,7 @@ test('scheduled launch keeps the site closed until its configured instant, then 
 test('scheduled launch fails closed for invalid or timezone-less timestamps', async () => {
   const worker = loadWorker();
   const { env } = fixture();
-  env.SITE_LAUNCH_STATE = 'scheduled';
+
   env.ASSETS = { fetch: async () => new Response('homepage') };
   for (const timestamp of ['not-a-date', '2026-10-20T00:00:00']) {
     env.SITE_LAUNCH_AT = timestamp;
