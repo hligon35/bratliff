@@ -91,3 +91,40 @@ test('preview access does not grant an admin or reader session', async () => {
   const customer = await worker.default.fetch(new Request(production + '/api/customer/auth/session', { headers }), env, {});
   assert.equal((await customer.json()).authenticated, false);
 });
+
+test('scheduled launch keeps the site closed until its configured instant, then opens and removes noindex', async () => {
+  const worker = loadWorker();
+  const { env } = fixture();
+  env.SQUARE_ENVIRONMENT = 'production';
+  env.SITE_LAUNCH_STATE = 'scheduled';
+  env.SITE_LAUNCH_AT = new Date(Date.now() + 60_000).toISOString();
+  env.ASSETS = { fetch: async () => new Response('homepage') };
+
+  const visit = () => worker.default.fetch(new Request(production + '/'), env, {});
+  const beforeLaunch = await visit();
+  assert.equal(beforeLaunch.status, 302);
+  assert.equal(beforeLaunch.headers.get('location'), production + '/coming-soon');
+
+  env.SITE_LAUNCH_AT = new Date(Date.now() - 60_000).toISOString();
+  const afterLaunch = await visit();
+  assert.equal(afterLaunch.status, 200);
+  assert.equal(await afterLaunch.text(), 'homepage');
+  assert.equal(afterLaunch.headers.get('x-robots-tag'), null);
+
+  const oldComingSoonUrl = await worker.default.fetch(new Request(production + '/coming-soon'), env, {});
+  assert.equal(oldComingSoonUrl.status, 308);
+  assert.equal(oldComingSoonUrl.headers.get('location'), production + '/');
+});
+
+test('scheduled launch fails closed for invalid or timezone-less timestamps', async () => {
+  const worker = loadWorker();
+  const { env } = fixture();
+  env.SITE_LAUNCH_STATE = 'scheduled';
+  env.ASSETS = { fetch: async () => new Response('homepage') };
+  for (const timestamp of ['not-a-date', '2026-10-20T00:00:00']) {
+    env.SITE_LAUNCH_AT = timestamp;
+    const response = await worker.default.fetch(new Request(production + '/'), env, {});
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), production + '/coming-soon');
+  }
+});
