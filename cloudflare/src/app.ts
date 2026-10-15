@@ -343,12 +343,9 @@ function requireTrustedMutationOrigin(request: Request, env: Env): void {
 }
 
 function isSiteLaunchOpen(env: Env): boolean {
-  if (env.SITE_LAUNCH_STATE === "open") return true;
-  if (env.SITE_LAUNCH_STATE !== "scheduled") return false;
-
   const launchAt = String(env.SITE_LAUNCH_AT || "").trim();
   // Require an explicit UTC offset so the launch instant cannot depend on a runtime timezone.
-  if (!/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(launchAt)) return false;
+  if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(launchAt)) return false;
   const launchTime = Date.parse(launchAt);
   return Number.isFinite(launchTime) && Date.now() >= launchTime;
 }
