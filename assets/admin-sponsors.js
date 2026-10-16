@@ -597,10 +597,13 @@ document.addEventListener("click", function (event) {
     }
   }
 
+  let sponsorMessageFilter = "";
+
   async function loadSponsors() {
     const params = new URLSearchParams();
     if (state.sponsorFilters.status) params.set("status", state.sponsorFilters.status);
     if (state.sponsorFilters.package) params.set("package", state.sponsorFilters.package);
+    if (sponsorMessageFilter) params.set("messageStatus", sponsorMessageFilter);
     const query = params.toString();
     const data = await api("sponsors" + (query ? "?" + query : ""));
     state.sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
@@ -637,6 +640,7 @@ document.addEventListener("click", function (event) {
         { label: "Package", render: function (row) { return escapeHtml(packageLabels[row.package] || row.package); } },
         { label: "Books", key: "booksSponsored" },
         { label: "Status", render: function (row) { return '<span class="badge">' + escapeHtml(row.recognitionStatus) + "</span>"; } },
+        { label: "Message review", render: function (row) { return row.sponsorMessage ? '<span class="badge">' + escapeHtml(row.sponsorMessageStatus || "Pending Review") + "</span>" : "—"; } },
         {
           label: "",
           render: function (row) {
@@ -667,7 +671,16 @@ document.addEventListener("click", function (event) {
     if (summary) summary.innerHTML = '<div class="sponsor-detail-empty">Select a sponsor to review their recognition details.</div>';
     const logo = qs("#sponsorLogoDisplay");
     if (logo) logo.innerHTML = "<span>No logo submitted</span>";
+    const messagePreview = qs("#sponsorMessagePreview");
+    if (messagePreview) messagePreview.textContent = "Select a sponsor to review a submitted message.";
+    const messageStatus = qs("#sponsorMessageReviewStatus");
+    if (messageStatus) { messageStatus.value = "Pending Review"; messageStatus.disabled = true; }
+    const messageSave = qs("#saveSponsorMessageReviewBtn");
+    if (messageSave) messageSave.disabled = true;
+    const messageAck = qs("#sponsorMessageAcknowledgment");
+    if (messageAck) messageAck.textContent = "";
     setStatus("#sponsorStatus", "", null);
+    setStatus("#sponsorMessageReviewFeedback", "", null);
   }
 
   async function deleteSponsorRow(sponsorId) {
@@ -722,6 +735,19 @@ document.addEventListener("click", function (event) {
         ? '<img src="' + escapeHtml(sponsor.logoUrl) + '" alt="' + escapeHtml(sponsor.logoAlt || recognitionName) + '">'
         : "<span>No logo submitted</span>";
     }
+    const messagePreview = qs("#sponsorMessagePreview");
+    const messageAcknowledgment = qs("#sponsorMessageAcknowledgment");
+    const messageStatus = qs("#sponsorMessageReviewStatus");
+    const messageSave = qs("#saveSponsorMessageReviewBtn");
+    if (messagePreview) messagePreview.textContent = sponsor.sponsorMessage || "No sponsor message submitted.";
+    if (messageAcknowledgment) messageAcknowledgment.textContent = sponsor.sponsorMessage
+      ? (sponsor.sponsorMessageAcknowledged ? "Submission acknowledgment recorded." : "Submission acknowledgment missing.")
+      : "";
+    if (messageStatus) {
+      messageStatus.value = sponsor.sponsorMessageStatus || "Pending Review";
+      messageStatus.disabled = !sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged;
+    }
+    if (messageSave) messageSave.disabled = !sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged;
     const title = qs("#sponsorFormTitle");
     if (title) title.textContent = "Sponsor Details";
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -778,6 +804,32 @@ document.addEventListener("click", function (event) {
     loadSponsors().catch(function (error) {
       setStatus("#sponsorStatus", error.message || "Sponsors could not be loaded.", false);
     });
+  });
+  qs("#sponsorsMessageFilter")?.addEventListener("change", function (event) {
+    sponsorMessageFilter = event.target.value || "";
+    loadSponsors().catch(function (error) {
+      setStatus("#sponsorStatus", error.message || "Sponsors could not be loaded.", false);
+    });
+  });
+  qs("#saveSponsorMessageReviewBtn")?.addEventListener("click", async function () {
+    const sponsorId = state.selectedSponsorId;
+    const status = qs("#sponsorMessageReviewStatus")?.value || "";
+    if (!sponsorId || !status) return;
+    setStatus("#sponsorMessageReviewFeedback", "Saving message review status...", null);
+    try {
+      const result = await api("sponsors/" + encodeURIComponent(sponsorId) + "/message-review", {
+        method: "POST",
+        body: { status: status },
+      });
+      const updated = result.sponsor;
+      const index = state.sponsors.findIndex(function (item) { return item.id === sponsorId; });
+      if (index >= 0 && updated) state.sponsors[index] = updated;
+      renderSponsorList();
+      if (updated) populateSponsorForm(updated);
+      setStatus("#sponsorMessageReviewFeedback", "Message review status saved.", true);
+    } catch (error) {
+      setStatus("#sponsorMessageReviewFeedback", error.message || "Message review status could not be saved.", false);
+    }
   });
 
 document.addEventListener("click", function (event) {

@@ -261,6 +261,11 @@ export interface SponsorRecord {
   logoUrl: string;
   logoAlt: string;
   websiteUrl: string;
+  sponsorMessage: string;
+  sponsorMessageStatus: string;
+  sponsorMessageAcknowledged: boolean;
+  sponsorMessageReviewedBy: string;
+  sponsorMessageReviewedAt: string;
   recognitionStatus: SponsorRecognitionStatus | string;
   adminNotes: string;
   displayOrder: number;

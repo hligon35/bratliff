@@ -1036,6 +1036,14 @@ async function handleSponsorCheckout(
     }
     if (logoFile.size > 3 * 1024 * 1024) throw new HttpError(400, "Logo must be 3 MB or smaller.");
   }
+  const rawSponsorMessage = String(payload.sponsorMessage || "").trim();
+  const sponsorMessage = rawSponsorMessage;
+  const messageLength = [...sponsorMessage].length;
+  const messageAcknowledged = toBoolean(payload.messageAcknowledged);
+  const messageEligible = ["chapterChampion", "bookshelfBuilder", "literacyTrailblazer"].includes(packageKey);
+  if (sponsorMessage && !messageEligible) throw new HttpError(400, "Sponsor messages are available for Chapter Champion, Bookshelf Builder, and Literacy Trailblazer sponsorships.");
+  if (messageLength > 150) throw new HttpError(400, "Sponsor messages must be 150 characters or fewer.");
+  if (sponsorMessage && !messageAcknowledged) throw new HttpError(400, "Acknowledge the sponsor message review policy before submitting a message.");
   const displayName = text(payload.displayName, 200) || payerName;
   const anonymous = toBoolean(payload.anonymous);
   const publishPermission = toBoolean(payload.publishPermission);
@@ -1054,10 +1062,11 @@ async function handleSponsorCheckout(
   await env.DB.prepare(
     `INSERT INTO sponsors (
       id, package, books_sponsored, amount_paid_cents, payer_name, payer_email, display_name,
-      entity_type, anonymous, publish_permission, website_url, mailing_address, recognition_status, created_at, updated_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 'Awaiting Payment', datetime('now'), datetime('now'))`,
+      entity_type, anonymous, publish_permission, website_url, mailing_address, sponsor_message,
+      sponsor_message_status, sponsor_message_acknowledged, recognition_status, created_at, updated_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, 'Awaiting Payment', datetime('now'), datetime('now'))`,
   )
-    .bind(sponsorId, packageKey, books, amountCents, payerName, payerEmail, displayName, entityType, anonymous ? 1 : 0, publishPermission ? 1 : 0, websiteUrl, mailingAddress)
+    .bind(sponsorId, packageKey, books, amountCents, payerName, payerEmail, displayName, entityType, anonymous ? 1 : 0, publishPermission ? 1 : 0, websiteUrl, mailingAddress, sponsorMessage, sponsorMessage ? "Pending Review" : "", sponsorMessage && messageAcknowledged ? 1 : 0)
     .run();
 
   if (logoFile) {
@@ -1783,6 +1792,7 @@ async function handleAdminApi(
       ...(await listAdminSponsors(env, {
         status: text(url.searchParams.get("status"), 60),
         package: text(url.searchParams.get("package"), 60),
+        messageStatus: text(url.searchParams.get("messageStatus"), 40),
         page: clampInt(url.searchParams.get("page"), 1, 10000, 1),
         pageSize: clampInt(url.searchParams.get("pageSize"), 1, 100, 25),
       })),
@@ -1797,6 +1807,26 @@ async function handleAdminApi(
   if (request.method === "POST" && path === "sponsors") {
     requireRole(admin, "manager");
     return json(request, env, { ok: true, sponsor: await saveAdminSponsor(env, admin, await parseBody(request)) });
+  }
+  if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/message-review")) {
+    requireRole(admin, "manager");
+    const sponsorId = decodeURIComponent(path.slice("sponsors/".length, -"/message-review".length));
+    const body = await parseBody(request);
+    const status = text(body.status, 40);
+    if (!["Pending Review", "Approved", "Revision Requested"].includes(status)) {
+      throw new HttpError(400, "Choose Pending Review, Approved, or Revision Requested.");
+    }
+    const sponsor = await getSponsorById(env, sponsorId);
+    if (!sponsor) throw new HttpError(404, "Sponsor not found.");
+    if (!sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged) {
+      throw new HttpError(400, "This sponsor has no acknowledged message to review.");
+    }
+    await env.DB.prepare("UPDATE sponsors SET sponsor_message_status = ?2, sponsor_message_reviewed_by = ?3, sponsor_message_reviewed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1")
+      .bind(sponsorId, status, admin.email).run();
+    await writeAuditLog(env, admin, "sponsor.message_review", "sponsor", sponsorId, status);
+    const updated = await getSponsorById(env, sponsorId);
+    if (!updated) throw new Error("Sponsor message status could not be reloaded.");
+    return json(request, env, { ok: true, sponsor: updated });
   }
   if (request.method === "POST" && path.startsWith("sponsors/") && path.endsWith("/publish")) {
     requireRole(admin, "manager");
@@ -2813,6 +2843,11 @@ function mapSponsorRecord(row: Record<string, unknown>): SponsorRecord {
     logoUrl: text(row.logoUrl, 1000),
     logoAlt: text(row.logoAlt, 300),
     websiteUrl: text(row.websiteUrl, 1000),
+    sponsorMessage: String(row.sponsorMessage || ""),
+    sponsorMessageStatus: text(row.sponsorMessageStatus, 40),
+    sponsorMessageAcknowledged: Boolean(Number(row.sponsorMessageAcknowledged || 0)),
+    sponsorMessageReviewedBy: text(row.sponsorMessageReviewedBy, 320),
+    sponsorMessageReviewedAt: text(row.sponsorMessageReviewedAt, 50),
     recognitionStatus: text(row.recognitionStatus, 40) || "Awaiting Payment",
     adminNotes: text(row.adminNotes, 4000),
     displayOrder: Number(row.displayOrder || 0),
@@ -2830,6 +2865,9 @@ const SPONSOR_SELECT = `SELECT
   payer_name AS payerName, payer_email AS payerEmail, display_name AS displayName,
   entity_type AS entityType, anonymous, publish_permission AS publishPermission,
   logo_key AS logoKey, logo_url AS logoUrl, logo_alt AS logoAlt, website_url AS websiteUrl,
+  sponsor_message AS sponsorMessage, sponsor_message_status AS sponsorMessageStatus,
+  sponsor_message_acknowledged AS sponsorMessageAcknowledged,
+  sponsor_message_reviewed_by AS sponsorMessageReviewedBy, sponsor_message_reviewed_at AS sponsorMessageReviewedAt,
   recognition_status AS recognitionStatus, admin_notes AS adminNotes, display_order AS displayOrder,
   approved_by AS approvedBy, paid_at AS paidAt, approved_at AS approvedAt, published_at AS publishedAt,
   created_at AS createdAt, updated_at AS updatedAt
@@ -2844,7 +2882,7 @@ async function getSponsorById(env: Env, sponsorId: string): Promise<SponsorRecor
 
 async function listAdminSponsors(
   env: Env,
-  filters: { status: string; package: string; page: number; pageSize: number },
+  filters: { status: string; package: string; messageStatus: string; page: number; pageSize: number },
 ): Promise<{ sponsors: SponsorRecord[]; total: number; page: number; pageSize: number }> {
   const conditions: string[] = [];
   const bindings: unknown[] = [];
@@ -2855,6 +2893,12 @@ async function listAdminSponsors(
   if (filters.package) {
     conditions.push(`package = ?${bindings.length + 1}`);
     bindings.push(filters.package);
+  }
+  if (filters.messageStatus === "No Message") {
+    conditions.push("sponsor_message = ''");
+  } else if (filters.messageStatus) {
+    conditions.push(`sponsor_message_status = ?${bindings.length + 1}`);
+    bindings.push(filters.messageStatus);
   }
   if (!filters.status) conditions.push("recognition_status != 'Deleted'");
   const whereClause = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
@@ -3365,6 +3409,8 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
         packageLabel: packageLabel(sponsor.package),
         displayName: sponsor.anonymous ? "" : sponsor.displayName,
         anonymous: sponsor.anonymous,
+        booksSponsored: sponsor.booksSponsored,
+        sponsorMessage: sponsor.sponsorMessageStatus === "Approved" ? sponsor.sponsorMessage : "",
       };
     }),
     lowerTotal: Number(lowerTotalRow?.count || 0),
@@ -3377,6 +3423,7 @@ async function listPublicSponsors(env: Env, params: URLSearchParams) {
         displayName: sponsor.anonymous ? "" : sponsor.displayName,
         anonymous: sponsor.anonymous,
         booksSponsored: sponsor.booksSponsored,
+        sponsorMessage: sponsor.sponsorMessageStatus === "Approved" ? sponsor.sponsorMessage : "",
         logoUrl: sponsor.anonymous ? "" : sponsor.logoUrl,
         logoAlt: sponsor.anonymous ? "" : sponsor.logoAlt,
         websiteUrl: sponsor.anonymous ? "" : sponsor.websiteUrl,

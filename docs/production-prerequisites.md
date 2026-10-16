@@ -4,8 +4,8 @@ Target: https://jackrabbitpunkinpublishing.com. This branch changes code only. I
 
 ## Before release: account-dependent work
 
-1. Export/backup production D1 and record the current Worker deployment/version and applied migrations. Confirm a usable restore point. Review all outstanding migrations through **0017**, including **0013_mailbox_email_html.sql** and **0017_square_inventory_sync.sql**. Historical 0003/0006 rebuild tables; the migration chain is not entirely additive. Rehearse upgrades on a copy with representative existing data before applying them remotely.
-2. Review and apply approved migrations before publishing this Worker. The queue, rate limits, refunds and settlement require 0014; reader session revocation requires 0015; durable admin bootstrap and the form email outbox require 0016. Do not deploy this code against an older schema. Review commands, then run them from the repo root only when release is authorized:
+1. Export/backup production D1 and record the current Worker deployment/version and applied migrations. Confirm a usable restore point. Review all outstanding migrations through **0020**, including **0013_mailbox_email_html.sql**, **0017_square_inventory_sync.sql**, and the new **0020_sponsor_messages.sql**. Historical 0003/0006 rebuild tables; the migration chain is not entirely additive. Rehearse upgrades on a copy with representative existing data before applying them remotely.
+2. Review and apply approved migrations before publishing this Worker. The queue, rate limits, refunds and settlement require 0014; reader session revocation requires 0015; durable admin bootstrap and the form email outbox require 0016; Read It Forward message review fields and the two initial sponsor wall entries require 0020. Do not deploy this code against an older schema. Review commands, then run them from the repo root only when release is authorized:
    ```sh
    npx wrangler d1 migrations list DB --remote --config cloudflare/wrangler.jsonc
    npx wrangler d1 migrations apply DB --remote --config cloudflare/wrangler.jsonc
