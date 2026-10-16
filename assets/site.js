@@ -1534,7 +1534,7 @@ function initSponsorProgram() {
       const medal = literacyMedal(books);
       const packageIcon = packageArt("literacyTrailblazer", "Literacy Trailblazer");
       const message = sponsor.sponsorMessage ? '<p class="sponsor-message">' + escapeHtmlSponsor(sponsor.sponsorMessage) + '</p>' : "";
-      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/icons/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div>" + message + "</div>";
+      return "<div class=\"sponsor-trailblazer-card" + (message ? " has-sponsor-message" : "") + "\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/icons/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div>" + message + "</div>";
     }).join("");
 
     const lowerBlock = lowerCards ? '<section class="sponsor-wall-section" aria-labelledby="sponsor-wall-names-title"><h3 id="sponsor-wall-names-title">Read It Forward Sponsors</h3><div class="sponsor-lower-grid">' + lowerCards + '</div></section>' : "";
