@@ -2843,7 +2843,7 @@ function mapSponsorRecord(row: Record<string, unknown>): SponsorRecord {
     logoUrl: text(row.logoUrl, 1000),
     logoAlt: text(row.logoAlt, 300),
     websiteUrl: text(row.websiteUrl, 1000),
-    sponsorMessage: text(row.sponsorMessage, 150),
+    sponsorMessage: String(row.sponsorMessage || ""),
     sponsorMessageStatus: text(row.sponsorMessageStatus, 40),
     sponsorMessageAcknowledged: Boolean(Number(row.sponsorMessageAcknowledged || 0)),
     sponsorMessageReviewedBy: text(row.sponsorMessageReviewedBy, 320),
