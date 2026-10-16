@@ -343,7 +343,7 @@ test('certificate notifications serialize concurrent sends and stop at the provi
   f.sqlite.exec("INSERT INTO sponsors(id,package,payer_name,payer_email,mailing_address,certificate_status) VALUES ('s1','literacyTrailblazer','Supporter','supporter@example.org','1 Main St','pending');");
   f.env.ASSETS={fetch:async()=>new Response(readFileSync(path.join(root,'assets/documents/JPP_Certificate_of_Appreciation_v1.pdf')))};
   const outcomes=await Promise.allSettled([worker.review.sendSponsorCertificateIfEligible(f.env,'s1','2026-01-01T12:00:00Z'),worker.review.sendSponsorCertificateIfEligible(f.env,'s1','2026-01-01T12:00:00Z')]);
-  assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);assert.equal(sends,2);assert.equal(value(f.sqlite,'SELECT certificate_status FROM sponsors').certificate_status,'sent');
+  assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);assert.equal(sends,2);assert.equal(value(f.sqlite,"SELECT certificate_status FROM sponsors WHERE id = 's1'").certificate_status,'sent');
   f.sqlite.exec("UPDATE sponsors SET certificate_status='error',certificate_first_attempt_at=datetime('now','-24 hours')");
   await assert.rejects(worker.review.sendSponsorCertificateIfEligible(f.env,'s1','2026-01-01T12:00:00Z'),/provider review/);assert.equal(sends,2);
   f.sqlite.exec("UPDATE sponsors SET certificate_first_attempt_at=''");

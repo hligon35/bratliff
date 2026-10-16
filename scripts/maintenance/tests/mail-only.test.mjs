@@ -64,6 +64,7 @@ test('sent/failed include actual replies and legacy-linked sends with stable pag
 
 test('business keys and old record filters cannot read, organize, draft or send through mailbox APIs', async () => {
   const { env, worker, orderNumber, sqlite } = setup();
+  const sponsorCountBefore = sqlite.prepare('SELECT count(*) AS n FROM sponsors').get().n;
   for (const key of ['order:'+orderNumber,'submission:form1','sponsor:sponsor1','email:../received1']) {
     for (const call of [
       () => worker.getMailboxItem(env,admin,key),
@@ -75,7 +76,7 @@ test('business keys and old record filters cannot read, organize, draft or send 
   for (const type of ['orders','submissions','sponsors']) await assert.rejects(worker.listMailboxItems(env,admin,params({type})),e=>e.status===400);
   assert.equal(sqlite.prepare('SELECT count(*) AS n FROM orders').get().n,1);
   assert.equal(sqlite.prepare('SELECT count(*) AS n FROM form_submissions').get().n,2);
-  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM sponsors').get().n,1);
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM sponsors').get().n,sponsorCountBefore);
   assert.equal(sqlite.prepare('SELECT count(*) AS n FROM sponsor_payments').get().n,1);
   const draft='draft:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   assert.equal(await worker.resolveMailboxDraftKey(env,draft,admin.email),draft);
