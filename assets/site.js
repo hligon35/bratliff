@@ -1529,7 +1529,7 @@ function initSponsorProgram() {
       const name = sponsorWallName(sponsor);
       const logo = sponsor.logoUrl
         ? "<img src=\"" + escapeHtmlSponsor(sponsor.logoUrl) + "\" alt=\"" + escapeHtmlSponsor(sponsor.logoAlt || name) + "\" loading=\"lazy\">"
-        : '<img class="sponsor-standard-emblem" src="assets/icons/standRecog.png" alt="Standard sponsor recognition emblem" loading="lazy">';
+        : '<img class="sponsor-standard-emblem" src="/assets/icons/standRecog.png" alt="Standard sponsor recognition emblem" loading="lazy">';
       const books = Math.max(0, Math.floor(Number(sponsor.booksSponsored) || 0));
       const medal = literacyMedal(books);
       const packageIcon = packageArt("literacyTrailblazer", "Literacy Trailblazer");
