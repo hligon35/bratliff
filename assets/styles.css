@@ -2969,3 +2969,5 @@ body.document-viewer-open {
 .sponsor-trailblazer-card { grid-template-rows: 88px auto auto auto; height: auto; }
 [data-sponsor-message-field] textarea { resize: vertical; }
 .sponsor-message-ack { align-items: flex-start; font-size: 0.9rem; line-height: 1.45; }
+
+.sponsor-trailblazer-card:not(.has-sponsor-message) { grid-template-rows: 88px auto auto; }
