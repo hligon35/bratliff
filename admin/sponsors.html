@@ -65,6 +65,16 @@
                     <option value="literacyTrailblazer">Literacy Trailblazer</option>
                   </select>
                 </div>
+                <div class="toolbar-field">
+                  <label for="sponsorsMessageFilter">Message review</label>
+                  <select id="sponsorsMessageFilter" title="Sponsor message review filter">
+                    <option value="">All messages</option>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Revision Requested">Revision Requested</option>
+                    <option value="No Message">No Message</option>
+                  </select>
+                </div>
               </div>
               <div class="table-wrap" id="sponsorList"></div>
             </div>
@@ -80,6 +90,26 @@
                 <button class="btn warn" type="button" id="hideSponsorBtn">Hide</button>
               </div>
               <div class="status" id="sponsorStatus"></div>
+              <section class="sponsor-logo-section sponsor-message-review" aria-labelledby="sponsor-message-review-heading">
+                <div class="sponsor-logo-section-head">
+                  <div>
+                    <div class="sponsor-detail-kicker">PUBLIC MESSAGE</div>
+                    <h3 id="sponsor-message-review-heading">Sponsor Message Review</h3>
+                  </div>
+                </div>
+                <p id="sponsorMessagePreview" class="sponsor-message-preview">Select a sponsor to review a submitted message.</p>
+                <p id="sponsorMessageAcknowledgment" class="sponsor-message-acknowledgment"></p>
+                <div class="toolbar-field">
+                  <label for="sponsorMessageReviewStatus">Review status</label>
+                  <select id="sponsorMessageReviewStatus" disabled>
+                    <option value="Pending Review">Pending Review</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Revision Requested">Revision Requested</option>
+                  </select>
+                </div>
+                <button class="btn" type="button" id="saveSponsorMessageReviewBtn" disabled>Save message status</button>
+                <div class="status" id="sponsorMessageReviewFeedback" role="status"></div>
+              </section>
               <div class="sponsor-logo-section">
                 <div class="sponsor-logo-section-head">
                   <div>
