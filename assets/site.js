@@ -1312,6 +1312,14 @@ function initSponsorProgram() {
               <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
               <small>PNG, JPG, SVG, or WebP · 3 MB maximum</small>
             </label>
+            <label data-sponsor-message-field hidden>Sponsor message or dedication (optional)
+              <textarea name="sponsorMessage" rows="3" maxlength="150" aria-describedby="sponsor-message-note"></textarea>
+              <small id="sponsor-message-note">Up to 150 characters. Messages are reviewed before publication.</small>
+            </label>
+            <label class="sponsor-checkbox sponsor-message-ack" data-sponsor-message-ack-field hidden>
+              <input type="checkbox" name="messageAcknowledged" value="true" />
+              I understand that all sponsor messages are subject to review and approval by Jackrabbit Punkin Publishing before publication.
+            </label>
             <div class="sponsor-checkbox-group">
               <label class="sponsor-checkbox">
                 <input type="checkbox" name="anonymous" /> Keep my sponsorship anonymous
@@ -1343,10 +1351,23 @@ function initSponsorProgram() {
     const mailingInput = document.querySelector('[data-sponsor-form] textarea[name="mailingAddress"]');
     const logoInput = document.querySelector('[data-sponsor-form] input[name="logo"]');
     const packageField = document.querySelector("[data-sponsor-package-field]");
+    const messageField = document.querySelector("[data-sponsor-message-field]");
+    const messageAckField = document.querySelector("[data-sponsor-message-ack-field]");
+    const messageInput = document.querySelector('[data-sponsor-form] textarea[name="sponsorMessage"]');
+    const messageAck = document.querySelector('[data-sponsor-form] input[name="messageAcknowledged"]');
     const errorBox = document.querySelector("[data-sponsor-error]");
     packageField.value = packageKey;
     errorBox.hidden = true;
     const isTrailblazer = packageKey === "literacyTrailblazer";
+    const allowsMessage = ["chapterChampion", "bookshelfBuilder", "literacyTrailblazer"].includes(packageKey);
+    if (messageField) messageField.hidden = !allowsMessage;
+    if (messageAckField) messageAckField.hidden = !allowsMessage;
+    if (messageInput) { messageInput.value = ""; messageInput.required = false; }
+    if (messageAck) { messageAck.checked = false; messageAck.required = false; }
+    if (messageInput && messageAck) {
+      messageInput.addEventListener("input", () => { messageAck.required = Boolean(messageInput.value.trim()); });
+      messageAck.addEventListener("change", () => { messageAck.required = Boolean(messageInput.value.trim()); });
+    }
     if (isTrailblazer) {
       if (mailingField) mailingField.hidden = false;
       if (mailingInput) mailingInput.required = true;
@@ -1499,18 +1520,21 @@ function initSponsorProgram() {
       const packageKey = ["pagePal", "chapterChampion", "bookshelfBuilder"].includes(sponsor.package) ? sponsor.package : "pagePal";
       const packageLabel = sponsor.packageLabel || "Sponsor package";
       const name = sponsorWallName(sponsor);
-      return "<div class=\"sponsor-name-card\" data-package=\"" + packageKey + "\"><div class=\"sponsor-lower-identity\">" + packageArt(packageKey, packageLabel) + "<span class=\"sponsor-name\">" + name + "</span></div></div>";
+      const books = Math.max(0, Math.floor(Number(sponsor.booksSponsored) || 0));
+      const message = sponsor.sponsorMessage ? '<p class="sponsor-message">' + escapeHtmlSponsor(sponsor.sponsorMessage) + '</p>' : "";
+      return "<div class=\"sponsor-name-card\" data-package=\"" + packageKey + "\"><div class=\"sponsor-lower-identity\">" + packageArt(packageKey, packageLabel) + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-lower-copy\"><span class=\"sponsor-books-count\">" + books + " books sponsored</span>" + message + "</div></div>";
     }).join("");
 
     const trailblazerCards = (data.trailblazers || []).map((sponsor) => {
       const name = sponsorWallName(sponsor);
       const logo = sponsor.logoUrl
         ? "<img src=\"" + escapeHtmlSponsor(sponsor.logoUrl) + "\" alt=\"" + escapeHtmlSponsor(sponsor.logoAlt || name) + "\" loading=\"lazy\">"
-        : '<span class="sponsor-logo-placeholder" aria-hidden="true">LOGO</span>';
+        : '<img class="sponsor-standard-emblem" src="assets/icons/standRecog.png" alt="Standard sponsor recognition emblem" loading="lazy">';
       const books = Math.max(0, Math.floor(Number(sponsor.booksSponsored) || 0));
       const medal = literacyMedal(books);
       const packageIcon = packageArt("literacyTrailblazer", "Literacy Trailblazer");
-      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/icons/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div></div>";
+      const message = sponsor.sponsorMessage ? '<p class="sponsor-message">' + escapeHtmlSponsor(sponsor.sponsorMessage) + '</p>' : "";
+      return "<div class=\"sponsor-trailblazer-card\"><div class=\"sponsor-trailblazer-logo\">" + logo + "</div><div class=\"sponsor-trailblazer-identity\">" + packageIcon + "<span class=\"sponsor-name\">" + name + "</span></div><div class=\"sponsor-trailblazer-books\"><span>" + books + " books sponsored</span><img class=\"sponsor-trailblazer-medal\" src=\"assets/icons/" + medal.file + "\" alt=\"" + medal.label + " Literacy Trailblazer medal\" loading=\"lazy\"></div>" + message + "</div>";
     }).join("");
 
     const lowerBlock = lowerCards ? '<section class="sponsor-wall-section" aria-labelledby="sponsor-wall-names-title"><h3 id="sponsor-wall-names-title">Read It Forward Sponsors</h3><div class="sponsor-lower-grid">' + lowerCards + '</div></section>' : "";
