@@ -66,19 +66,6 @@
 
   function resetSponsorForm() {
     state.selectedSponsorId = "";
-    const messagePreview = qs("#sponsorMessagePreview");
-    const messageAcknowledgment = qs("#sponsorMessageAcknowledgment");
-    const messageStatus = qs("#sponsorMessageReviewStatus");
-    const messageSave = qs("#saveSponsorMessageReviewBtn");
-    if (messagePreview) messagePreview.textContent = sponsor.sponsorMessage || "No sponsor message submitted.";
-    if (messageAcknowledgment) messageAcknowledgment.textContent = sponsor.sponsorMessage
-      ? (sponsor.sponsorMessageAcknowledged ? "Submission acknowledgment recorded." : "Submission acknowledgment missing.")
-      : "";
-    if (messageStatus) {
-      messageStatus.value = sponsor.sponsorMessageStatus || "Pending Review";
-      messageStatus.disabled = !sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged;
-    }
-    if (messageSave) messageSave.disabled = !sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged;
     const title = qs("#sponsorFormTitle");
     if (title) title.textContent = "Sponsor Details";
     const summary = qs("#sponsorDetailSummary");
@@ -94,6 +81,7 @@
     const messageAck = qs("#sponsorMessageAcknowledgment");
     if (messageAck) messageAck.textContent = "";
     setStatus("#sponsorStatus", "", null);
+    setStatus("#sponsorMessageReviewFeedback", "", null);
   }
 
   async function deleteSponsorRow(sponsorId) {
@@ -148,6 +136,19 @@
         ? '<img src="' + escapeHtml(sponsor.logoUrl) + '" alt="' + escapeHtml(sponsor.logoAlt || recognitionName) + '">'
         : "<span>No logo submitted</span>";
     }
+    const messagePreview = qs("#sponsorMessagePreview");
+    const messageAcknowledgment = qs("#sponsorMessageAcknowledgment");
+    const messageStatus = qs("#sponsorMessageReviewStatus");
+    const messageSave = qs("#saveSponsorMessageReviewBtn");
+    if (messagePreview) messagePreview.textContent = sponsor.sponsorMessage || "No sponsor message submitted.";
+    if (messageAcknowledgment) messageAcknowledgment.textContent = sponsor.sponsorMessage
+      ? (sponsor.sponsorMessageAcknowledged ? "Submission acknowledgment recorded." : "Submission acknowledgment missing.")
+      : "";
+    if (messageStatus) {
+      messageStatus.value = sponsor.sponsorMessageStatus || "Pending Review";
+      messageStatus.disabled = !sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged;
+    }
+    if (messageSave) messageSave.disabled = !sponsor.sponsorMessage || !sponsor.sponsorMessageAcknowledged;
     const title = qs("#sponsorFormTitle");
     if (title) title.textContent = "Sponsor Details";
     window.scrollTo({ top: 0, behavior: "smooth" });
