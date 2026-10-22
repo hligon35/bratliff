@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Jackrabbit Punkin Publishing",
+    "slug": "jackrabbit-punkin",
+    "scheme": "jackrabbitpunkin",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.jackrabbitpunkinpublishing.app"
+    },
+    "android": {
+      "package": "com.jackrabbitpunkinpublishing.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "apiEnvironment": "preview"
+    }
+  }
+}
