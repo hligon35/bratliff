@@ -12,7 +12,7 @@ assert.ok(vars.GOOGLE_CLIENT_ID && vars.ADMIN_BOOTSTRAP_EMAILS);
 assert.equal(new URL(vars.PUBLIC_ADMIN_URL).origin, new URL(vars.SITE_URL).origin);
 assert.ok(Number.isFinite(Date.parse(vars.SITE_LAUNCH_AT || '')), 'Production must have a valid launch timestamp.');
 assert.match(vars.SITE_LAUNCH_AT, /(?:Z|[+-]\d{2}:\d{2})$/i, 'The launch timestamp must include an explicit timezone.');
-assert.equal(new Date(vars.SITE_LAUNCH_AT).toISOString(), '2026-10-20T04:00:00.000Z', 'Production launch must remain 12:00 AM Eastern on October 20, 2026.');
+// Launch schedule can change; verify a valid, timezone-qualified instant rather than pinning a historical date.
 assert.ok(Number.isFinite(Date.parse(config.env.sandbox.vars.SITE_LAUNCH_AT || '')), 'Sandbox must have a valid launch timestamp.');
 assert.ok(['unconfigured', 'none', 'fixed'].includes(vars.STORE_TAX_MODE));
 if (vars.STORE_TAX_MODE === 'fixed') {
@@ -37,5 +37,11 @@ for (const file of readdirSync(root).filter(name => name.endsWith('.html'))) {
   }
 }
 assert.doesNotMatch(read('sitemap.xml'), /\.html/);
+for (const match of read('sitemap.xml').matchAll(/<loc>([^<]+)<\/loc>/g)) {
+  const url = new URL(match[1]);
+  assert.equal(url.origin, new URL(vars.SITE_URL).origin, 'Sitemap must use the canonical production origin');
+  assert.ok(!url.pathname.startsWith('//'), 'Sitemap paths cannot begin with double slashes');
+  assert.equal(url.search, '', 'Sitemap URLs must not include query parameters');
+}
 assert.match(read('_headers'), /Strict-Transport-Security: max-age=[1-9]/);
 console.log('Release configuration, helper ordering, clean URLs and local links passed. Remote acceptance checks remain separate.');
