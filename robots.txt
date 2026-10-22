@@ -1,44 +1,10 @@
 User-agent: *
 Disallow: /admin/
 Disallow: /login/
+Disallow: /account
+Disallow: /api/
 Disallow: /coming-soon
 
-# Generative-engine / AI-assistant crawlers explicitly welcomed for discovery and citation
-User-agent: GPTBot
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: ChatGPT-User
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: OAI-SearchBot
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: ClaudeBot
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: anthropic-ai
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: Google-Extended
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: PerplexityBot
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: Applebot-Extended
-Disallow: /admin/
-Disallow: /login/
-
-User-agent: Amazonbot
-Disallow: /admin/
-Disallow: /login/
-
+# Public editorial pages remain eligible for crawling by ordinary search
+# engines and user agents. Private API and account routes are excluded.
 Sitemap: https://jackrabbitpunkinpublishing.com/sitemap.xml
-Disallow: /account
