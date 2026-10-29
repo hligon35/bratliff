@@ -172,3 +172,5 @@ A scheduled GitHub Actions workflow checks dependencies, security advisories, Cl
 - Website URL, mailing address (optional), and legal effective date
 
 Asset placeholders are deliberate and should be replaced without cropping, recoloring, filtering, or otherwise altering the supplied originals.
+
+Automatic inventory-linked book alerts and the admin delivery view are documented in [Book availability notifications](docs/book-notifications.md). Migration 0022 and a separately approved deployment are required to enable them.

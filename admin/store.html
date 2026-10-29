@@ -51,6 +51,10 @@
           </section>
 
           <section data-store-view="books">
+            <div class="panel">
+              <div class="panel-head"><h2>Book availability notifications</h2><button class="btn alt" id="refreshBookNotifications" type="button">Refresh status</button></div>
+              <div class="panel-body" id="bookNotificationProgress" role="status" aria-live="polite"></div>
+            </div>
             <div class="split">
               <div class="panel">
                 <div class="panel-head">
@@ -81,6 +85,12 @@
                       </div>
                       <div class="field full">
                         <label>Title *</label><input name="title" title="Title" required />
+                      </div>
+                      <div class="field full">
+                        <label for="notificationTitle">Notification list title (optional)</label>
+                        <input id="notificationTitle" name="notificationTitle" list="notificationTitles" aria-describedby="notificationTitleHelp" />
+                        <datalist id="notificationTitles"></datalist>
+                        <small id="notificationTitleHelp">Leave blank to match the product title. Select a signup list if its title differs. Readers are emailed once when Published, in stock, and no longer marked Coming Soon or Preorder.</small>
                       </div>
                       <div class="field full">
                         <label>Subtitle</label><input name="subtitle" title="Subtitle" />
