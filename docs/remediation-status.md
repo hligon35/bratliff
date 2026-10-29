@@ -24,7 +24,7 @@ Draft PR: https://github.com/hligon35/bratliff/pull/42
 - Website dependency audit after compatible tooling updates: **0 vulnerabilities**.
 - Expo TypeScript, installed-SDK dependency compatibility and Android JavaScript export: passed. Compatibility used the SDK's offline version matrix; no Expo account or EAS service was used.
 - Mobile audit: **9 advisories (8 low, 1 high)** remain. The high advisory is image-size through Metro v1; the low chain involves deepmerge. Compatible PostCSS fixes are included. No forced SDK downgrade or incompatible image parser override was used. Upstream tracking: https://github.com/expo/expo/issues/48670. The CI mobile audit intentionally prevents a successful release gate while the high advisory remains.
-- GitHub Actions success is not inferred from local results; inspect the PR's latest commit checks. Repository/account startup failures and the mobile audit are separate release blockers.
+- GitHub Actions run 40942171458 for PR commit `6ea2ad6` completed with **startup_failure** before check jobs ran. This is separate from the known mobile audit blocker; local results do not establish green CI. GitGuardian passed its scan of the eight implementation commits. Recheck the latest documentation commit separately.
 
 ## Pending — code or account configuration
 
