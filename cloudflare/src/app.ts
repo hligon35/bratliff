@@ -1,3 +1,4 @@
+import { expireSquareCheckouts } from "./square-checkout";
 import { publicCheckoutConfiguration } from "./store-tax";
 import { deriveCustomerPassword, verifyCustomerPassword, needsPasswordUpgrade } from "./passwords";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
@@ -1342,8 +1343,8 @@ async function recordPaidOrderFromSquarePayment(env: Env, squareEventId: string,
     ).bind(order.orderNumber, paymentId, squareEventId, amountCents, details.name, details.email, details.address).run();
   } catch (error) {
     if (/Insufficient inventory|Checkout cart missing/i.test(getErrorMessage(error))) {
-      await env.DB.prepare("UPDATE orders SET payment_status = 'Payment Review', notes = ?2 WHERE order_number = ?1 AND payment_status NOT IN ('Paid', 'Refunded', 'Partially Refunded')")
-        .bind(order.orderNumber, "Payment completed in Square; settlement needs inventory/cart reconciliation. Do not fulfill until resolved.").run();
+      await env.DB.prepare("UPDATE orders SET payment_status = 'Payment Review', notes = ?2, square_payment_id = ?3 WHERE order_number = ?1 AND payment_status NOT IN ('Paid', 'Refunded', 'Partially Refunded')")
+        .bind(order.orderNumber, "Payment completed in Square; settlement needs inventory/cart reconciliation. Do not fulfill until resolved.", paymentId).run();
     }
     throw error;
   }
@@ -3481,8 +3482,9 @@ async function updateFulfillment(env: Env, orderNumber: string, body: Record<str
   const requested = text(body.fulfillmentStatus, 80) || "Unfulfilled";
   const status = FULFILLMENT_STATUSES.find((value) => value.toLowerCase() === requested.toLowerCase());
   if (!status) throw new HttpError(400, "Choose a valid fulfillment status: " + FULFILLMENT_STATUSES.join(", ") + ".");
-  const existing = await env.DB.prepare("SELECT notes FROM orders WHERE order_number = ?1").bind(key).first<{ notes: string | null }>();
+  const existing = await env.DB.prepare("SELECT notes, payment_status AS paymentStatus FROM orders WHERE order_number = ?1").bind(key).first<{ notes: string | null; paymentStatus: string }>();
   if (!existing) throw new HttpError(404, "Order not found.");
+  if (["Processing", "Shipped", "Fulfilled"].includes(status) && existing.paymentStatus !== "Paid") throw new HttpError(409, "Only settled paid orders can be fulfilled.");
   // Notes are only replaced when the client sends them, so a status save never wipes existing notes.
   const notes = typeof body.notes === "string" ? text(body.notes, 4000) : text(existing.notes, 4000);
   await env.DB.prepare("UPDATE orders SET fulfillment_status = ?2, tracking_number = ?3, notes = ?4 WHERE order_number = ?1")
@@ -4574,6 +4576,7 @@ function renderUnsubscribePage(success: boolean, message: string) {
 }
 
 async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
+  await expireSquareCheckouts(env, payment => recordPaidOrderFromSquarePayment(env, "expiry-reconcile:" + text(payment.id, 200), payment));
   await sendDueCampaigns(env);
   await processSubmissionEmails(env);
   await processNewsletterQueue(env);
