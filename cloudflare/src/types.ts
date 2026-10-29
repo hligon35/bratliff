@@ -139,6 +139,7 @@ export interface AuthenticatedAdmin {
 }
 
 export interface BookRecord {
+  notificationTitle?: string;
   bookId: string;
   sku: string;
   isbn: string;
