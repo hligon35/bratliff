@@ -80,3 +80,27 @@ test('unexpired and paid checkouts never call Square cancellation', async () => 
   await f.review.expireSquareCheckouts(f.env, () => {});
   assert.equal(f.calls.length, 0);
 });
+
+test('late settlement cannot take stock reserved by a different active checkout', async () => {
+  const f = setup();
+  await f.review.expireSquareCheckouts(f.env, () => {});
+  f.sqlite.exec("INSERT INTO orders(order_number) VALUES ('competing'); INSERT INTO checkout_reservations VALUES ('competing', 'b1', 4, datetime('now', '+30 minutes'));");
+  await assert.rejects(loadWorker(f.squareFetch).review.recordPaidOrderFromSquarePayment(f.env, 'late', f.payment), /Insufficient inventory/);
+  assert.equal(stock(f), 5);
+  assert.equal(order(f).payment_status, 'Payment Review');
+  assert.equal(f.sqlite.prepare('SELECT count(*) n FROM order_settlements').get().n, 0);
+});
+
+test('a payment racing cancellation cannot be overwritten by the expiry update', async () => {
+  const f = setup(async (url, options, fixture) => {
+    if (options?.method === 'DELETE') {
+      await loadWorker(fixture.squareFetch).review.recordPaidOrderFromSquarePayment(fixture.env, 'racing-payment', fixture.payment);
+      return Response.json({ cancelled_order_id: 'sq-order' });
+    }
+    return Response.json({ order: { id: 'sq-order', state: 'OPEN' } });
+  });
+  await f.review.expireSquareCheckouts(f.env, () => {});
+  assert.equal(order(f).payment_status, 'Paid');
+  assert.equal(stock(f), 3);
+  assert.equal(order(f).checkout_expired_at, '');
+});
