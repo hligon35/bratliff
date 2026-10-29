@@ -1,0 +1,88 @@
+{
+  "name": "bratliff-platform-preview",
+  "account_id": "a66d8ad6d673f957cc07a4499662d694",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "secrets": {
+    "required": [
+      "UNSUBSCRIBE_SECRET",
+      "ADMIN_SESSION_SECRET",
+      "SQUARE_ACCESS_TOKEN",
+      "SQUARE_WEBHOOK_SIGNATURE_KEY",
+      "SQUARE_LOCATION_ID",
+      "RESEND_API_KEY",
+      "TURNSTILE_SECRET_KEY",
+      "CUSTOMER_SESSION_SECRET",
+      "NAMECHEAP_EMAIL_PASSWORD"
+    ]
+  },
+  "dev": {
+    "port": 8787,
+    "ip": "127.0.0.1"
+  },
+  "routes": [],
+  "triggers": {
+    "crons": []
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "replace-with-isolated-preview-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BOOK_ASSETS",
+      "bucket_name": "replace-with-isolated-preview-bucket"
+    }
+  ],
+  "vars": {
+    "ADMIN_AUTH_MODE": "google",
+    "ADMIN_BOOTSTRAP_EMAILS": "preview-owner@example.invalid",
+    "ADMIN_NOTIFICATION_EMAIL": "preview-mail@example.invalid",
+    "GOOGLE_CLIENT_ID": "replace-with-preview.apps.googleusercontent.com",
+    "CORS_ORIGIN": "https://preview.example.invalid",
+    "PUBLIC_API_URL": "https://preview.example.invalid",
+    "SITE_URL": "https://preview.example.invalid",
+    "PUBLIC_ADMIN_URL": "https://preview.example.invalid/admin/",
+    "ORDER_SUCCESS_URL": "https://preview.example.invalid/books?checkout=success",
+    "ORDER_CANCEL_URL": "https://preview.example.invalid/books?checkout=cancelled",
+    "SPONSOR_SUCCESS_URL": "https://preview.example.invalid/read-it-forward",
+    "MAIL_FROM_EMAIL": "preview@example.invalid",
+    "SQUARE_ENVIRONMENT": "sandbox",
+    "SQUARE_API_VERSION": "2024-10-17",
+    "INVENTORY_AUTHORITY": "local",
+    "SITE_LAUNCH_AT": "2000-01-01T00:00:00.000Z",
+    "DEPLOYMENT_ENVIRONMENT": "preview"
+  }
+}

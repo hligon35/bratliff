@@ -106,13 +106,15 @@ test('sandbox Google sign-in still issues a cookie accepted by the protected ses
 
 test('stale Access settings cannot switch direct Google auth or authorize an Access identity', async () => {
   const f = setup();
-  for (const mode of ['google', undefined]) {
+  for (const mode of ['google']) {
     f.env.ADMIN_AUTH_MODE = mode;
     f.env.GOOGLE_CLIENT_ID = 'offline.apps.googleusercontent.com';
     const configuration = await (await f.request('/api/auth/config')).json();
     assert.equal(configuration.mode, 'google');
     assert.equal((await f.request('/api/admin/session', { 'Cf-Access-Jwt-Assertion': await token(), Cookie: 'CF_Authorization=' + await token() })).status, 401);
   }
+  delete f.env.ADMIN_AUTH_MODE;
+  assert.equal((await f.request('/api/auth/config')).status, 503);
   f.env.ADMIN_AUTH_MODE = 'invalid';
   assert.equal((await f.request('/api/auth/config')).status, 503);
 });

@@ -307,7 +307,18 @@ const app: AppHandler = {
   },
 };
 
-export default app;
+const handler: AppHandler = {
+  ...app,
+  async fetch(request, env, ctx) {
+    const response = await app.fetch(request, env, ctx);
+    if (env.DEPLOYMENT_ENVIRONMENT !== 'preview') return response;
+    const privatePreview = new Response(response.body, response);
+    privatePreview.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    privatePreview.headers.set('Cache-Control', 'no-store');
+    return privatePreview;
+  },
+};
+export default handler;
 
 async function enforcePublicRateLimit(request: Request, env: Env, scope: string, maximum: number, windowSeconds: number, identity = "") {
   const source = identity || request.headers.get("CF-Connecting-IP") || "anonymous";
@@ -421,6 +432,7 @@ function hasCloudflareAccessConfig(env: Env) {
 function adminAuthMode(env: Env): "access" | "google" {
   const mode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
   if (mode && !["access", "google"].includes(mode)) throw new HttpError(503, "Admin authentication mode is invalid.");
+  if (!mode && (text(env.CF_ACCESS_TEAM_DOMAIN, 200) || text(env.CF_ACCESS_AUD, 200))) throw new HttpError(503, "Select an explicit admin authentication mode.");
   // Access is opt-in. Stale audience/team values must never silently change
   // the configured Google login or lock operators into a different flow.
   return mode === "access" ? "access" : "google";
