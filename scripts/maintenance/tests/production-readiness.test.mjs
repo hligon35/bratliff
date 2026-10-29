@@ -143,32 +143,6 @@ test('public PDFs permit the same-origin document viewer while other assets reta
   const ordinary=await worker.default.fetch(new Request(origin+'/assets/other.pdf'),f.env,{});assert.equal(ordinary.headers.get('X-Frame-Options'),'DENY');
 });
 
-function checkoutFixture(mode) {
-  const f=fixture();f.env.STORE_TAX_MODE=mode;f.env.STORE_TAX_PERCENTAGE='7.5';f.env.STORE_TAX_SHIPPING='false';f.env.SQUARE_LOCATION_ID='offline-location';
-  let submitted, calls=0;
-  const worker=loadWorker(async(url,options)=>{
-    calls++;
-    if(String(url).endsWith('/payment-links')) { submitted=JSON.parse(options.body);return Response.json({payment_link:{id:'link',order_id:'tax-order',url:'https://square.link/offline'}}); }
-    const subtotal=submitted.order.line_items.reduce((sum,item)=>sum+Number(item.quantity)*item.base_price_money.amount,0);
-    const tax=Math.round(2000*0.075);
-    return Response.json({order:{id:'tax-order',reference_id:submitted.order.reference_id,total_money:{amount:subtotal+tax,currency:'USD'},total_tax_money:{amount:tax,currency:'USD'},total_discount_money:{amount:0,currency:'USD'}}});
-  });
-  return {f,worker,submitted:()=>submitted,calls:()=>calls};
-}
-test('unconfigured tax policy prevents provider calls and leaves no new orders or reservations',async()=>{
-  const c=checkoutFixture('unconfigured');const before=c.f.sqlite.prepare('SELECT COUNT(*) AS n FROM orders').get().n;
-  const response=await c.worker.default.fetch(request('/api/store/checkout',{cart:JSON.stringify([{sku:'SKU1',quantity:2}])}),c.f.env,{});
-  assert.equal(response.status,503);assert.equal(c.calls(),0);assert.equal(c.f.sqlite.prepare('SELECT COUNT(*) AS n FROM orders').get().n,before);
-});
-test('explicit fixed tax is sent to Square and provider-verified totals are stored without amount mismatches',async()=>{
-  const c=checkoutFixture('fixed');const response=await c.worker.default.fetch(request('/api/store/checkout',{cart:JSON.stringify([{sku:'SKU1',quantity:2}])}),c.f.env,{});assert.equal(response.status,200);
-  const data=await response.json();const submitted=c.submitted();assert.equal(submitted.order.taxes[0].percentage,'7.5');assert.equal(submitted.order.line_items[0].applied_taxes[0].tax_uid,'store-tax');assert.equal(submitted.order.line_items[1].applied_taxes,undefined);
-  const row=c.f.sqlite.prepare('SELECT * FROM orders WHERE order_number=?').get(data.id);assert.equal(row.tax,1.5);assert.equal(row.total,row.subtotal+row.shipping+row.tax);
-});
-test('an explicitly reviewed no-tax mode sends no tax and requires no provider tax lookup',async()=>{
-  const c=checkoutFixture('none');const response=await c.worker.default.fetch(request('/api/store/checkout',{cart:JSON.stringify([{sku:'SKU1',quantity:2}])}),c.f.env,{});assert.equal(response.status,200);assert.equal(c.calls(),1);assert.equal(c.submitted().order.taxes,undefined);
-});
-
 test('simultaneous Turnstile consumers share one loader and render each element once; failed loads can retry',async()=>{
   const scripts=[],rendered=[],elements=new Map();
   const window={siteConfig:{turnstileSiteKey:'offline-key'}};

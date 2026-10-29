@@ -1,4 +1,6 @@
-import { storeTaxPolicy, publicCheckoutConfiguration } from "./store-tax";
+import { bookNotificationKey, queueBookNotifications, bookNotificationEligibility } from "./book-notifications";
+import { expireSquareCheckouts } from "./square-checkout";
+import { publicCheckoutConfiguration } from "./store-tax";
 import { deriveCustomerPassword, verifyCustomerPassword, needsPasswordUpgrade } from "./passwords";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
@@ -214,7 +216,7 @@ const app: AppHandler = {
       }
 
       if (url.pathname === "/api/forms/submit") {
-        return await handleFormRequest(request, env);
+        return await handleFormRequest(request, env, ctx);
       }
 
       if (url.pathname === "/api/store/books") {
@@ -306,7 +308,18 @@ const app: AppHandler = {
   },
 };
 
-export default app;
+const handler: AppHandler = {
+  ...app,
+  async fetch(request, env, ctx) {
+    const response = await app.fetch(request, env, ctx);
+    if (env.DEPLOYMENT_ENVIRONMENT !== 'preview') return response;
+    const privatePreview = new Response(response.body, response);
+    privatePreview.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    privatePreview.headers.set('Cache-Control', 'no-store');
+    return privatePreview;
+  },
+};
+export default handler;
 
 async function enforcePublicRateLimit(request: Request, env: Env, scope: string, maximum: number, windowSeconds: number, identity = "") {
   const source = identity || request.headers.get("CF-Connecting-IP") || "anonymous";
@@ -420,7 +433,10 @@ function hasCloudflareAccessConfig(env: Env) {
 function adminAuthMode(env: Env): "access" | "google" {
   const mode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
   if (mode && !["access", "google"].includes(mode)) throw new HttpError(503, "Admin authentication mode is invalid.");
-  return mode === "access" || (mode !== "google" && Boolean(text(env.CF_ACCESS_TEAM_DOMAIN, 200) || text(env.CF_ACCESS_AUD, 200))) ? "access" : "google";
+  if (!mode && (text(env.CF_ACCESS_TEAM_DOMAIN, 200) || text(env.CF_ACCESS_AUD, 200))) throw new HttpError(503, "Select an explicit admin authentication mode.");
+  // Access is opt-in. Stale audience/team values must never silently change
+  // the configured Google login or lock operators into a different flow.
+  return mode === "access" ? "access" : "google";
 }
 
 const accessJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
@@ -653,11 +669,11 @@ async function requireAdminSession(request: Request, env: Env): Promise<Authenti
   };
 }
 
-async function handleFormRequest(request: Request, env: Env): Promise<Response> {
+async function handleFormRequest(request: Request, env: Env, ctx?: Parameters<AppHandler["fetch"]>[2]): Promise<Response> {
   if (request.method !== "POST") {
     return json(request, env, { ok: false, error: "Method not allowed." }, 405);
   }
-  return handleFormSubmission(request, env, await parseBody(request));
+  return handleFormSubmission(request, env, await parseBody(request), ctx);
 }
 
 function validateFormPayload(payload: Record<string, string>): FormType {
@@ -704,7 +720,7 @@ async function verifyTurnstile(
 }
 
 async function handleFormSubmission(
-  request: Request, env: Env, payload: Record<string, string>,
+  request: Request, env: Env, payload: Record<string, string>, ctx?: Parameters<AppHandler["fetch"]>[2],
 ): Promise<Response> {
   if (payload.website) return json(request, env, { ok: true, emailSent: false });
   const formType = validateFormPayload(payload), route = FORM_ROUTES[formType];
@@ -770,6 +786,14 @@ async function handleFormSubmission(
       requestKey, requestHash, "-" + route.rateLimitWindowSeconds + " seconds",
     );
   const statements = [submission];
+  if (formType === 'bookNotification') {
+    statements.push(env.DB.prepare("UPDATE form_submissions SET book_notification_key = ?2 WHERE id = ?1").bind(submissionId, bookNotificationKey(record.title)));
+    // A fresh explicit book signup can restore that title's consent without
+    // subscribing the reader to the general newsletter or older book lists.
+    if (record.consent) statements.push(env.DB.prepare(`UPDATE newsletter_subscribers SET status = 'pending', consent = 0,
+      last_seen_at = datetime('now') WHERE email = ?1 AND status = 'unsubscribed'
+      AND EXISTS (SELECT 1 FROM form_submissions WHERE id = ?2)`).bind(record.email.toLowerCase(), submissionId));
+  }
   if (formType === "newsletter") {
     statements.push(env.DB.prepare(
       `INSERT INTO newsletter_subscribers (
@@ -796,38 +820,72 @@ async function handleFormSubmission(
   // deliveries, with the original payload and provider idempotency key.
   try { await processSubmissionEmails(env, submissionId); }
   catch (error) { console.error(JSON.stringify({type: "submission_queue_failed", submissionId, error: getErrorMessage(error)})); }
+  if (formType === "bookNotification") scheduleBookNotifications(env, ctx);
   return submissionReceipt(request, env, submissionId, false);
 }
 
-async function processSubmissionEmails(env: Env, submissionId = "") {
+async function processSubmissionEmails(env: Env, submissionId = "", bookNotifications = false) {
+  const table = bookNotifications ? "book_notification_email_deliveries" : "submission_email_deliveries";
   const started = Date.now();
   for (let processed = 0; processed < 10 && Date.now() - started < 45000; processed++) {
     const lock = crypto.randomUUID();
-    const row = await env.DB.prepare(`UPDATE submission_email_deliveries SET status = 'Sending', lock_id = ?1,
+    const row = await env.DB.prepare(`UPDATE ${table} SET status = 'Sending', lock_id = ?1,
       lock_until = datetime('now', '+3 minutes') WHERE id = (
-        SELECT id FROM submission_email_deliveries WHERE (?2 = '' OR submission_id = ?2)
+        SELECT id FROM ${table} WHERE (?2 = '' OR submission_id = ?2)
           AND ((status = 'Pending' AND datetime(next_attempt_at) <= datetime('now'))
             OR (status = 'Sending' AND datetime(lock_until) <= datetime('now')))
         ORDER BY next_attempt_at, id LIMIT 1)
       RETURNING id, message_json AS messageJson, attempts, first_attempt_at AS firstAttemptAt`)
       .bind(lock, submissionId).first<{id: string; messageJson: string; attempts: number; firstAttemptAt: string}>();
     if (!row) return;
+    if (bookNotifications) {
+      const eligibility = await bookNotificationEligibility(env, row.id);
+      if (eligibility !== 'ready') {
+        await env.DB.prepare(`UPDATE ${table} SET status = ?3, lock_until = '', next_attempt_at = datetime('now', '+5 minutes'),
+          last_error = ?4, updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2`)
+          .bind(row.id, lock, eligibility === 'skip' ? 'Skipped' : 'Pending', eligibility === 'skip' ? 'Reader opted out.' : 'Book is not currently available.').run();
+        continue;
+      }
+    }
     if (row.attempts >= 6 || (row.firstAttemptAt && Date.now() - Date.parse(row.firstAttemptAt + 'Z') >= 23 * 3600000)) {
-      await env.DB.prepare("UPDATE submission_email_deliveries SET status = 'Failed', last_error = 'Retry window exhausted; verify provider delivery before resending.', lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2").bind(row.id, lock).run();
+      await env.DB.prepare(`UPDATE ${table} SET status = 'Failed', last_error = 'Retry window exhausted; verify provider delivery before resending.', lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2`).bind(row.id, lock).run();
       continue;
     }
-    await env.DB.prepare("UPDATE submission_email_deliveries SET attempts = attempts + 1, first_attempt_at = CASE WHEN first_attempt_at = '' THEN datetime('now') ELSE first_attempt_at END, updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2").bind(row.id, lock).run();
+    await env.DB.prepare(`UPDATE ${table} SET attempts = attempts + 1, first_attempt_at = CASE WHEN first_attempt_at = '' THEN datetime('now') ELSE first_attempt_at END, updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2`).bind(row.id, lock).run();
     try {
       await sendEmail(env, JSON.parse(row.messageJson) as Parameters<typeof sendEmail>[1]);
-      await env.DB.prepare("UPDATE submission_email_deliveries SET status = 'Sent', last_error = '', lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2").bind(row.id, lock).run();
+      await env.DB.prepare(`UPDATE ${table} SET status = 'Sent', last_error = '', lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2`).bind(row.id, lock).run();
     } catch (error) {
       const transient = !(error instanceof EmailDeliveryError) || error.status === 429 || error.status >= 500 || error.concurrent;
       const delay = Math.min(3600, Math.max(60 * 2 ** row.attempts, error instanceof EmailDeliveryError ? error.retryAfter : 0));
-      await env.DB.prepare("UPDATE submission_email_deliveries SET status = ?3, next_attempt_at = datetime('now', ?4), last_error = ?5, lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2")
+      await env.DB.prepare(`UPDATE ${table} SET status = ?3, next_attempt_at = datetime('now', ?4), last_error = ?5, lock_until = '', updated_at = datetime('now') WHERE id = ?1 AND lock_id = ?2`)
         .bind(row.id, lock, transient && row.attempts + 1 < 6 ? "Pending" : "Failed", '+' + delay + ' seconds', getErrorMessage(error).slice(0, 1000)).run();
     }
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
+}
+
+function scheduleBookNotifications(env: Env, ctx?: Parameters<AppHandler['fetch']>[2]) {
+  if (ctx?.waitUntil) ctx.waitUntil(runBookNotifications(env));
+}
+
+async function runBookNotifications(env: Env) {
+  try {
+    if (!env.RESEND_API_KEY || !env.UNSUBSCRIBE_SECRET || !env.MAIL_FROM_EMAIL) return;
+    await queueBookNotifications(env, async match => {
+      const siteUrl = firstUrlValue(env.SITE_URL);
+      const bookUrl = new URL('/books#store-book-' + encodeURIComponent(match.bookId), siteUrl).toString();
+      const unsubscribeUrl = await getUnsubscribeUrl(env, match.email);
+      const intro = 'Hi ' + getFirstName(match.name) + ', ' + match.title + ' is now available from Jackrabbit Punkin Publishing.';
+      return { to: match.email, subject: match.title + ' is now available',
+        text: intro + '\n\nYou asked us to let you know when this title became available. Browse the book: ' + bookUrl + '\n\nUnsubscribe: ' + unsubscribeUrl,
+        html: buildEmailHtml({ eyebrow: 'YOUR BOOK UPDATE', heading: match.title + ' is now available', intro,
+          paragraphs: ['You asked us to let you know when this title became available.'], buttonLabel: 'Browse the book', buttonUrl: bookUrl, siteUrl,
+          footer: 'You received this email because you requested an update about this title.', unsubscribeUrl }),
+        replyTo: env.ADMIN_NOTIFICATION_EMAIL || env.MAIL_FROM_EMAIL, fromName: 'Jackrabbit Punkin Publishing LLC' };
+    });
+    await processSubmissionEmails(env, '', true);
+  } catch (error) { console.error(JSON.stringify({ type: 'book_notifications_failed', error: getErrorMessage(error) })); }
 }
 
 async function submissionReceipt(request: Request, env: Env, submissionId: string, duplicate: boolean) {
@@ -916,20 +974,20 @@ async function handleStoreCheckout(
     throw new HttpError(503, "Square is not configured yet.");
   }
 
-  const taxPolicy = storeTaxPolicy(env);
   const customer = await getOptionalCustomerSession(request, env);
   const orderNumber = createOrderNumber();
   const subtotal = money(items.reduce((sum, item) => sum + item.lineTotal, 0));
   const bookCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const shipping = money((bookCount * STORE_SHIPPING_PER_BOOK_CENTS) / 100);
-  const estimatedTax = money((subtotal + (taxPolicy.shippingTaxable ? shipping : 0)) * taxPolicy.percentage / 100);
-  const total = money(subtotal + shipping + estimatedTax);
+  // Tax compliance is handled separately by the merchant. Charge only the
+  // validated catalog prices and existing shipping; no customer surcharge.
+  const total = money(subtotal + shipping);
 
   const statements = [env.DB.prepare(
     `INSERT INTO orders (order_number, customer_id, provider, created_at, customer_name, customer_email,
       subtotal, shipping, tax, total, payment_status, fulfillment_status, tracking_number, shipping_address, notes)
-     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, ?9, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
-  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || "", estimatedTax),
+     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, 0, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
+  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || ""),
     env.DB.prepare("INSERT INTO checkout_sessions (session_id, cart_json, created_at) VALUES (?1, ?2, datetime('now'))").bind(orderNumber, JSON.stringify(items)),
     ...items.filter((item) => !item.preorder).map((item) => env.DB.prepare(
       "INSERT INTO checkout_reservations (order_number, book_id, quantity, expires_at) VALUES (?1, ?2, ?3, datetime('now', '+30 minutes'))",
@@ -951,21 +1009,18 @@ async function handleStoreCheckout(
       location_id: env.SQUARE_LOCATION_ID,
       reference_id: orderNumber,
       pricing_options: { auto_apply_taxes: false, auto_apply_discounts: false },
-      ...(taxPolicy.mode === "fixed" ? { taxes: [{ uid: "store-tax", name: "Sales tax", percentage: String(taxPolicy.percentage), scope: "LINE_ITEM", type: "ADDITIVE" }] } : {}),
       line_items: [
         ...items.map((item) => ({
           name: item.title.slice(0, 500),
           quantity: String(item.quantity),
           base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
           metadata: { sku: item.sku, bookId: item.bookId },
-          ...(taxPolicy.mode === "fixed" ? { applied_taxes: [{ tax_uid: "store-tax" }] } : {}),
         })),
         {
           name: "U.S. Shipping & Handling",
           quantity: "1",
           base_price_money: { amount: Math.round(shipping * 100), currency: "USD" },
           metadata: { type: "shipping", perBookCents: String(STORE_SHIPPING_PER_BOOK_CENTS) },
-          ...(taxPolicy.shippingTaxable ? { applied_taxes: [{ tax_uid: "store-tax" }] } : {}),
         },
       ],
     },
@@ -987,17 +1042,6 @@ async function handleStoreCheckout(
   await env.DB.prepare("UPDATE orders SET square_order_id = ?2, square_checkout_id = ?3 WHERE order_number = ?1")
     .bind(orderNumber, result.orderId, result.checkoutId)
     .run();
-  if (taxPolicy.mode === "fixed") {
-    const providerOrder = await retrieveSquareObject(env, "orders/" + encodeURIComponent(result.orderId), "order");
-    const providerTotal = providerOrder.total_money as Record<string, JsonValue>;
-    const providerTax = providerOrder.total_tax_money as Record<string, JsonValue>;
-    const providerDiscount = providerOrder.total_discount_money as Record<string, JsonValue> | undefined;
-    const cents = Number(providerTotal?.amount), taxCents = Number(providerTax?.amount);
-    if (providerOrder.reference_id !== orderNumber || providerTotal?.currency !== "USD" || providerTax?.currency !== "USD" || !Number.isSafeInteger(cents) || !Number.isSafeInteger(taxCents) || taxCents < 0 || cents !== Math.round((subtotal + shipping) * 100) + taxCents || Number(providerDiscount?.amount || 0) !== 0 || Math.abs(taxCents - Math.round(estimatedTax * 100)) > items.length + 1) {
-      throw new HttpError(502, "Checkout totals could not be verified. Please contact the publisher.");
-    }
-    await env.DB.prepare("UPDATE orders SET tax = ?2, total = ?3 WHERE order_number = ?1").bind(orderNumber, taxCents / 100, cents / 100).run();
-  }
 
   return json(request, env, { ok: true, id: orderNumber, url: result.url });
 }
@@ -1171,21 +1215,15 @@ async function handleUnsubscribe(
   if (!isValidEmail(email)) {
     return renderUnsubscribePage(false, "This unsubscribe link is invalid. Please contact us if you still need help.");
   }
-  await env.DB.prepare(
-    `UPDATE newsletter_subscribers
-     SET consent = 0,
-         status = 'unsubscribed',
-         notes = trim(coalesce(notes, '') || CASE WHEN coalesce(notes, '') = '' THEN '' ELSE '\n' END || ?2),
-         last_seen_at = datetime('now')
-     WHERE email = ?1`,
-  )
-    .bind(email, "Unsubscribed through email link on " + new Date().toISOString() + ".")
-    .run();
-  await env.DB.prepare(
-    "UPDATE form_submissions SET status = 'Unsubscribed' WHERE form_type = 'newsletter' AND lower(email) = ?1",
-  )
-    .bind(email)
-    .run();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO newsletter_subscribers(email, consent, status, source, notes)
+      VALUES (?1, 0, 'unsubscribed', 'unsubscribe', ?2)
+      ON CONFLICT(email) DO UPDATE SET consent = 0, status = 'unsubscribed',
+        notes = trim(coalesce(newsletter_subscribers.notes, '') || CASE WHEN coalesce(newsletter_subscribers.notes, '') = '' THEN '' ELSE '\n' END || ?2),
+        last_seen_at = datetime('now')`)
+      .bind(email, "Unsubscribed through email link on " + new Date().toISOString() + "."),
+    env.DB.prepare("UPDATE form_submissions SET status = 'Unsubscribed', consent = 0 WHERE form_type IN ('newsletter', 'bookNotification') AND lower(trim(email)) = ?1").bind(email),
+  ]);
   return renderUnsubscribePage(true, "You have been removed from the Jackrabbit Punkin Publishing subscriber list.");
 }
 
@@ -1354,8 +1392,8 @@ async function recordPaidOrderFromSquarePayment(env: Env, squareEventId: string,
     ).bind(order.orderNumber, paymentId, squareEventId, amountCents, details.name, details.email, details.address).run();
   } catch (error) {
     if (/Insufficient inventory|Checkout cart missing/i.test(getErrorMessage(error))) {
-      await env.DB.prepare("UPDATE orders SET payment_status = 'Payment Review', notes = ?2 WHERE order_number = ?1 AND payment_status NOT IN ('Paid', 'Refunded', 'Partially Refunded')")
-        .bind(order.orderNumber, "Payment completed in Square; settlement needs inventory/cart reconciliation. Do not fulfill until resolved.").run();
+      await env.DB.prepare("UPDATE orders SET payment_status = 'Payment Review', notes = ?2, square_payment_id = ?3 WHERE order_number = ?1 AND payment_status NOT IN ('Paid', 'Refunded', 'Partially Refunded')")
+        .bind(order.orderNumber, "Payment completed in Square; settlement needs inventory/cart reconciliation. Do not fulfill until resolved.", paymentId).run();
     }
     throw error;
   }
@@ -1448,7 +1486,7 @@ async function handleConfirmCheckout(request: Request, env: Env): Promise<Respon
 async function handleAdminApi(
   request: Request,
   env: Env,
-  _ctx: unknown,
+  _ctx: Parameters<AppHandler["fetch"]>[2],
   url: URL,
 ): Promise<Response> {
   const admin = await authorizeAdmin(request, env);
@@ -1547,12 +1585,18 @@ async function handleAdminApi(
   }
   if (request.method === "GET" && path === "books") {
     const [books, inventory] = await Promise.all([listAllStoreBooks(env), getInventorySummary(env)]);
+    const notificationLists = await env.DB.prepare(`SELECT title, COUNT(DISTINCT lower(trim(email))) AS subscribers FROM form_submissions
+      WHERE form_type = 'bookNotification' AND consent = 1 AND status != 'Unsubscribed'
+        AND NOT EXISTS (SELECT 1 FROM newsletter_subscribers ns WHERE lower(ns.email) = lower(trim(form_submissions.email)) AND ns.status = 'unsubscribed') GROUP BY title ORDER BY title`).all<{title: string; subscribers: number}>();
+    const notifications = await env.DB.prepare(`SELECT b.title, d.status, COUNT(*) AS count, MAX(d.last_error) AS lastError
+      FROM book_notification_email_deliveries d JOIN books b ON b.id = d.book_id GROUP BY b.title,d.status ORDER BY b.title,d.status`).all();
     const syncByBook = new Map(inventory.map((row) => [row.bookId, row]));
-    return json(request, env, { ok: true, books: books.map((book) => ({ ...book, squareInventory: syncByBook.get(book.bookId) || null })) });
+    return json(request, env, { ok: true, books: books.map((book) => ({ ...book, squareInventory: syncByBook.get(book.bookId) || null })), notificationLists: notificationLists.results || [], notifications: notifications.results || [] });
   }
   if (request.method === "POST" && path === "books") {
     requireRole(admin, "manager");
     let book = await saveBook(env, admin, await parseBody(request));
+    scheduleBookNotifications(env, _ctx);
     let squareCatalogSync: {
       configured: boolean;
       synced: boolean;
@@ -1612,6 +1656,7 @@ async function handleAdminApi(
   if (request.method === "POST" && path === "inventory/adjust") {
     requireRole(admin, "manager");
     const book = await adjustInventory(env, admin, await parseBody(request));
+    scheduleBookNotifications(env, _ctx);
     const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
     return json(request, env, { ok: true, book, squareSync });
   }
@@ -1654,6 +1699,7 @@ async function handleAdminApi(
           .bind(crypto.randomUUID(), book.bookId, book.sku, book.title, quantity - book.stock, book.stock, quantity, admin.email, text(body.notes, 1000)).run();
       }
       const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
+      scheduleBookNotifications(env, _ctx);
       return json(request, env, { ok: true, linkedBook: true, quantity, squareSync });
     }
     try {
@@ -1697,6 +1743,7 @@ async function handleAdminApi(
       }
       const squareSync = await syncSquareInventory(env, { bookId: book.bookId, force: true, limit: 1 });
       await writeAuditLog(env, admin, "square_inventory_count_adjusted", "book", book.bookId, "Set linked Square catalog stock to " + quantity + ".");
+      scheduleBookNotifications(env, _ctx);
       return json(request, env, { ok: true, linkedBook: true, quantity, squareSync });
     }
     try {
@@ -2503,6 +2550,7 @@ async function listPublishedStoreBooks(env: Env): Promise<BookRecord[]> {
       sku,
       isbn,
       title,
+      notification_title AS notificationTitle,
       subtitle,
       author,
       synopsis,
@@ -2538,6 +2586,7 @@ async function listAllStoreBooks(env: Env): Promise<BookRecord[]> {
       sku,
       isbn,
       title,
+      notification_title AS notificationTitle,
       subtitle,
       author,
       synopsis,
@@ -2572,6 +2621,7 @@ async function getStoreBookById(env: Env, bookId: string): Promise<BookRecord | 
       sku,
       isbn,
       title,
+      notification_title AS notificationTitle,
       subtitle,
       author,
       synopsis,
@@ -2624,6 +2674,7 @@ function mapBookRecord(row: Record<string, unknown>): BookRecord {
     sku: text(row.sku, 120),
     isbn: text(row.isbn, 80),
     title: text(row.title, 300),
+    notificationTitle: text(row.notificationTitle, 300),
     subtitle: text(row.subtitle, 300),
     author: text(row.author, 200),
     synopsis: text(row.synopsis, 12000),
@@ -2664,21 +2715,24 @@ async function saveBook(env: Env, admin: AuthenticatedAdmin, body: Record<string
   const stock = Math.max(0, Math.floor(Number(body.stock || existing?.stock || 0)));
   const format = text(body.format, 100);
   const price = storeBookPrice(format, Number(body.price || 0));
+  const notificationTitle = typeof body.notificationTitle === "string" ? text(body.notificationTitle, 300) : existing?.notificationTitle || "";
   const preorder = toBoolean(body.preorder);
   const statusInput = text(body.status, 40) || "Draft";
   const status = statusInput === "Published" && stock <= 0 && !preorder ? "Out of Stock" : statusInput;
 
   await env.DB.prepare(
     `INSERT INTO books (
-      id, sku, isbn, title, subtitle, author, synopsis, short_description,
+      id, sku, isbn, title, subtitle, author, synopsis, short_description, notification_title, notification_key,
       format, category, price, compare_price, stock, low_stock_threshold,
       image_key, image_url, featured, coming_soon, preorder, status,
       publication_date, square_catalog_item_id, square_catalog_variation_id, created_at, updated_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, COALESCE((SELECT created_at FROM books WHERE id = ?1), datetime('now')), datetime('now'))
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?24, ?25, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, COALESCE((SELECT created_at FROM books WHERE id = ?1), datetime('now')), datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       sku = excluded.sku,
       isbn = excluded.isbn,
       title = excluded.title,
+      notification_title = excluded.notification_title,
+      notification_key = excluded.notification_key,
       subtitle = excluded.subtitle,
       author = excluded.author,
       synopsis = excluded.synopsis,
@@ -2698,7 +2752,7 @@ async function saveBook(env: Env, admin: AuthenticatedAdmin, body: Record<string
       square_catalog_variation_id = excluded.square_catalog_variation_id,
       updated_at = datetime('now')`,
   )
-    .bind(bookId, sku, text(body.isbn, 80), title, text(body.subtitle, 300), text(body.author, 200), text(body.synopsis, 12000), text(body.shortDescription, 1000), format, text(body.category, 150), price, money(Number(body.comparePrice || 0)), stock, Math.max(0, Math.floor(Number(body.lowStockThreshold || 5))), existing?.imageKey || "", existing?.imageUrl || "", toBoolean(body.featured) ? 1 : 0, toBoolean(body.comingSoon) ? 1 : 0, preorder ? 1 : 0, status, text(body.publicationDate, 50), text(body.squareCatalogItemId, 200), text(body.squareCatalogVariationId, 200))
+    .bind(bookId, sku, text(body.isbn, 80), title, text(body.subtitle, 300), text(body.author, 200), text(body.synopsis, 12000), text(body.shortDescription, 1000), format, text(body.category, 150), price, money(Number(body.comparePrice || 0)), stock, Math.max(0, Math.floor(Number(body.lowStockThreshold || 5))), existing?.imageKey || "", existing?.imageUrl || "", toBoolean(body.featured) ? 1 : 0, toBoolean(body.comingSoon) ? 1 : 0, preorder ? 1 : 0, status, text(body.publicationDate, 50), text(body.squareCatalogItemId, 200), text(body.squareCatalogVariationId, 200), notificationTitle, bookNotificationKey(notificationTitle || title))
     .run();
 
   if (existing && existing.stock !== stock) {
@@ -2747,11 +2801,12 @@ async function deleteBook(env: Env, bookId: string): Promise<{ action: "archived
   const book = await getStoreBookById(env, bookId);
   if (!book) throw new HttpError(404, "Book not found.");
 
-  const [orderReferences, inventoryReferences] = await Promise.all([
+  const [orderReferences, inventoryReferences, notificationReferences] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS count FROM order_items WHERE book_id = ?1").bind(bookId).first<{ count: number }>(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM inventory_events WHERE book_id = ?1").bind(bookId).first<{ count: number }>(),
+    env.DB.prepare("SELECT COUNT(*) AS count FROM book_notification_email_deliveries WHERE book_id = ?1").bind(bookId).first<{ count: number }>(),
   ]);
-  const hasHistory = Number(orderReferences?.count || 0) > 0 || Number(inventoryReferences?.count || 0) > 0;
+  const hasHistory = Number(orderReferences?.count || 0) > 0 || Number(inventoryReferences?.count || 0) > 0 || Number(notificationReferences?.count || 0) > 0;
 
   if (hasHistory) {
     await env.DB.prepare(
@@ -2759,7 +2814,7 @@ async function deleteBook(env: Env, bookId: string): Promise<{ action: "archived
     ).bind(bookId).run();
     return {
       action: "archived",
-      message: "This book has order or inventory history, so it was archived instead of permanently deleted.",
+      message: "This book has order, inventory or notification history, so it was archived instead of permanently deleted.",
     };
   }
 
@@ -3493,8 +3548,9 @@ async function updateFulfillment(env: Env, orderNumber: string, body: Record<str
   const requested = text(body.fulfillmentStatus, 80) || "Unfulfilled";
   const status = FULFILLMENT_STATUSES.find((value) => value.toLowerCase() === requested.toLowerCase());
   if (!status) throw new HttpError(400, "Choose a valid fulfillment status: " + FULFILLMENT_STATUSES.join(", ") + ".");
-  const existing = await env.DB.prepare("SELECT notes FROM orders WHERE order_number = ?1").bind(key).first<{ notes: string | null }>();
+  const existing = await env.DB.prepare("SELECT notes, payment_status AS paymentStatus FROM orders WHERE order_number = ?1").bind(key).first<{ notes: string | null; paymentStatus: string }>();
   if (!existing) throw new HttpError(404, "Order not found.");
+  if (["Processing", "Shipped", "Fulfilled"].includes(status) && existing.paymentStatus !== "Paid") throw new HttpError(409, "Only settled paid orders can be fulfilled.");
   // Notes are only replaced when the client sends them, so a status save never wipes existing notes.
   const notes = typeof body.notes === "string" ? text(body.notes, 4000) : text(existing.notes, 4000);
   await env.DB.prepare("UPDATE orders SET fulfillment_status = ?2, tracking_number = ?3, notes = ?4 WHERE order_number = ?1")
@@ -4529,7 +4585,7 @@ function buildUserMessage(formType: FormType, record: ReturnType<typeof normaliz
     newsletter: { subject: "Welcome to Jackrabbit Punkin Publishing", heading: "You're on the list", paragraphs: ["Thank you for joining our community. We'll share new releases, author news, events, and Read It Forward updates with you."], footer: "You received this confirmation because you subscribed on our website." },
     speaking: { subject: "Speaking request received | Jackrabbit Punkin Publishing", heading: "Thank you for the invitation", paragraphs: ["We received your speaking request and appreciate your interest.", "Our team will review the event details and follow up about fit, availability, and format."], footer: "You received this confirmation because you submitted a speaking request on our website." },
     bookClub: { subject: "Book club request received | Jackrabbit Punkin Publishing", heading: "We received your book club request", paragraphs: ["Thank you for inviting Jackrabbit Punkin Publishing to connect with your reading community.", "Our team will review your request and follow up using the contact information you provided."], footer: "You received this confirmation because you submitted a book club request on our website." },
-    bookNotification: { subject: "Book update requested | Jackrabbit Punkin Publishing", heading: "We'll keep you posted", paragraphs: [`You're on the notification list for \"${record.title}.\"`, "We'll let you know when meaningful release news becomes available."], footer: "You received this confirmation because you requested a book notification on our website." },
+    bookNotification: { subject: "Book update requested | Jackrabbit Punkin Publishing", heading: "We'll keep you posted", paragraphs: [`You're on the notification list for \"${record.title}.\"`, "We'll email you when this title is published and available to order."], footer: "You received this confirmation because you requested a book notification on our website." },
   };
   const copy = copies[formType];
   const firstName = getFirstName(record.name);
@@ -4586,6 +4642,8 @@ function renderUnsubscribePage(success: boolean, message: string) {
 }
 
 async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
+  await runBookNotifications(env);
+  await expireSquareCheckouts(env, payment => recordPaidOrderFromSquarePayment(env, "expiry-reconcile:" + text(payment.id, 200), payment));
   await sendDueCampaigns(env);
   await processSubmissionEmails(env);
   await processNewsletterQueue(env);

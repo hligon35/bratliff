@@ -61,11 +61,9 @@ export interface Env {
   PUBLIC_ADMIN_URL: string;
   PUBLIC_API_URL: string;
   ADMIN_AUTH_MODE?: string;
+  DEPLOYMENT_ENVIRONMENT?: string;
   INVENTORY_AUTHORITY?: "local" | "square";
   SITE_LAUNCH_AT?: string;
-  STORE_TAX_MODE?: "unconfigured" | "none" | "fixed";
-  STORE_TAX_PERCENTAGE?: string;
-  STORE_TAX_SHIPPING?: string;
   ADMIN_BOOTSTRAP_EMAILS: string;
   ADMIN_BOOTSTRAP_NAMES?: string;
   ADMIN_DEVELOPER_EMAILS?: string;
@@ -141,6 +139,7 @@ export interface AuthenticatedAdmin {
 }
 
 export interface BookRecord {
+  notificationTitle?: string;
   bookId: string;
   sku: string;
   isbn: string;

@@ -6,11 +6,11 @@ import path from 'node:path';
 import {root} from './helpers/worker-harness.mjs';
 
 const book={sku:'SKU1',bookId:'b1',title:'Battles Beyond the Waves',format:'Paperback',price:20,stock:1,status:'Published'};
-function storefront(saved, books=[book], available=true, blocked=false) {
+function storefront(saved, books=[book], available=true, blocked=false, hash='') {
   const nodes=new Map(),events={},requests=[];let catalog={ok:true,books,checkout:{available}};
   for(const s of ['.store-cart-backdrop','[data-cart-items]','[data-cart-total]','[data-checkout]','[data-store-grid]','.store-toast'])nodes.set(s,{classList:{add(){},remove(){}},setAttribute(){},querySelector(){return {}}});
-  const window={siteConfig:{storeBooksEndpoint:'/api/store/books',storeCheckoutEndpoint:'/api/store/checkout'},location:{href:'https://example.org/books',origin:'https://example.org',search:''},JPPDialog:{open(){},close(){}}};
-  const document={querySelector:s=>nodes.get(s)||null,querySelectorAll:()=>[],addEventListener:(type,fn)=>events[type]=fn,body:{insertAdjacentHTML(){},classList:{add(){},remove(){}}},readyState:'loading'};
+  const window={siteConfig:{storeBooksEndpoint:'/api/store/books',storeCheckoutEndpoint:'/api/store/checkout'},location:{href:'https://example.org/books',origin:'https://example.org',search:'',hash},JPPDialog:{open(){},close(){}}};
+  const document={querySelector:s=>nodes.get(s)||null,querySelectorAll:()=>[],addEventListener:(type,fn)=>events[type]=fn,body:{insertAdjacentHTML(){},classList:{add(){},remove(){}}},readyState:'loading',getElementById(id){return {scrollIntoView(){events.scrolledTo=id;},focus(){events.focused=id;}}}};
   let stored=JSON.stringify(saved);
   vm.runInNewContext(readFileSync(path.join(root,'assets/store.js'),'utf8'),{window,document,URL,URLSearchParams,Intl,setTimeout(){},clearTimeout(){},fetch:async(url,options)=>{requests.push({url,options});return Response.json(catalog)},localStorage:{getItem(){return stored},setItem(k,v){if(blocked)throw new Error('blocked');stored=v}}});
   return {...window.JRPPStore,nodes,events,requests,setCatalog(data){catalog=data},cart:()=>JSON.parse(stored)};
@@ -20,6 +20,8 @@ test('restored carts use current prices, clamp stock, update checkout and persis
   const app=storefront([{sku:'SKU1',title:'Old',price:10,quantity:2,max:5}]);await app.init();app.openCart();
   assert.equal(app.nodes.get('[data-checkout]').disabled,false);
   assert.equal(app.nodes.get('[data-cart-total]').textContent,'$20.00');
+  assert.match(app.nodes.get('[data-store-grid]').innerHTML, /Shipping added at checkout\. This checkout does not add sales tax\./);
+  assert.doesNotMatch(app.nodes.get('[data-store-grid]').innerHTML, /applicable taxes calculated|processing fee|platform fee|2\.5%/i);
   assert.deepEqual(app.cart(),[{sku:'SKU1',title:book.title,price:20,imageUrl:'',quantity:1,max:1}]);
 });
 
@@ -42,4 +44,13 @@ test('featured paperback purchase opens its Square item checkout directly',()=>{
   const html=readFileSync(path.join(root,'books.html'),'utf8');
   assert.match(html,/<a\s+class="purchase-button direct"\s+href="https:\/\/square\.link\/u\/llSOK4s4"\s+target="_blank"\s+rel="noopener noreferrer"[^>]*>Buy Direct from JPP<\/a\s*>/);
   assert.doesNotMatch(html,/data-store-direct-(?:title|sku)/);
+});
+
+
+test('book availability email anchor opens and focuses its product after catalog loading', async () => {
+  const app = storefront([], [book], true, false, '#store-book-b1');
+  await app.init();
+  assert.match(app.nodes.get('[data-store-grid]').innerHTML, /id="store-book-b1"/);
+  assert.equal(app.events.scrolledTo, 'store-book-b1');
+  assert.equal(app.events.focused, 'store-book-b1');
 });

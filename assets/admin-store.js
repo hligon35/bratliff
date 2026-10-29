@@ -1046,6 +1046,7 @@ document.addEventListener("click", function (event) {
       "category",
       "format",
       "publicationDate",
+      "notificationTitle",
       "price",
       "comparePrice",
       "stock",
@@ -1143,6 +1144,7 @@ document.addEventListener("click", function (event) {
       } else {
         message = "Square product saved; inventory sync is queued.";
       }
+      message += " Matching book alerts are processed automatically; refresh notification status to review delivery.";
       setStatus("#bookStatus", message, ok);
     } catch (error) {
       setStatus("#bookStatus", error.message || "Book could not be saved.", false);
@@ -1247,6 +1249,17 @@ document.addEventListener("click", function (event) {
     const data = await api("books");
     state.books = Array.isArray(data.books) ? data.books : [];
     renderBooks();
+    const choices = qs('#notificationTitles');
+    if (choices) choices.innerHTML = (data.notificationLists || []).map(function (list) {
+      return '<option value="' + escapeHtml(list.title) + '">' + Number(list.subscribers) + ' readers</option>';
+    }).join('');
+    const progress = qs('#bookNotificationProgress');
+    if (progress) {
+      const lists = data.notificationLists || [];
+      progress.innerHTML = '<p>Matching readers are notified automatically after a book becomes available. Delivery begins in the background; remaining messages and retries continue each minute.</p>' +
+        (lists.length ? '<p>' + lists.map(function (list) { return escapeHtml(list.title) + ': ' + Number(list.subscribers) + ' subscribed'; }).join('<br>') + '</p>' : '<p>No active notification signups yet.</p>') +
+        (data.notifications || []).map(function (row) { return '<p><strong>' + escapeHtml(row.title) + '</strong>: ' + Number(row.count) + ' ' + escapeHtml(row.status) + (row.lastError ? ' : ' + escapeHtml(row.lastError) : '') + '</p>'; }).join('');
+    }
   }
 
   async function loadOrders() {
@@ -1295,6 +1308,9 @@ document.addEventListener("click", function (event) {
     } finally {
       if (button) { button.disabled = false; button.textContent = "Sync Square Inventory"; }
     }
+  });
+  qs('#refreshBookNotifications')?.addEventListener('click', function () {
+    loadBooks().catch(function (error) { setStatus('#bookStatus', error.message || 'Could not refresh notification status.', false); });
   });
   qs("#newBookBtn")?.addEventListener("click", resetBookForm);
   qs("#cancelBookBtn")?.addEventListener("click", resetBookForm);
@@ -1372,7 +1388,7 @@ document.addEventListener("click", async function (event) {
     const storeTab = event.target.closest("[data-store-tab]");
     if (storeTab) {
       showStoreView(storeTab.getAttribute("data-store-tab"));
-      if (storeTab.getAttribute("data-store-tab") === "inventory") loadSquareCatalog("", true);
+      if (storeTab.getAttribute("data-store-tab") === "books") await loadSquareCatalog("", true);
       if (state.page === "store") {
         window.history.replaceState(null, "", "#" + storeTab.getAttribute("data-store-tab"));
       }
@@ -1446,6 +1462,7 @@ pageLoaders.store = async function () {
   showStoreView(initialView);
   if (initialView === "books") await loadSquareCatalog("", true);
 };
+
 initAdminIcons();
 
 if (window.MutationObserver) {

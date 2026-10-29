@@ -83,6 +83,7 @@
     if (JSON.stringify(state.cart) !== previous && previous !== '[]') toast('Your cart was updated to the current prices and availability.');
   }
 
+  let linkedBookShown = false;
   function renderStore() {
     const grid = document.querySelector('[data-store-grid]');
     if (!grid) return;
@@ -95,7 +96,7 @@
       const purchasable = availableQuantity(book) > 0;
       const stockClass = book.stock <= book.lowStockThreshold ? 'low' : 'ok';
       const stockLabel = book.preorder ? 'Preorder available' : book.status === 'Out of Stock' ? 'Out of stock' : book.stock <= book.lowStockThreshold ? `Only ${book.stock} left` : 'In stock';
-      return `<article class="store-card" data-book-id="${escapeHtml(book.bookId)}">
+      return `<article class="store-card" id="store-book-${escapeHtml(book.bookId)}" data-book-id="${escapeHtml(book.bookId)}">
         <div class="store-book-image">${book.imageUrl ? `<img src="${escapeHtml(book.imageUrl)}" alt="${escapeHtml(book.title)}" loading="lazy" decoding="async">` : ''}</div>
         <div>
           <div class="store-book-meta"><span>${escapeHtml(book.format || 'Book')}</span>${book.category ? `<span>· ${escapeHtml(book.category)}</span>` : ''}</div>
@@ -103,7 +104,7 @@
           ${book.author ? `<p style="margin:.35rem 0;color:var(--muted)">${escapeHtml(book.author)}</p>` : ''}
           ${book.shortDescription ? `<p>${escapeHtml(book.shortDescription)}</p>` : ''}
           <div class="store-price">${money(book.price)}${book.comparePrice > book.price ? ` <del>${money(book.comparePrice)}</del>` : ''}</div>
-          <p class="store-checkout-note">Shipping and applicable taxes calculated at checkout.</p>
+          <p class="store-checkout-note">Shipping added at checkout. This checkout does not add sales tax.</p>
           <div class="store-stock ${stockClass}">${stockLabel}</div>
         </div>
         <div class="store-actions">
@@ -111,6 +112,16 @@
         </div>
       </article>`;
     }).join('');
+    const anchor = String(window.location.hash || '').slice(1);
+    if (!linkedBookShown && anchor.startsWith('store-book-')) {
+      const linked = document.getElementById(anchor);
+      if (linked) {
+        linkedBookShown = true;
+        linked.tabIndex = -1;
+        linked.scrollIntoView({ block: 'center' });
+        linked.focus({ preventScroll: true });
+      }
+    }
   }
 
   function addToCart(sku) {

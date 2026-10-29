@@ -145,13 +145,13 @@ The Worker confirms the Google account against the `admins` table in D1 before e
 By default the admin API is protected by the built-in Google Identity Services sign-in described above. To front `/admin/*` and `/api/admin/*` with Cloudflare Access instead (recommended for stronger, centrally managed access control):
 
 1. In the Cloudflare dashboard, open **Zero Trust > Access > Applications** and add a self-hosted application covering `jackrabbitpunkinpublishing.com/admin/*` and `jackrabbitpunkinpublishing.com/api/admin/*`.
-2. Choose an identity provider (Google, One-time PIN, etc.) and add a policy that allows only the emails already listed in `ADMIN_BOOTSTRAP_EMAILS` / the `admins` D1 table.
+2. Choose Google as the only identity provider and add a policy that allows only the emails already listed in `ADMIN_BOOTSTRAP_EMAILS` / the `admins` D1 table.
 3. Copy the application's **Audience (AUD) tag** and your **team domain** (`<team-name>.cloudflareaccess.com`) from the application's Overview tab.
-4. Set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` in `cloudflare/wrangler.jsonc`'s `vars` block (or `.env`/`.env.local` for local reference) and redeploy the Worker.
+4. Explicitly select `ADMIN_AUTH_MODE=access`, update the release policy, and set `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` in `cloudflare/wrangler.jsonc`'s `vars` block (or `.env`/`.env.local` for local reference) and redeploy the Worker.
 5. In Access mode, `authorizeAdmin()` verifies the `Cf-Access-Jwt-Assertion` header against Cloudflare's JWKS (`https://<team-domain>/cdn-cgi/access/certs`). When the edge does not supply the header, it verifies the `CF_Authorization` application cookie with the same signature, issuer, audience and expiration requirements. Both paths check the email against the `admins` table. The admin uses `/api/admin/session` and `/api/admin/logout`; `/api/auth/session` remains available for public session probes.
 6. Keep the Access cookie path at `/` (disable the Cookie Path Attribute) so requests from `/admin/*` to `/api/admin/*` receive it. Include `/api/admin/*` in the same Access application as `/admin/*`; this also supplies the verified header on session/logout requests. `PUBLIC_ADMIN_URL` must point to a host protected by that application: the branded login page uses it even when opened on www.
 
-This is intentionally opt-in and additive: leaving both variables blank keeps the current Google sign-in flow working exactly as before, so there is no risk of being locked out of `/admin/*` by deploying this change alone. Actually restricting access at Cloudflare's edge requires completing steps 1-4 above in the Zero Trust dashboard, which only an account owner should perform (a misconfigured Access policy can lock out all admins, including the person setting it up, until the policy is fixed from the dashboard).
+This is intentionally opt-in and additive: selecting `ADMIN_AUTH_MODE=google` (the production and sandbox configuration) keeps the direct Google sign-in flow, but existing live edge policies must still be reviewed before an approved deployment. Actually restricting access at Cloudflare's edge requires completing steps 1-4 above in the Zero Trust dashboard, which only an account owner should perform (a misconfigured Access policy can lock out all admins, including the person setting it up, until the policy is fixed from the dashboard).
 
 ## Production prerequisites
 
@@ -172,3 +172,5 @@ A scheduled GitHub Actions workflow checks dependencies, security advisories, Cl
 - Website URL, mailing address (optional), and legal effective date
 
 Asset placeholders are deliberate and should be replaced without cropping, recoloring, filtering, or otherwise altering the supplied originals.
+
+Automatic inventory-linked book alerts and the admin delivery view are documented in [Book availability notifications](docs/book-notifications.md). Migration 0022 and a separately approved deployment are required to enable them.
