@@ -2,12 +2,16 @@ name: Quality Checks
 
 on:
   push:
-    branches: [main, major-update, mailbox, monthlyUpdate, update]
+    branches: [main, preview, major-update, mailbox, monthlyUpdate, update, 'fix/**', 'feat/**']
   pull_request:
-    branches: [main, major-update]
+    branches: [main, preview, major-update]
 
 permissions:
   contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -32,3 +36,38 @@ jobs:
         run: npx wrangler deploy --dry-run --env="" --config cloudflare/wrangler.jsonc
         env:
           WRANGLER_SEND_METRICS: 'false'
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npx expo install --check
+      - run: npx expo export --platform android --output-dir dist
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+      - run: npm audit --audit-level=high
+
+  release:
+    name: Release checks
+    if: ${{ always() }}
+    needs: [validate, mobile]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every release check to succeed
+        env:
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          MOBILE_RESULT: ${{ needs.mobile.result }}
+        run: |
+          test "$VALIDATE_RESULT" = success
+          test "$MOBILE_RESULT" = success

@@ -12,7 +12,7 @@
     "worker:check": "tsc -p cloudflare/tsconfig.json --noEmit",
     "maintenance:run": "node scripts/monthly-maintenance.mjs --trigger local",
     "maintenance:dry-run": "node scripts/monthly-maintenance.mjs --trigger local --dry-run",
-    "test:maintenance": "node --test scripts/maintenance/tests/*.test.mjs scripts/admin-shell.test.mjs",
+    "test:maintenance": "node --test --test-concurrency=2 scripts/maintenance/tests/*.test.mjs scripts/admin-shell.test.mjs",
     "review-data:generate": "node scripts/generate-review-data.mjs",
     "release:check": "node scripts/check-release.mjs",
     "production:verify": "node scripts/verify-production.mjs",
