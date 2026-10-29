@@ -789,7 +789,7 @@ document.addEventListener("click", async function (event) {
     const storeTab = event.target.closest("[data-store-tab]");
     if (storeTab) {
       showStoreView(storeTab.getAttribute("data-store-tab"));
-      if (storeTab.getAttribute("data-store-tab") === "inventory") loadSquareCatalog("", true);
+      if (storeTab.getAttribute("data-store-tab") === "books") await loadSquareCatalog("", true);
       if (state.page === "store") {
         window.history.replaceState(null, "", "#" + storeTab.getAttribute("data-store-tab"));
       }
