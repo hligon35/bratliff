@@ -10,3 +10,8 @@ review-data-digest-*.html
 .env.local2
 maintenance-summary.*
 monthlyReport.md
+
+# Production exports contain private customer data.
+.release-backups/
+apps/mobile/.expo/
+apps/mobile/dist/
