@@ -16,6 +16,12 @@ assert.match(vars.SITE_LAUNCH_AT, /(?:Z|[+-]\d{2}:\d{2})$/i, 'The launch timesta
 assert.ok(Number.isFinite(Date.parse(config.env.sandbox.vars.SITE_LAUNCH_AT || '')), 'Sandbox must have a valid launch timestamp.');
 for (const file of readdirSync(root).filter(name => name.endsWith('.html'))) {
   const html = read(file);
+  assert.match(html, /<html\b[^>]*\blang=["'][^"']+["']/i, file + ': document language required');
+  assert.equal((html.match(/<main\b/gi) || []).length, 1, file + ': exactly one main landmark required');
+  assert.match(html, /<title>[^<]+<\/title>/i, file + ': descriptive title required');
+  for (const image of html.matchAll(/<img\b[^>]*>/gi)) {
+    assert.match(image[0], /\balt=["'][^"']*["']/i, file + ': every image needs alternative text or an explicit decorative alt');
+  }
   assert.doesNotMatch(html, /onloadTurnstileCallback|jppSiteUnlocked/);
   if (html.includes('assets/site.js')) {
     assert.ok(html.indexOf('assets/turnstile.js') < html.indexOf('assets/site.js'), file + ': load Turnstile helper first');
