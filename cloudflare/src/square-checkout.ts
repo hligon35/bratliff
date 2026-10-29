@@ -1,5 +1,10 @@
 import type { Env, JsonValue } from './types';
 
+type SquareExpiryResponse = {
+  order?: { id: string; state: string; tenders?: { payment_id?: string }[] };
+  payment?: Record<string, JsonValue>;
+  cancelled_order_id?: string;
+};
 type ExpiringCheckout = { orderNumber: string; orderId: string; linkId: string };
 
 // Square deletion cancels the associated order. A completed order must be
@@ -12,7 +17,7 @@ export async function expireSquareCheckouts(env: Env, reconcile: (payment: Recor
   async function square(route: string, method = 'GET') {
     const response = await fetch(base + '/v2/' + route, { method, headers, signal: AbortSignal.timeout(10000) });
     if (!response.ok) throw new Error('Square checkout expiry request failed (' + response.status + ').');
-    return await response.json() as Record<string, any>;
+    return await response.json() as SquareExpiryResponse;
   }
   for (let count = 0; count < 10 && Date.now() - started < 45000; count++) {
     const row = await env.DB.prepare(`UPDATE orders SET checkout_expiry_lock_until = datetime('now', '+3 minutes')
