@@ -420,7 +420,9 @@ function hasCloudflareAccessConfig(env: Env) {
 function adminAuthMode(env: Env): "access" | "google" {
   const mode = text(env.ADMIN_AUTH_MODE, 40).toLowerCase();
   if (mode && !["access", "google"].includes(mode)) throw new HttpError(503, "Admin authentication mode is invalid.");
-  return mode === "access" || (mode !== "google" && Boolean(text(env.CF_ACCESS_TEAM_DOMAIN, 200) || text(env.CF_ACCESS_AUD, 200))) ? "access" : "google";
+  // Access is opt-in. Stale audience/team values must never silently change
+  // the configured Google login or lock operators into a different flow.
+  return mode === "access" ? "access" : "google";
 }
 
 const accessJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
