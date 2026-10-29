@@ -105,7 +105,6 @@
 		"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
 		"INVENTORY_AUTHORITY": "local",
 		"SITE_LAUNCH_AT": "2026-10-20T04:00:00.000Z",
-		"STORE_TAX_MODE": "unconfigured",
 		"ADMIN_AUTH_MODE": "google"
 	},
 	"secrets": {
@@ -199,8 +198,7 @@
 				"ADMIN_BOOTSTRAP_NAMES": "{\"jacrat2016@gmail.com\":\"Jacquline Ratliff\",\"cratliff44@gmail.com\":\"Charles Ratliff\",\"hligon@getsparqd.com\":\"Harold Ligon\",\"barbarajratliff@hotmail.com\":\"Barbara Ratliff\",\"barbarajratliff67@gmail.com\":\"Barbara Ratliff\"}",
 				"NAMECHEAP_EMAIL_ADDRESS": "publisher@jackrabbitpunkinpublishing.com",
 				"INVENTORY_AUTHORITY": "local",
-				"SITE_LAUNCH_AT": "2000-01-01T00:00:00.000Z",
-				"STORE_TAX_MODE": "none"
+				"SITE_LAUNCH_AT": "2000-01-01T00:00:00.000Z"
 			},
 			"secrets": {
 				"required": [

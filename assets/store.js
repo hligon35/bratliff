@@ -103,7 +103,7 @@
           ${book.author ? `<p style="margin:.35rem 0;color:var(--muted)">${escapeHtml(book.author)}</p>` : ''}
           ${book.shortDescription ? `<p>${escapeHtml(book.shortDescription)}</p>` : ''}
           <div class="store-price">${money(book.price)}${book.comparePrice > book.price ? ` <del>${money(book.comparePrice)}</del>` : ''}</div>
-          <p class="store-checkout-note">Shipping and applicable taxes calculated at checkout.</p>
+          <p class="store-checkout-note">Shipping added at checkout. This checkout does not add sales tax.</p>
           <div class="store-stock ${stockClass}">${stockLabel}</div>
         </div>
         <div class="store-actions">

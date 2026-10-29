@@ -20,6 +20,8 @@ test('restored carts use current prices, clamp stock, update checkout and persis
   const app=storefront([{sku:'SKU1',title:'Old',price:10,quantity:2,max:5}]);await app.init();app.openCart();
   assert.equal(app.nodes.get('[data-checkout]').disabled,false);
   assert.equal(app.nodes.get('[data-cart-total]').textContent,'$20.00');
+  assert.match(app.nodes.get('[data-store-grid]').innerHTML, /Shipping added at checkout\. This checkout does not add sales tax\./);
+  assert.doesNotMatch(app.nodes.get('[data-store-grid]').innerHTML, /applicable taxes calculated|processing fee|platform fee|2\.5%/i);
   assert.deepEqual(app.cart(),[{sku:'SKU1',title:book.title,price:20,imageUrl:'',quantity:1,max:1}]);
 });
 

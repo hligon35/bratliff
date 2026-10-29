@@ -14,11 +14,6 @@ assert.ok(Number.isFinite(Date.parse(vars.SITE_LAUNCH_AT || '')), 'Production mu
 assert.match(vars.SITE_LAUNCH_AT, /(?:Z|[+-]\d{2}:\d{2})$/i, 'The launch timestamp must include an explicit timezone.');
 // Launch schedule can change; verify a valid, timezone-qualified instant rather than pinning a historical date.
 assert.ok(Number.isFinite(Date.parse(config.env.sandbox.vars.SITE_LAUNCH_AT || '')), 'Sandbox must have a valid launch timestamp.');
-assert.ok(['unconfigured', 'none', 'fixed'].includes(vars.STORE_TAX_MODE));
-if (vars.STORE_TAX_MODE === 'fixed') {
-  assert.ok(/^\d{1,2}(\.\d{1,4})?$/.test(vars.STORE_TAX_PERCENTAGE || '') && Number(vars.STORE_TAX_PERCENTAGE) > 0 && Number(vars.STORE_TAX_PERCENTAGE) <= 25, 'Configure an approved fixed rate.');
-  assert.ok(['true', 'false'].includes(vars.STORE_TAX_SHIPPING), 'Choose whether shipping is taxable.');
-}
 for (const file of readdirSync(root).filter(name => name.endsWith('.html'))) {
   const html = read(file);
   assert.doesNotMatch(html, /onloadTurnstileCallback|jppSiteUnlocked/);

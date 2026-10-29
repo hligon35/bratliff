@@ -1,4 +1,4 @@
-import { storeTaxPolicy, publicCheckoutConfiguration } from "./store-tax";
+import { publicCheckoutConfiguration } from "./store-tax";
 import { deriveCustomerPassword, verifyCustomerPassword, needsPasswordUpgrade } from "./passwords";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import RESOURCE_CATALOG from "../../assets/resource-catalog.json";
@@ -916,20 +916,20 @@ async function handleStoreCheckout(
     throw new HttpError(503, "Square is not configured yet.");
   }
 
-  const taxPolicy = storeTaxPolicy(env);
   const customer = await getOptionalCustomerSession(request, env);
   const orderNumber = createOrderNumber();
   const subtotal = money(items.reduce((sum, item) => sum + item.lineTotal, 0));
   const bookCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const shipping = money((bookCount * STORE_SHIPPING_PER_BOOK_CENTS) / 100);
-  const estimatedTax = money((subtotal + (taxPolicy.shippingTaxable ? shipping : 0)) * taxPolicy.percentage / 100);
-  const total = money(subtotal + shipping + estimatedTax);
+  // Tax compliance is handled separately by the merchant. Charge only the
+  // validated catalog prices and existing shipping; no customer surcharge.
+  const total = money(subtotal + shipping);
 
   const statements = [env.DB.prepare(
     `INSERT INTO orders (order_number, customer_id, provider, created_at, customer_name, customer_email,
       subtotal, shipping, tax, total, payment_status, fulfillment_status, tracking_number, shipping_address, notes)
-     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, ?9, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
-  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || "", estimatedTax),
+     VALUES (?1, ?2, 'square', datetime('now'), ?3, ?4, ?5, ?6, 0, ?7, 'Pending', 'Unfulfilled', '', ?8, '')`,
+  ).bind(orderNumber, customer?.id || "", customer?.displayName || "", customer?.email || "", subtotal, shipping, total, customer?.shippingAddress || ""),
     env.DB.prepare("INSERT INTO checkout_sessions (session_id, cart_json, created_at) VALUES (?1, ?2, datetime('now'))").bind(orderNumber, JSON.stringify(items)),
     ...items.filter((item) => !item.preorder).map((item) => env.DB.prepare(
       "INSERT INTO checkout_reservations (order_number, book_id, quantity, expires_at) VALUES (?1, ?2, ?3, datetime('now', '+30 minutes'))",
@@ -951,21 +951,18 @@ async function handleStoreCheckout(
       location_id: env.SQUARE_LOCATION_ID,
       reference_id: orderNumber,
       pricing_options: { auto_apply_taxes: false, auto_apply_discounts: false },
-      ...(taxPolicy.mode === "fixed" ? { taxes: [{ uid: "store-tax", name: "Sales tax", percentage: String(taxPolicy.percentage), scope: "LINE_ITEM", type: "ADDITIVE" }] } : {}),
       line_items: [
         ...items.map((item) => ({
           name: item.title.slice(0, 500),
           quantity: String(item.quantity),
           base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
           metadata: { sku: item.sku, bookId: item.bookId },
-          ...(taxPolicy.mode === "fixed" ? { applied_taxes: [{ tax_uid: "store-tax" }] } : {}),
         })),
         {
           name: "U.S. Shipping & Handling",
           quantity: "1",
           base_price_money: { amount: Math.round(shipping * 100), currency: "USD" },
           metadata: { type: "shipping", perBookCents: String(STORE_SHIPPING_PER_BOOK_CENTS) },
-          ...(taxPolicy.shippingTaxable ? { applied_taxes: [{ tax_uid: "store-tax" }] } : {}),
         },
       ],
     },
@@ -987,17 +984,6 @@ async function handleStoreCheckout(
   await env.DB.prepare("UPDATE orders SET square_order_id = ?2, square_checkout_id = ?3 WHERE order_number = ?1")
     .bind(orderNumber, result.orderId, result.checkoutId)
     .run();
-  if (taxPolicy.mode === "fixed") {
-    const providerOrder = await retrieveSquareObject(env, "orders/" + encodeURIComponent(result.orderId), "order");
-    const providerTotal = providerOrder.total_money as Record<string, JsonValue>;
-    const providerTax = providerOrder.total_tax_money as Record<string, JsonValue>;
-    const providerDiscount = providerOrder.total_discount_money as Record<string, JsonValue> | undefined;
-    const cents = Number(providerTotal?.amount), taxCents = Number(providerTax?.amount);
-    if (providerOrder.reference_id !== orderNumber || providerTotal?.currency !== "USD" || providerTax?.currency !== "USD" || !Number.isSafeInteger(cents) || !Number.isSafeInteger(taxCents) || taxCents < 0 || cents !== Math.round((subtotal + shipping) * 100) + taxCents || Number(providerDiscount?.amount || 0) !== 0 || Math.abs(taxCents - Math.round(estimatedTax * 100)) > items.length + 1) {
-      throw new HttpError(502, "Checkout totals could not be verified. Please contact the publisher.");
-    }
-    await env.DB.prepare("UPDATE orders SET tax = ?2, total = ?3 WHERE order_number = ?1").bind(orderNumber, taxCents / 100, cents / 100).run();
-  }
 
   return json(request, env, { ok: true, id: orderNumber, url: result.url });
 }
