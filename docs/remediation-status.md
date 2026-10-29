@@ -42,3 +42,8 @@ Draft PR: https://github.com/hligon35/bratliff/pull/42
 - Complete browser/mobile/keyboard/screen-reader testing, responsive layouts, performance/Core Web Vitals and deployed indexing/headers. Static semantic checks are only a baseline.
 - Validate native Android/iOS builds, simulator/device behavior, signing and EAS configuration if the shell is to ship. No website-to-Expo migration or native account/navigation flow is implemented.
 - Reconcile production orders/refunds/inventory and perform final launch acceptance. Merge, deployment, remote migrations, live provider transactions and live infrastructure changes still require explicit approval.
+
+
+## Book alert follow-up
+
+Automatic signup-to-inventory availability alerts are now implemented in this PR, with migration 0022, exact normalized title matching, an optional explicit list-title mapping, a durable one-per-reader/title outbox, shared retry handling, rechecked consent/availability, and admin delivery progress. The latest full local regression run passed **203 tests**; Worker/release checks and bundle dry-run passed. See [Book availability alerts](book-notifications.md) for operation, rollout and limitations. Migration 0022 and deployment remain unapplied; existing CI/mobile release blockers are unchanged.
