@@ -824,21 +824,21 @@ async function handleFormSubmission(
   return submissionReceipt(request, env, submissionId, false);
 }
 
-async function processSubmissionEmails(env: Env, submissionId = "", bookNotifications = false) {
-  const table = bookNotifications ? "book_notification_email_deliveries" : "submission_email_deliveries";
+async function processSubmissionEmails(env: Env, submissionId = "", bookNotifications: boolean | "orders" = false) {
+  const table = bookNotifications === "orders" ? "order_email_deliveries" : bookNotifications ? "book_notification_email_deliveries" : "submission_email_deliveries";
   const started = Date.now();
   for (let processed = 0; processed < 10 && Date.now() - started < 45000; processed++) {
     const lock = crypto.randomUUID();
     const row = await env.DB.prepare(`UPDATE ${table} SET status = 'Sending', lock_id = ?1,
       lock_until = datetime('now', '+3 minutes') WHERE id = (
-        SELECT id FROM ${table} WHERE (?2 = '' OR submission_id = ?2)
+        SELECT id FROM ${table} WHERE message_json != '' AND (?2 = '' OR submission_id = ?2)
           AND ((status = 'Pending' AND datetime(next_attempt_at) <= datetime('now'))
             OR (status = 'Sending' AND datetime(lock_until) <= datetime('now')))
         ORDER BY next_attempt_at, id LIMIT 1)
       RETURNING id, message_json AS messageJson, attempts, first_attempt_at AS firstAttemptAt`)
       .bind(lock, submissionId).first<{id: string; messageJson: string; attempts: number; firstAttemptAt: string}>();
     if (!row) return;
-    if (bookNotifications) {
+    if (bookNotifications === true) {
       const eligibility = await bookNotificationEligibility(env, row.id);
       if (eligibility !== 'ready') {
         await env.DB.prepare(`UPDATE ${table} SET status = ?3, lock_until = '', next_attempt_at = datetime('now', '+5 minutes'),
@@ -1011,10 +1011,10 @@ async function handleStoreCheckout(
       pricing_options: { auto_apply_taxes: false, auto_apply_discounts: false },
       line_items: [
         ...items.map((item) => ({
-          name: item.title.slice(0, 500),
+          name: (item.title + (item.format ? " — " + item.format : "")).slice(0, 500),
           quantity: String(item.quantity),
           base_price_money: { amount: Math.round(item.unitPrice * 100), currency: "USD" },
-          metadata: { sku: item.sku, bookId: item.bookId },
+          metadata: { sku: item.sku, bookId: item.bookId, format: item.format || "" },
         })),
         {
           name: "U.S. Shipping & Handling",
@@ -1190,6 +1190,7 @@ async function validateOrderItems(env: Env, cart: unknown[]): Promise<CartLineIt
     result.push({
       bookId: text(row.bookId, 120),
       sku,
+      format: text(row.format, 100),
       title: text(row.title, 300),
       quantity,
       unitPrice,
@@ -1399,6 +1400,41 @@ async function recordPaidOrderFromSquarePayment(env: Env, squareEventId: string,
   }
   // Settlement updates D1 inventory; scheduled sync retries provider failures.
   await syncSquareInventory(env, { force: true, limit: 100 });
+}
+
+// The settlement trigger creates a durable job in the same transaction as payment
+// and stock updates. Freeze its email once; the shared processor retries safely.
+async function queueOrderEmails(env: Env) {
+  const pending = await env.DB.prepare(`SELECT d.id, o.order_number AS orderNumber,
+    o.customer_name AS name, o.customer_email AS email, o.shipping_address AS address,
+    o.subtotal, o.shipping, o.tax, o.total, o.square_payment_id AS paymentId, s.cart_json AS cartJson
+    FROM order_email_deliveries d JOIN orders o ON o.order_number = d.submission_id
+    JOIN checkout_sessions s ON s.session_id = o.order_number
+    WHERE d.message_json = '' ORDER BY o.created_at LIMIT 100`).all<{
+      id: string; orderNumber: string; name: string; email: string; address: string;
+      subtotal: number; shipping: number; tax: number; total: number; paymentId: string; cartJson: string;
+    }>();
+  for (const row of pending.results || []) {
+    const recipient = env.ORDER_NOTIFICATION_EMAIL || env.MAIL_FROM_EMAIL;
+    if (!isValidEmail(recipient)) throw new Error("Configure ORDER_NOTIFICATION_EMAIL before delivering paid-order notifications.");
+    const items = JSON.parse(row.cartJson) as CartLineItem[];
+    const details: string[][] = [
+      ["Order", row.orderNumber], ["Payment", "Paid through Square · " + row.paymentId],
+      ["Customer", row.name], ["Contact email", row.email], ["Ship to", row.address],
+      ...items.map(item => ["Book", item.title + " — " + (item.format || item.sku) + " · Quantity: " + item.quantity + " · $" + item.lineTotal.toFixed(2)]),
+      ["Subtotal", "$" + row.subtotal.toFixed(2)], ["Shipping", "$" + row.shipping.toFixed(2)],
+      ["Sales tax", "$" + row.tax.toFixed(2)], ["Total paid", "$" + row.total.toFixed(2)],
+    ];
+    const message = { to: recipient, subject: "Paid JPP order " + row.orderNumber,
+      text: details.map(([label, value]) => label + ": " + value).join("\n\n"),
+      html: buildEmailHtml({ eyebrow: "PAID BOOK ORDER", heading: "New JPP order", intro: "Payment confirmed. Prepare this order for shipping.",
+        details, buttonLabel: "Review orders", buttonUrl: new URL("/admin/#orders", firstUrlValue(env.SITE_URL)).toString(),
+        siteUrl: firstUrlValue(env.SITE_URL), footer: "Verify the order in the admin workspace before fulfillment." }),
+      replyTo: isValidEmail(row.email) ? row.email : recipient, fromName: "Jackrabbit Punkin Publishing LLC",
+      fromEmail: env.MAIL_FROM_EMAIL, idempotencyKey: row.id };
+    await env.DB.prepare("UPDATE order_email_deliveries SET message_json = ?2 WHERE id = ?1 AND message_json = ''")
+      .bind(row.id, JSON.stringify(message)).run();
+  }
 }
 
 async function recordPaidSponsorFromSquarePayment(
@@ -3527,7 +3563,7 @@ async function listOrders(env: Env, limit: number, offset = 0) {
   const orderNumbers = orders.map((order) => text(order.orderNumber, 120));
   const placeholders = orderNumbers.map((_, index) => `?${index + 1}`).join(",");
   const itemRows = await env.DB.prepare(
-    `SELECT order_number AS orderNumber, book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number IN (${placeholders})`,
+    `SELECT order_number AS orderNumber, book_id AS bookId, sku, title, format, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number IN (${placeholders})`,
   )
     .bind(...orderNumbers)
     .all<Record<string, unknown>>();
@@ -4352,7 +4388,7 @@ async function handleCustomerApi(request: Request, env: Env, url: URL): Promise<
       .bind(user.id).all<Record<string, unknown>>();
     const purchases = [];
     for (const order of orders.results || []) {
-      const items = await env.DB.prepare("SELECT book_id AS bookId, sku, title, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number = ?1 ORDER BY id ASC")
+      const items = await env.DB.prepare("SELECT book_id AS bookId, sku, title, format, quantity, unit_price AS unitPrice, line_total AS lineTotal FROM order_items WHERE order_number = ?1 ORDER BY id ASC")
         .bind(order.orderNumber).all<Record<string, unknown>>();
       purchases.push({ ...order, items: items.results || [] });
     }
@@ -4642,6 +4678,8 @@ function renderUnsubscribePage(success: boolean, message: string) {
 }
 
 async function runScheduledTasks(env: Env, scheduledTime = Date.now()) {
+  await queueOrderEmails(env);
+  await processSubmissionEmails(env, '', 'orders');
   await runBookNotifications(env);
   await expireSquareCheckouts(env, payment => recordPaidOrderFromSquarePayment(env, "expiry-reconcile:" + text(payment.id, 200), payment));
   await sendDueCampaigns(env);

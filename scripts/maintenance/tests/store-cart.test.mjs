@@ -22,7 +22,7 @@ test('restored carts use current prices, clamp stock, update checkout and persis
   assert.equal(app.nodes.get('[data-cart-total]').textContent,'$20.00');
   assert.match(app.nodes.get('[data-store-grid]').innerHTML, /Shipping added at checkout\. This checkout does not add sales tax\./);
   assert.doesNotMatch(app.nodes.get('[data-store-grid]').innerHTML, /applicable taxes calculated|processing fee|platform fee|2\.5%/i);
-  assert.deepEqual(app.cart(),[{sku:'SKU1',title:book.title,price:20,imageUrl:'',quantity:1,max:1}]);
+  assert.deepEqual(app.cart(),[{sku:'SKU1',title:book.title,format:'Paperback',price:20,imageUrl:'',quantity:1,max:1}]);
 });
 
 test('catalog refresh removes unavailable items and coalesces duplicate saved SKUs',async()=>{
@@ -40,10 +40,12 @@ test('invalid saved data and unavailable browser storage cannot break the store'
   assert.equal(app.nodes.get('[data-checkout]').disabled,false);
 });
 
-test('featured paperback purchase opens its Square item checkout directly',()=>{
+test('featured direct purchases use the inventory-checked cart for both formats',()=>{
   const html=readFileSync(path.join(root,'books.html'),'utf8');
-  assert.match(html,/<a\s+class="purchase-button direct"\s+href="https:\/\/square\.link\/u\/llSOK4s4"\s+target="_blank"\s+rel="noopener noreferrer"[^>]*>Buy Direct from JPP<\/a\s*>/);
-  assert.doesNotMatch(html,/data-store-direct-(?:title|sku)/);
+  const feature=html.split('<!-- published-feature:start -->')[1].split('<!-- published-feature:end -->')[0];
+  assert.match(feature,/data-direct-isbn="1972028022"/);
+  assert.match(feature,/data-direct-isbn="1972028324"/);
+  assert.doesNotMatch(html,/square\.link\/u\/llSOK4s4|https:\/\/www\.amazon\.com\/dp\/1972028324/);
 });
 
 
