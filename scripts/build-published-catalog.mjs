@@ -54,8 +54,8 @@ const feature = `<section class="section"><div class="container featured-book" i
   ${featured.description.map((p, i) => `<p${i ? '' : ' class="lede"'}>${escape(p)}</p>`).join('\n')}
   ${featuredPurchases(featured)}<p class="asset-note"><a href="#direct-purchase-benefits">Autographed, embossed, with a keepsake bookmark.</a> JPP shipping is $5.00 per book, calculated at checkout.</p></div>
 </div></section>`;
-// Nine shared rows align covers, title copy and each format across a catalog
-// row. Expanded descriptions participate in the same rows without clipping text.
+// Seven shared rows align covers and title copy. Native details keep purchase
+// links accessible without JavaScript; the panel overlays the content below.
 const catalog = `<div class="store-grid" data-store-grid data-published-catalog>${books.map(book => `<article class="store-card" id="${book.id}">
   <div class="store-book-image">${cover(book)}</div>
   <div class="store-book-meta">${escape(book.category)}</div>
@@ -63,8 +63,14 @@ const catalog = `<div class="store-grid" data-store-grid data-published-catalog>
   <p class="asset-note published-release">Release date: <time datetime="${book.releaseDate}">${date(book.releaseDate)}</time></p>
   <p class="published-description">${escape(book.description[0])}</p>
   <details class="published-details"><summary>Read the full description</summary>${book.description.slice(1).map(p => `<p>${escape(p)}</p>`).join('')}</details>
-  ${book.formats.map(formatOptions).join('\n')}
-  <div class="published-other-retailers">${otherOptions(book)}</div></article>`).join('\n')}</div>`;
+  <details class="catalog-purchase-dropdown" data-purchase-dropdown>
+    <summary class="button ink" aria-controls="purchase-panel-${book.id}">Purchase options <span class="catalog-purchase-chevron" aria-hidden="true"></span></summary>
+    <div class="catalog-purchase-panel" id="purchase-panel-${book.id}" role="region" aria-label="Purchase options for ${escape(book.title)}">
+      <div class="catalog-purchase-head"><h4>Choose your edition</h4><button type="button" data-purchase-close aria-label="Close purchase options" hidden><span aria-hidden="true">×</span></button></div>
+      ${book.formats.map(formatOptions).join('\n')}
+      <div class="published-other-retailers">${otherOptions(book)}</div>
+    </div>
+  </details></article>`).join('\n')}</div>`;
 const schema = `<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@graph':books.map(book => ({'@type':'Book',name:book.title,author:{'@type':'Person',name:'Barbara J. Ratliff'},publisher:{'@id':'https://jackrabbitpunkinpublishing.com/#organization'},datePublished:book.releaseDate,image:'https://jackrabbitpunkinpublishing.com/'+book.image,url:'https://jackrabbitpunkinpublishing.com/books#'+book.id,description:book.description.join('\n\n'),workExample:book.formats.map(format => ({'@type':'Book',isbn:format.isbn,bookFormat:'https://schema.org/'+format.format,offers:{'@type':'Offer',price:format.directPrice.toFixed(2),priceCurrency:'USD',url:'https://jackrabbitpunkinpublishing.com/books#'+book.id,seller:{'@id':'https://jackrabbitpunkinpublishing.com/#organization'}}}))}))}, null, 2)}</script>`;
 const original = readFileSync(root + 'books.html', 'utf8');
 let html = original;
