@@ -7,10 +7,12 @@ const date = value => new Date(value + 'T12:00:00Z').toLocaleDateString('en-US',
 // Present the original cover without its transparent margins. All releases use
 // the same display slot; the raster assets remain unchanged.
 function cover(book, featured = false) {
-  const c = book.cover;
+  const art = featured && book.featuredImage;
+  const c = art ? { x:0, y:0, width:art.width, height:art.height, canvasWidth:art.width, canvasHeight:art.height } : book.cover;
+  const source = art ? art.src : book.image;
   const percent = (value, total) => (value / total * 100).toFixed(5) + '%';
   const style = `--cover-ratio:${c.width} / ${c.height};--cover-image-width:${percent(c.canvasWidth,c.width)};--cover-image-height:${percent(c.canvasHeight,c.height)};--cover-image-left:${percent(-c.x,c.width)};--cover-image-top:${percent(-c.y,c.height)}`;
-  return `<span class="book-cover-frame" style="${style}"><img${featured ? ' class="featured-book-cover"' : ''} src="${book.image}" alt="${escape(book.title)} book cover" width="${c.canvasWidth}" height="${c.canvasHeight}" ${featured ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"'} /></span>`;
+  return `<span class="book-cover-frame" style="${style}"><img${featured ? ' class="featured-book-cover"' : ''} src="${source}" alt="${escape(book.title)} book cover" width="${c.canvasWidth}" height="${c.canvasHeight}" ${featured ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"'} /></span>`;
 }
 function formatOptions(format) {
   return `<div class="published-format">
@@ -25,8 +27,24 @@ function formatOptions(format) {
 function otherOptions(book) {
   return (book.otherRetailers || []).map(retailer => `<a class="purchase-button" href="${escape(retailer.url)}" target="_blank" rel="noopener noreferrer">${escape(retailer.label)}</a>`).join('');
 }
-function options(book) {
-  return book.formats.map(formatOptions).join('\n') + otherOptions(book);
+// Restore the original compact edition cards in the featured section. The
+// live catalog retains its shared format rows and inventory-checked buttons.
+function featuredPurchases(book) {
+  const artwork = book.featuredImage || {src:book.image,width:book.cover.canvasWidth,height:book.cover.canvasHeight};
+  const editions = [...book.formats].sort((a,b)=>Number(b.format === 'Hardcover') - Number(a.format === 'Hardcover'));
+  return `<div class="purchase-grid featured-purchases">${editions.map(format => `<article class="purchase-card">
+    <img src="${artwork.src}" alt="${escape(book.title)} — ${format.format} cover" width="${artwork.width}" height="${artwork.height}" loading="lazy" decoding="async" />
+    <div class="purchase-details">
+      <h3>${escape(book.title)} (${format.format})</h3>
+      <p class="purchase-author">Barbara J. Ratliff</p>
+      <p class="purchase-price">JPP direct: <strong>$${format.directPrice.toFixed(2)}</strong><br /><span class="asset-note">Standard online retail: $${format.retailPrice.toFixed(2)}</span></p>
+      <div class="purchase-actions">
+        <button class="purchase-button direct" type="button" data-direct-isbn="${format.isbn}" data-direct-label="Buy Direct from JPP" aria-label="Buy ${format.format} directly from JPP" aria-describedby="direct-purchase-benefits" disabled>Buy Direct from JPP</button>
+        ${format.retailers.map(retailer => `<a class="purchase-button" href="${escape(retailer.url)}" target="_blank" rel="noopener noreferrer">${retailer.name} — ${format.format}</a>`).join('\n')}
+      </div>
+      <p class="asset-note" data-direct-status="${format.isbn}" role="status">Checking direct-purchase availability…</p>
+    </div>
+  </article>`).join('')}</div>`;
 }
 const featured = books[0];
 const feature = `<section class="section"><div class="container featured-book" id="featured-release">
@@ -35,7 +53,7 @@ const feature = `<section class="section"><div class="container featured-book" i
   <div class="meta-row"><span>Barbara J. Ratliff</span><span>${escape(featured.category)}</span></div>
   <p><strong>Official release date:</strong> <time datetime="${featured.releaseDate}">${date(featured.releaseDate)}</time></p>
   ${featured.description.map((p, i) => `<p${i ? '' : ' class="lede"'}>${escape(p)}</p>`).join('\n')}
-  ${options(featured)}<p class="asset-note"><a href="#direct-purchase-benefits">Autographed, embossed, with a keepsake bookmark.</a> JPP shipping is $5.00 per book, calculated at checkout.</p></div>
+  ${featuredPurchases(featured)}<p class="asset-note"><a href="#direct-purchase-benefits">Autographed, embossed, with a keepsake bookmark.</a> JPP shipping is $5.00 per book, calculated at checkout.</p></div>
 </div></section>`;
 // Nine shared rows align covers, title copy and each format across a catalog
 // row. Expanded descriptions participate in the same rows without clipping text.
