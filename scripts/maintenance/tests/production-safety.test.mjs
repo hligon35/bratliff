@@ -32,7 +32,7 @@ test('settlement atomically writes guest details, items, stock, audit and Paid s
   const f = fixture(); const { review } = loadWorker(f.squareFetch);
   await review.recordPaidOrderFromSquarePayment(f.env,'evt1',f.payment);
   await Promise.all([review.recordPaidOrderFromSquarePayment(f.env,'evt2',f.payment),review.recordPaidOrderFromSquarePayment(f.env,'evt3',f.payment)]);
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,3);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,3);
   assert.equal(value(f.sqlite,'SELECT COUNT(*) AS n FROM order_items').n,1);
   assert.equal(value(f.sqlite,'SELECT COUNT(*) AS n FROM inventory_events').n,1);
   const order = value(f.sqlite,'SELECT * FROM orders');
@@ -49,7 +49,7 @@ test('a mid-settlement database failure rolls back all effects and remains retry
   assert.equal(value(f.sqlite,'SELECT payment_status FROM orders').payment_status,'Pending');
   f.sqlite.exec('DROP TRIGGER simulated_failure');
   await review.recordPaidOrderFromSquarePayment(f.env,'retry',f.payment);
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,3);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,3);
 });
 
 test('stock reservations serialize competing checkouts and failed batches leave no partial orders', async () => {
@@ -70,7 +70,7 @@ test('late payments with insufficient stock enter Payment Review, without partia
   await assert.rejects(loadWorker(f.squareFetch).review.recordPaidOrderFromSquarePayment(f.env,'evt1',f.payment),/Insufficient inventory/);
   assert.equal(value(f.sqlite,'SELECT payment_status FROM orders').payment_status,'Payment Review');
   assert.equal(value(f.sqlite,'SELECT COUNT(*) AS n FROM order_items').n,0);
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,1);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,1);
 });
 
 test('settlement recovers a missing Square ID via the order reference and rejects mismatched amounts', async () => {
@@ -89,7 +89,7 @@ test('partial, repeated, full and out-of-order refunds track money without resto
   await review.recordRefundFromSquareEvent(f.env,refund('refund2',2000));
   order=value(f.sqlite,'SELECT * FROM orders'); assert.equal(order.refunded_cents,2500); assert.equal(order.payment_status,'Refunded');
   await review.recordPaidOrderFromSquarePayment(f.env,'late-payment',f.payment);
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,3);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,3);
   assert.equal(value(f.sqlite,'SELECT COUNT(*) AS n FROM inventory_events').n,1);
   assert.equal(value(f.sqlite,'SELECT COUNT(*) AS n FROM square_refunds').n,2);
 });
@@ -102,7 +102,7 @@ test('invalid quantities are rejected and duplicate cart SKUs are coalesced befo
 });
 
 test('local inventory authority exports bookstore counts to Square without importing provider counts', async () => {
-  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked'");
+  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked' WHERE id='b1'");
   f.env.SQUARE_LOCATION_ID='location1';
   const requests=[];
   const {review}=loadWorker(async (url, options) => {
@@ -111,7 +111,8 @@ test('local inventory authority exports bookstore counts to Square without impor
   });
   const result=await review.syncSquareInventory(f.env);
   assert.equal(result.configured,true);
-  assert.equal(result.requested,1);
+  assert.equal(result.requested,value(f.sqlite,'SELECT COUNT(*) n FROM books').n);
+  assert.equal(result.unlinked,result.requested-1);
   assert.equal(result.synced,1);
   assert.equal(result.failed,0);
   assert.equal(requests.length,1);
@@ -121,29 +122,29 @@ test('local inventory authority exports bookstore counts to Square without impor
   assert.equal(requests[0].body.changes[0].physical_count.catalog_object_id,'linked');
   assert.equal(requests[0].body.changes[0].physical_count.location_id,'location1');
   assert.equal(requests[0].body.changes[0].physical_count.quantity,'5');
-  assert.equal(value(f.sqlite,'SELECT synced_stock FROM square_inventory_sync').synced_stock,5);
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,5);
+  assert.equal(value(f.sqlite,"SELECT synced_stock FROM square_inventory_sync WHERE book_id='b1'").synced_stock,5);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,5);
 });
 
 test('unconfigured Square inventory sync makes no provider calls and preserves bookstore stock', async () => {
-  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked'");
+  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked' WHERE id='b1'");
   const result=await loadWorker().review.syncSquareInventory(f.env);
   assert.equal(result.configured,false);
   assert.equal(result.requested,0);
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,5);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,5);
 });
 
 test('failed Square inventory sync records an explicit retryable error without changing bookstore stock', async () => {
-  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked'");
+  const f=fixture(); f.sqlite.exec("UPDATE books SET square_catalog_variation_id='linked' WHERE id='b1'");
   f.env.SQUARE_LOCATION_ID='location1';
   const {review}=loadWorker(async () => Response.json({errors:[{detail:'Provider unavailable'}]},{status:503}));
   const result=await review.syncSquareInventory(f.env);
   assert.equal(result.synced,0);
   assert.equal(result.failed,1);
-  const sync=value(f.sqlite,'SELECT sync_status,last_error FROM square_inventory_sync');
+  const sync=value(f.sqlite,"SELECT sync_status,last_error FROM square_inventory_sync WHERE book_id='b1'");
   assert.equal(sync.sync_status,'error');
   assert.equal(sync.last_error,'Provider unavailable');
-  assert.equal(value(f.sqlite,'SELECT stock FROM books').stock,5);
+  assert.equal(value(f.sqlite,"SELECT stock FROM books WHERE id='b1'").stock,5);
 });
 
 test('public abuse limits share durable counters across Worker instances, without storing raw IPs', async () => {

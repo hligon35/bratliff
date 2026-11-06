@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import staticAssets from './lib/static-assets.cjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -14,7 +15,7 @@ assert.ok(Number.isFinite(Date.parse(vars.SITE_LAUNCH_AT || '')), 'Production mu
 assert.match(vars.SITE_LAUNCH_AT, /(?:Z|[+-]\d{2}:\d{2})$/i, 'The launch timestamp must include an explicit timezone.');
 // Launch schedule can change; verify a valid, timezone-qualified instant rather than pinning a historical date.
 assert.ok(Number.isFinite(Date.parse(config.env.sandbox.vars.SITE_LAUNCH_AT || '')), 'Sandbox must have a valid launch timestamp.');
-for (const file of readdirSync(root).filter(name => name.endsWith('.html'))) {
+for (const file of staticAssets.staticEntries.filter(name => name.endsWith('.html'))) {
   const html = read(file);
   assert.match(html, /<html\b[^>]*\blang=["'][^"']+["']/i, file + ': document language required');
   assert.equal((html.match(/<main\b/gi) || []).length, 1, file + ': exactly one main landmark required');

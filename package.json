@@ -18,7 +18,9 @@
     "production:verify": "node scripts/verify-production.mjs",
     "d1:migrate:production": "node scripts/production-d1.mjs migrate",
     "d1:migrate:sandbox": "wrangler d1 migrations apply bratliff-platform-sandbox --remote --config cloudflare/wrangler.jsonc --env sandbox",
-    "d1:backup:production": "node scripts/production-d1.mjs backup"
+    "d1:backup:production": "node scripts/production-d1.mjs backup",
+    "catalog:build": "node scripts/build-published-catalog.mjs",
+    "catalog:check": "node scripts/build-published-catalog.mjs --check"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

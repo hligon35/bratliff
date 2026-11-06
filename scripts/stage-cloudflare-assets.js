@@ -4,28 +4,7 @@ const path = require('node:path');
 const rootDir = path.resolve(__dirname, '..');
 const targetDir = path.join(rootDir, 'cloudflare', 'public');
 
-const staticEntries = [
-  '_headers',
-  'about.html',
-  'account.html',
-  'book-club.html',
-  'books.html',
-  'contact.html',
-  'coming-soon.html',
-  'index.html',
-  'media.html',
-  'policies.html',
-  'read-it-forward.html',
-  'recognition.html',
-  'resources.html',
-  'speaking.html',
-  'robots.txt',
-  'sitemap.xml',
-  'llms.txt',
-  'assets',
-  'login',
-  'admin'
-];
+const { staticEntries } = require('./lib/static-assets.cjs');
 
 fs.mkdirSync(targetDir, { recursive: true });
 

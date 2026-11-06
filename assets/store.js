@@ -77,7 +77,7 @@
     state.cart.forEach(item => quantities.set(item.sku, (quantities.get(item.sku) || 0) + item.quantity));
     state.cart = [...quantities].flatMap(([sku, quantity]) => {
       const book = state.books.find(item => item.sku === sku), max = availableQuantity(book);
-      return max ? [{ sku: book.sku, title: book.title, price: Number(book.price), imageUrl: book.imageUrl || '', quantity: Math.min(quantity, max), max }] : [];
+      return max ? [{ sku: book.sku, title: book.title, format: book.format || '', price: Number(book.price), imageUrl: book.imageUrl || '', quantity: Math.min(quantity, max), max }] : [];
     });
     saveCart();
     if (JSON.stringify(state.cart) !== previous && previous !== '[]') toast('Your cart was updated to the current prices and availability.');
@@ -87,8 +87,37 @@
   function renderStore() {
     const grid = document.querySelector('[data-store-grid]');
     if (!grid) return;
+    if (grid.hasAttribute?.('data-published-catalog')) {
+      document.querySelectorAll('[data-direct-isbn]').forEach(button => {
+        const isbn = button.dataset.directIsbn;
+        const book = state.books.find(item => {
+          const digits = String(item.isbn || '').replace(/[^0-9X]/gi, '');
+          return digits === isbn || (digits.length === 13 && digits.slice(3, 12) === isbn.slice(0, 9));
+        });
+        const available = state.checkout.available && availableQuantity(book) > 0;
+        button.disabled = !available;
+        if (available) button.dataset.addSku = book.sku;
+        else delete button.dataset.addSku;
+        button.textContent = button.dataset.directLabel;
+        document.querySelectorAll('[data-direct-status="' + isbn + '"]').forEach(note => {
+          note.textContent = !state.checkout.available ? 'Direct checkout is temporarily unavailable. Retailer links remain available.'
+            : !book ? 'Direct purchase is unavailable while inventory is being set up.'
+            : availableQuantity(book) <= 0 ? 'Direct copies are currently unavailable. Please check back or shop a retailer.'
+            : 'Available directly from JPP · $5.00 shipping per book';
+        });
+        if (book) {
+          const card = button.closest('article.store-card');
+          if (card && !document.getElementById('store-book-' + book.bookId)) {
+            const anchor = document.createElement('span'); anchor.id = 'store-book-' + book.bookId;
+            card.prepend(anchor);
+          }
+        }
+      });
+      focusLinkedBook();
+      return;
+    }
     if (!state.books.length) {
-      grid.innerHTML = '<div class="store-empty">Direct ordering is opening soon. You can still explore the featured books and retailer links above.</div>';
+      grid.innerHTML = '<div class="store-empty">No direct-purchase inventory is available right now. Please use the retailer links or check back soon.</div>';
       return;
     }
 
@@ -112,6 +141,10 @@
         </div>
       </article>`;
     }).join('');
+    focusLinkedBook();
+  }
+
+  function focusLinkedBook() {
     const anchor = String(window.location.hash || '').slice(1);
     if (!linkedBookShown && anchor.startsWith('store-book-')) {
       const linked = document.getElementById(anchor);
@@ -130,7 +163,7 @@
     if (!max) return toast('This book is currently unavailable.');
     const existing = state.cart.find(item => item.sku === sku);
     if (existing) existing.quantity = Math.min(existing.quantity + 1, max);
-    else state.cart.push({ sku: book.sku, title: book.title, price: Number(book.price), imageUrl: book.imageUrl || '', quantity: 1, max });
+    else state.cart.push({ sku: book.sku, title: book.title, format: book.format || '', price: Number(book.price), imageUrl: book.imageUrl || '', quantity: 1, max });
     saveCart(); renderCart(); openCart(); toast(`${book.title} added to cart.`);
   }
 
@@ -153,7 +186,7 @@
         <aside class="store-cart" role="dialog" aria-modal="true" aria-label="Shopping cart">
           <div class="store-cart-head"><h2>Your Cart</h2><button class="store-cart-close" type="button" aria-label="Close cart"><span class="material-icons-round" aria-hidden="true">close</span></button></div>
           <div class="store-cart-items" data-cart-items></div>
-          <div class="store-cart-foot"><div class="store-cart-total"><span>Subtotal</span><span data-cart-total>$0.00</span></div><button class="button ink" style="width:100%" type="button" data-checkout>Checkout</button></div>
+          <div class="store-cart-foot"><div class="store-cart-total"><span>Subtotal</span><span data-cart-total>$0.00</span></div><div class="store-cart-total"><span>Shipping ($5/book)</span><span data-cart-shipping>$0.00</span></div><div class="store-cart-total"><span>Sales tax</span><span>$0.00</span></div><div class="store-cart-total"><span>Total</span><span data-cart-grand-total>$0.00</span></div><p class="asset-note">Enter your contact and shipping information and review your order on Square before paying. This checkout does not add sales tax.</p><button class="button ink" style="width:100%" type="button" data-checkout>Checkout securely with Square</button></div>
         </aside></div><div class="store-toast" role="status" aria-live="polite"></div>`);
     }
   }
@@ -165,12 +198,18 @@
     if (!state.cart.length) itemsEl.innerHTML = '<div class="store-empty">Your cart is empty.</div>';
     else itemsEl.innerHTML = state.cart.map(item => `<div class="store-cart-item">
       ${item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="">` : '<span></span>'}
-      <div><h3>${escapeHtml(item.title)}</h3><div class="store-qty"><button type="button" aria-label="Decrease quantity" data-qty="-1" data-sku="${escapeHtml(item.sku)}">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-qty="1" data-sku="${escapeHtml(item.sku)}">+</button></div></div>
+      <div><h3>${escapeHtml(item.title)}</h3>${item.format ? `<p class="asset-note">${escapeHtml(item.format)}</p>` : ''}<div class="store-qty"><button type="button" aria-label="Decrease quantity" data-qty="-1" data-sku="${escapeHtml(item.sku)}">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-qty="1" data-sku="${escapeHtml(item.sku)}">+</button></div></div>
       <strong>${money(item.price * item.quantity)}</strong></div>`).join('');
     const checkoutButton = document.querySelector('[data-checkout]');
     checkoutButton.disabled = !state.cart.length || !state.checkout.available || Boolean(state.checkingOut);
-    checkoutButton.textContent = state.checkout.available ? 'Checkout' : 'Online checkout unavailable';
-    totalEl.textContent = money(state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0));
+    checkoutButton.textContent = state.checkout.available ? 'Checkout securely with Square' : 'Online checkout unavailable';
+    const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const shipping = state.cart.reduce((sum, item) => sum + item.quantity, 0) * 5;
+    totalEl.textContent = money(subtotal);
+    const shippingEl = document.querySelector('[data-cart-shipping]');
+    const grandTotalEl = document.querySelector('[data-cart-grand-total]');
+    if (shippingEl) shippingEl.textContent = money(shipping);
+    if (grandTotalEl) grandTotalEl.textContent = money(subtotal + shipping);
   }
 
   function openCart() {
@@ -276,8 +315,15 @@
     await confirmCheckoutReturn();
     const grid = document.querySelector('[data-store-grid]');
     if (!grid) return;
-    grid.innerHTML = '<div class="store-loading">Loading books…</div>';
-    try { await fetchBooks(); renderStore(); } catch (error) { grid.innerHTML = `<div class="store-empty">${escapeHtml(error.message)}</div>`; }
+    const publishedCatalog = grid.hasAttribute?.('data-published-catalog');
+    if (!publishedCatalog) grid.innerHTML = '<div class="store-loading">Loading books…</div>';
+    try { await fetchBooks(); renderStore(); } catch (error) {
+      if (publishedCatalog) {
+        const status = document.querySelector('[data-store-status]');
+        if (status) status.textContent = 'Direct checkout is temporarily unavailable. You can still use the retailer links below.';
+        document.querySelectorAll('[data-direct-status]').forEach(note => { note.textContent = 'Direct checkout is temporarily unavailable.'; });
+      } else grid.innerHTML = `<div class="store-empty">${escapeHtml(error.message)}</div>`;
+    }
   }
 
   window.JRPPStore = { init, openCart, addToCart, refresh: async () => { await fetchBooks(); renderStore(); } };

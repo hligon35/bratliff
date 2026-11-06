@@ -247,3 +247,20 @@ body.store-cart-open {
     height: 75px;
   }
 }
+
+/* Published titles share the existing JPP purchase styles. */
+.jpp-direct-note { padding: 1.4rem; margin-bottom: 1.5rem; border: 1px solid var(--line); border-left: 4px solid var(--purple); border-radius: 8px; background: var(--paper); }
+.published-format { padding: 1rem 0; border-top: 1px solid var(--line); }
+.published-format h4 { margin: 0; font-size: 1.1rem; color: var(--navy); }
+.published-format p { margin: .5rem 0; }
+.published-format .purchase-actions { display: flex; flex-direction: column; align-items: stretch; gap: .6rem; }
+.published-format .purchase-button { width: 100%; box-sizing: border-box; text-align: center; white-space: normal; line-height: 1.4; min-height: 44px; justify-content: center; font-size: .82rem; }
+.published-format button { font: inherit; cursor: pointer; }
+.published-format button:disabled { opacity: .65; cursor: not-allowed; }
+.store-card details { margin: .8rem 0; }
+.store-card summary { color: var(--purple); cursor: pointer; font-weight: 700; }
+.store-card h3, .store-cart-item h3 { overflow-wrap: anywhere; }
+.store-cart { height: 100dvh; }
+.store-cart-foot { max-height: 60dvh; overflow-y: auto; }
+.store-cart-total { font-size: 1rem; margin-bottom: .6rem; }
+@media (max-width: 600px) { .jpp-direct-note { padding: 1rem; } }
