@@ -247,3 +247,133 @@ body.store-cart-open {
     height: 75px;
   }
 }
+
+/* Published titles share the existing JPP purchase styles. */
+.jpp-direct-note { padding: 1.4rem; margin-bottom: 1.5rem; border: 1px solid var(--line); border-left: 4px solid var(--purple); border-radius: 8px; background: var(--paper); }
+.published-format { padding: 1rem 0; border-top: 1px solid var(--line); }
+.published-format h4 { margin: 0; font-size: 1.1rem; color: var(--navy); }
+.published-format p { margin: .5rem 0; }
+.published-format .purchase-actions { display: flex; flex-direction: column; align-items: stretch; gap: .6rem; }
+.published-format .purchase-button { width: 100%; box-sizing: border-box; text-align: center; white-space: normal; line-height: 1.4; min-height: 44px; justify-content: center; font-size: .82rem; }
+.published-format button { font: inherit; cursor: pointer; }
+.published-format button:disabled { opacity: .65; cursor: not-allowed; }
+.store-card details { margin: .8rem 0; }
+.store-card summary { color: var(--purple); cursor: pointer; font-weight: 700; }
+.store-card h3, .store-cart-item h3 { overflow-wrap: anywhere; }
+.store-cart { height: 100dvh; }
+.store-cart-foot { max-height: 60dvh; overflow-y: auto; }
+.store-cart-total { font-size: 1rem; margin-bottom: .6rem; }
+@media (max-width: 600px) { .jpp-direct-note { padding: 1rem; } }
+
+
+/* Shared catalog tracks align covers, copy, and purchase toggles. */
+[data-published-catalog] > .store-card {
+  position: relative;
+  scroll-margin-top: 6rem;
+  grid-row: span 7;
+  grid-template-rows: subgrid;
+  align-items: start;
+  row-gap: .7rem;
+}
+[data-published-catalog] .store-book-image { height: 320px; min-height: 0; align-items: center; }
+[data-published-catalog] .published-book-title,
+[data-published-catalog] .published-release,
+[data-published-catalog] .published-description,
+[data-published-catalog] .published-details { margin: 0; }
+[data-published-catalog] .published-format { margin: 0; height: 100%; }
+.store-book-anchor { position: absolute; inset-block-start: 0; inset-inline-start: 0; }
+.book-cover-frame {
+  display: block;
+  position: relative;
+  height: var(--cover-height, 270px);
+  aspect-ratio: var(--cover-ratio);
+  overflow: hidden;
+  filter: drop-shadow(0 16px 14px rgba(10, 22, 40, .18));
+}
+.store-book-image .book-cover-frame img,
+.featured-book .book-art.has-cover .book-cover-frame img {
+  position: absolute;
+  width: var(--cover-image-width);
+  max-width: none;
+  height: var(--cover-image-height);
+  min-height: 0;
+  left: var(--cover-image-left);
+  top: var(--cover-image-top);
+  margin: 0;
+  object-fit: fill;
+  filter: none;
+}
+/* Permanent featured-cover slot: independent of description/purchase height. */
+.featured-book .book-art.has-cover {
+  height: clamp(340px, 37vw, 500px);
+  align-self: start;
+  align-items: start;
+  justify-items: center;
+  --cover-height: clamp(340px, 37vw, 500px);
+}
+@media (max-width: 900px) {
+  .featured-book .book-art.has-cover { height: 380px; --cover-height: 380px; }
+}
+@media (max-width: 600px) {
+  [data-published-catalog] .store-book-image { height: 300px; }
+  .featured-book .book-art.has-cover { height: 340px; --cover-height: 340px; }
+}
+
+.featured-book { scroll-margin-top: 6rem; }
+
+
+/* Original featured purchase-card presentation, with the native cart retained. */
+.featured-purchases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.featured-purchases .purchase-card { align-content: start; }
+.featured-purchases .purchase-details { min-width: 0; }
+.featured-purchases .purchase-price { margin: 0 0 .7rem; font-size: .75rem; }
+.featured-purchases .purchase-button { min-height: 32px; font-size: .7rem; line-height: 1.35; white-space: normal; text-align: left; }
+.featured-purchases button:disabled { opacity: .65; cursor: not-allowed; }
+.featured-purchases [data-direct-status] { margin-bottom: 0; }
+@media (max-width: 1100px) { .featured-purchases { grid-template-columns: 1fr; } }
+@media (min-width: 601px) and (max-width: 900px) { .featured-purchases { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+
+/* Purchase panels stay outside document flow and above the following sections. */
+[data-published-catalog] > .store-card:has([data-purchase-dropdown][open]) { z-index: 30; }
+.store-card .catalog-purchase-dropdown { position: relative; margin: 0; min-width: 0; }
+.store-card .catalog-purchase-dropdown > summary {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  color: #fff;
+  list-style: none;
+  cursor: pointer;
+}
+.catalog-purchase-dropdown > summary::-webkit-details-marker { display: none; }
+.catalog-purchase-chevron { flex: 0 0 auto; width: .6rem; height: .6rem; margin-left: .75rem; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform .15s; }
+.catalog-purchase-dropdown[open] > summary .catalog-purchase-chevron { transform: rotate(225deg); }
+.catalog-purchase-panel {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + .5rem);
+  z-index: 1;
+  max-height: min(38rem, 70dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 1rem 1rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(10, 22, 40, .22);
+}
+.catalog-purchase-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .75rem 0;
+  background: var(--paper);
+}
+.catalog-purchase-head h4 { margin: 0; color: var(--navy); font-size: 1rem; }
+.catalog-purchase-head button { width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); cursor: pointer; font-size: 1.5rem; }
+.catalog-purchase-head button[hidden] { display: none; }
+[data-published-catalog] .catalog-purchase-panel .published-format { height: auto; }

@@ -1,0 +1,170 @@
+[
+  {
+    "id": "the-great-pie-mystery",
+    "title": "The Adventures of D.D. & Reuel: The Great Pie Mystery",
+    "releaseDate": "2026-11-04",
+    "image": "assets/books/pieMystery.png",
+    "category": "Children’s Mystery",
+    "description": [
+      "Something mysterious is happening in Pleasantville, and two young detectives are determined to get to the bottom of it!",
+      "When a very special pie mysteriously disappears, D.D. and Reuel set out on an adventure filled with clues, unexpected discoveries, family, and plenty of laughter.",
+      "With curiosity leading the way, the young detectives soon discover that solving a mystery takes more than finding answers—it takes teamwork, courage, and a little imagination.",
+      "One missing pie. Two determined detectives. An adventure you won't want to miss!"
+    ],
+    "formats": [
+      {
+        "format": "Paperback",
+        "isbn": "1972028022",
+        "retailPrice": 17.99,
+        "directPrice": 20,
+        "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/1972028022"
+          },
+          {
+            "name": "IngramSpark",
+            "url": "https://shop.ingramspark.com/b/084?params=KpokNixRNeAnx4WH5cVSRst8TeHJkztwBqpnJQkgKXV"
+          }
+        ]
+      },
+      {
+        "format": "Hardcover",
+        "isbn": "1972028324",
+        "retailPrice": 24.99,
+        "directPrice": 25,
+        "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/Adventures-D-D-Reuel-Great-Mystery/dp/1972028324/ref=tmm_hrd_swatch_0"
+          },
+          {
+            "name": "IngramSpark",
+            "url": "https://shop.ingramspark.com/b/084?params=6jRxU6ecHpNleddP6FdY3VM50OhfQctBhe7x0Dytkzy"
+          }
+        ]
+      }
+    ],
+    "cover": {
+      "x": 33,
+      "y": 6,
+      "width": 524,
+      "height": 770,
+      "canvasWidth": 589,
+      "canvasHeight": 800
+    },
+    "featuredImage": {
+      "src": "assets/books/The_Adventures_DD_Reuel_Book1_Ingram_Thumbnail_1800x2700.jpg",
+      "width": 1800,
+      "height": 2700
+    }
+  },
+  {
+    "id": "the-fading-lighthouse",
+    "title": "The Fading Lighthouse – Battles Beyond the Waves, Book II",
+    "releaseDate": "2026-10-20",
+    "image": "assets/books/battles2.png",
+    "category": "Military Memoir / Nonfiction",
+    "description": [
+      "Some battles are fought in uniform. Others begin when the uniform comes off.",
+      "In this deeply personal continuation of Battles Beyond the Waves, Barbara J. Ratliff explores the challenges of life beyond military service, the weight of personal struggles, and the courage it takes to keep moving forward when the path becomes uncertain.",
+      "Through honest reflection, resilience, and faith, The Fading Lighthouse reminds readers that even when life's light seems to grow dim, hope can still guide us toward a brighter tomorrow.",
+      "A powerful story of perseverance, healing, and finding strength beyond the waves."
+    ],
+    "formats": [
+      {
+        "format": "Paperback",
+        "isbn": "1972028014",
+        "retailPrice": 17.99,
+        "directPrice": 20,
+        "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/1972028014"
+          }
+        ]
+      },
+      {
+        "format": "Hardcover",
+        "isbn": "1972028316",
+        "retailPrice": 24.99,
+        "directPrice": 25,
+        "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/1972028316"
+          }
+        ]
+      }
+    ],
+    "cover": {
+      "x": 51,
+      "y": 22,
+      "width": 559,
+      "height": 765,
+      "canvasWidth": 662,
+      "canvasHeight": 800
+    }
+  },
+  {
+    "id": "battles-beyond-the-waves",
+    "title": "Battles Beyond the Waves – Book I",
+    "releaseDate": "2026-05-29",
+    "image": "assets/books/battles1.png",
+    "category": "Military Memoir / Nonfiction",
+    "description": [
+      "A story of a Sailor, a survivor, and a woman whose faith was tested far beyond the waves.",
+      "Barbara J. Ratliff takes readers beyond the uniform and into the deeply personal battles that shaped her journey in the United States Navy. What begins as a young woman's determination to build a life through military service becomes a story of sacrifice, motherhood, betrayal, perseverance, and faith.",
+      "With candor and reflection, Battles Beyond the Waves reveals what can happen when the institution you have pledged to serve becomes part of the battle itself, and what it takes to keep moving forward when some wounds cannot be seen.",
+      "More than a military memoir, it is a story about finding the strength to survive, the faith to endure, and the courage to tell the truth."
+    ],
+    "formats": [
+      {
+        "format": "Paperback",
+        "isbn": "1972028006",
+        "retailPrice": 17.99,
+        "directPrice": 20,
+        "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/B0H1HJ642L?binding=paperback&ref_=saga_sdp_cft_dsk"
+          },
+          {
+            "name": "IngramSpark",
+            "url": "https://shop.ingramspark.com/b/084?params=itFCiOCK74nHUVnmAo4IFWG6WLpUtXHFF6aS1swN5aI"
+          }
+        ]
+      },
+      {
+        "format": "Hardcover",
+        "isbn": "1972028308",
+        "retailPrice": 24.99,
+        "directPrice": 25,
+        "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/B0H1HJ642L?binding=hardcover&ref_=saga_sdp_cft_dsk"
+          },
+          {
+            "name": "IngramSpark",
+            "url": "https://shop.ingramspark.com/b/084?params=DHV6V95WyZ24FT6LbL3gp2er1QCdREQPfu0doP5V5bJ"
+          }
+        ]
+      }
+    ],
+    "otherRetailers": [
+      {
+        "label": "Buy on Amazon — Kindle",
+        "url": "https://www.amazon.com/Battles-Beyond-Waves-Barbara-Ratliff-ebook/dp/B0H2MZRD73"
+      }
+    ],
+    "cover": {
+      "x": 135,
+      "y": 11,
+      "width": 522,
+      "height": 774,
+      "canvasWidth": 800,
+      "canvasHeight": 800
+    }
+  }
+]

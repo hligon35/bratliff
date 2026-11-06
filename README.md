@@ -51,7 +51,7 @@ Copy `.env.example` to `.env` and fill in the Cloudflare deployment values. `.en
 - `SITE_URL`: the public website URL.
 - `PUBLIC_API_URL`: the Worker base URL used by forms, checkout, media, and admin API requests.
 - `PUBLIC_ADMIN_URL`: the admin dashboard URL shown after successful sign-in.
-- The featured paperback’s **Buy Direct from JPP** link opens its Square checkout page for that specific item. The Live Catalog separately uses the native cart and `/api/store/checkout`.
+- Published book **Buy Direct from JPP** buttons add the selected format to the inventory-checked cart. The featured release and Live Catalog share `/api/store/checkout`, including mixed titles and $5 shipping per copy.
 - `SQUARE_PAGE_PAL_URL`, `SQUARE_CHAPTER_CHAMPION_URL`, `SQUARE_BOOKSHELF_BUILDER_URL`, and `SQUARE_LITERACY_TRAILBLAZER_URL`: legacy static Square sponsorship links, superseded by the dynamic `/api/sponsors/checkout` flow but left wired for backward compatibility.
 - `CORS_ORIGIN`: origin allowed for browser requests to the Worker.
 - `ADMIN_BOOTSTRAP_EMAILS`: initial owner emails inserted into D1 on first admin access.
@@ -174,3 +174,7 @@ A scheduled GitHub Actions workflow checks dependencies, security advisories, Cl
 Asset placeholders are deliberate and should be replaced without cropping, recoloring, filtering, or otherwise altering the supplied originals.
 
 Automatic inventory-linked book alerts and the admin delivery view are documented in [Book availability notifications](docs/book-notifications.md). Migration 0022 and a separately approved deployment are required to enable them.
+
+### Published books and JPP direct orders
+
+See [JPP direct purchases](docs/jpp-direct-purchases.md) for the three-title catalog, six format inventory records, $5-per-copy shipping, paid-order notifications, active Amazon hardcover link, and release acceptance steps. Apply migrations 0023/0024 before deploying this version, and enter actual on-hand inventory counts. Edit published title metadata in `assets/published-books.json` and run `npm run catalog:build`.
