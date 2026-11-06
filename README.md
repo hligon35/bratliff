@@ -177,4 +177,4 @@ Automatic inventory-linked book alerts and the admin delivery view are documente
 
 ### Published books and JPP direct orders
 
-See [JPP direct purchases](docs/jpp-direct-purchases.md) for the three-title catalog, six format inventory records, $5-per-copy shipping, paid-order notifications, held Amazon hardcover link, and release acceptance steps. Apply migrations 0023/0024 before deploying this version, and enter actual on-hand inventory counts. Edit published title metadata in `assets/published-books.json` and run `npm run catalog:build`.
+See [JPP direct purchases](docs/jpp-direct-purchases.md) for the three-title catalog, six format inventory records, $5-per-copy shipping, paid-order notifications, active Amazon hardcover link, and release acceptance steps. Apply migrations 0023/0024 before deploying this version, and enter actual on-hand inventory counts. Edit published title metadata in `assets/published-books.json` and run `npm run catalog:build`.

@@ -109,6 +109,7 @@
           const card = button.closest('article.store-card');
           if (card && !document.getElementById('store-book-' + book.bookId)) {
             const anchor = document.createElement('span'); anchor.id = 'store-book-' + book.bookId;
+            anchor.className = 'store-book-anchor';
             card.prepend(anchor);
           }
         }

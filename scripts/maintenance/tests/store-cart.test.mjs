@@ -45,7 +45,7 @@ test('featured direct purchases use the inventory-checked cart for both formats'
   const feature=html.split('<!-- published-feature:start -->')[1].split('<!-- published-feature:end -->')[0];
   assert.match(feature,/data-direct-isbn="1972028022"/);
   assert.match(feature,/data-direct-isbn="1972028324"/);
-  assert.doesNotMatch(html,/square\.link\/u\/llSOK4s4|https:\/\/www\.amazon\.com\/dp\/1972028324/);
+  assert.doesNotMatch(html,/square\.link\/u\/llSOK4s4/);
 });
 
 

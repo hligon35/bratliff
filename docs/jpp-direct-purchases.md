@@ -33,11 +33,11 @@ FROM order_email_deliveries ORDER BY updated_at DESC;
 
 After fixing a failed delivery, verify provider delivery history/idempotency before authorizing a resend. Preserve the payment ledger and stock audit.
 
-## Held retailer link — not published
+## Amazon hardcover — active
 
-Great Pie Mystery Amazon hardcover: **https://www.amazon.com/dp/1972028324**.
+The client authorized the Great Pie Mystery Amazon hardcover option after the original hold. The active link is **https://www.amazon.com/Adventures-D-D-Reuel-Great-Mystery/dp/1972028324/ref=tmm_hrd_swatch_0** and appears beside the other hardcover options in both the featured release and Live Catalog.
 
-The client has asked to keep this off the website until KDP resolves its printing color variance. It is stored only in this repository document, which is excluded from public static assets. No Amazon hardcover retailer entry exists for this title in the public catalog. Add it only after the client's release instruction; run `npm run catalog:build` and revise the regression test that currently rejects this link.
+The catalog uses nine shared CSS grid rows so covers, titles, release dates, descriptions, paperback options and hardcover options align across a row. Cover metadata describes the transparent margins of each original asset; CSS normalizes presentation without altering the book art. The featured cover has its own permanent, top-aligned desktop slot that scales from 340px to 500px (380px tablet / 340px phone), independent of the length of the description or purchase links. Future featured releases use this same slot.
 
 ## Acceptance status and remaining live checks
 
