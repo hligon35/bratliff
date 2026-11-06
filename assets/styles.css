@@ -1159,7 +1159,7 @@ body[data-page="home"] .logo-placeholder {
   display: grid;
   grid-template-columns: minmax(250px, 0.68fr) 1.32fr;
   gap: clamp(2rem, 7vw, 6rem);
-  align-items: center;
+  align-items: start;
 }
 .featured-book > div:last-child {
   position: relative;
@@ -1206,8 +1206,8 @@ body[data-page="home"] .logo-placeholder {
   display: none;
 }
 .featured-book .book-art.has-cover img {
-  width: 130%;
-  max-width: none;
+  width: 100%;
+  max-width: 360px;
   margin-inline: auto;
 }
 .featured-book .book-art.has-cover {

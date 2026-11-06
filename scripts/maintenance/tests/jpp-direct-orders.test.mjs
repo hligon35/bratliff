@@ -73,12 +73,13 @@ test('unpaid or mismatched payments never queue publisher emails', async () => {
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) n FROM order_email_deliveries').get().n,0);
 });
 
-test('published catalog survives missing inventory and keeps the held Amazon hardcover off every public link', () => {
+test('published catalog survives missing inventory and includes the authorized Amazon hardcover', () => {
   const html=readFileSync(root+'/books.html','utf8');
   const cards=html.split('<!-- published-catalog:start -->')[1].split('<!-- published-catalog:end -->')[0];
   const ids=[...cards.matchAll(/<article class="store-card" id="([^"]+)"/g)].map(m=>m[1]);
   assert.deepEqual(ids,catalog.map(b=>b.id));
-  assert.doesNotMatch(html,/https:\/\/www\.amazon\.com\/dp\/1972028324|Direct ordering is opening soon/);
+  assert.doesNotMatch(html,/Direct ordering is opening soon/);
+  assert.equal((html.match(/href="https:\/\/www\.amazon\.com\/Adventures-D-D-Reuel-Great-Mystery\/dp\/1972028324\/ref=tmm_hrd_swatch_0"/g) || []).length,2);
   const upcoming=html.split('<h2>Coming Soon</h2>')[1];
   assert.doesNotMatch(upcoming,/pieMystery|battles2/);assert.match(upcoming,/February 4, 2027/);
   for(const book of catalog)for(const format of book.formats)for(const retailer of format.retailers)assert.ok(cards.includes(retailer.url.replaceAll('&','&amp;')));

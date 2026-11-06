@@ -264,3 +264,59 @@ body.store-cart-open {
 .store-cart-foot { max-height: 60dvh; overflow-y: auto; }
 .store-cart-total { font-size: 1rem; margin-bottom: .6rem; }
 @media (max-width: 600px) { .jpp-direct-note { padding: 1rem; } }
+
+
+/* Shared catalog tracks keep every visible section aligned across each row. */
+[data-published-catalog] > .store-card {
+  position: relative;
+  scroll-margin-top: 6rem;
+  grid-row: span 9;
+  grid-template-rows: subgrid;
+  align-items: start;
+  row-gap: .7rem;
+}
+[data-published-catalog] .store-book-image { height: 320px; min-height: 0; align-items: center; }
+[data-published-catalog] .published-book-title,
+[data-published-catalog] .published-release,
+[data-published-catalog] .published-description,
+[data-published-catalog] .published-details { margin: 0; }
+[data-published-catalog] .published-format { margin: 0; height: 100%; }
+.store-book-anchor { position: absolute; inset-block-start: 0; inset-inline-start: 0; }
+.book-cover-frame {
+  display: block;
+  position: relative;
+  height: var(--cover-height, 270px);
+  aspect-ratio: var(--cover-ratio);
+  overflow: hidden;
+  filter: drop-shadow(0 16px 14px rgba(10, 22, 40, .18));
+}
+.store-book-image .book-cover-frame img,
+.featured-book .book-art.has-cover .book-cover-frame img {
+  position: absolute;
+  width: var(--cover-image-width);
+  max-width: none;
+  height: var(--cover-image-height);
+  min-height: 0;
+  left: var(--cover-image-left);
+  top: var(--cover-image-top);
+  margin: 0;
+  object-fit: fill;
+  filter: none;
+}
+/* Permanent featured-cover slot: independent of description/purchase height. */
+.featured-book .book-art.has-cover {
+  height: clamp(340px, 37vw, 500px);
+  align-self: start;
+  align-items: start;
+  justify-items: center;
+  --cover-height: clamp(340px, 37vw, 500px);
+}
+@media (max-width: 900px) {
+  .featured-book .book-art.has-cover { height: 380px; --cover-height: 380px; }
+}
+@media (max-width: 600px) {
+  [data-published-catalog] .store-book-image { height: 300px; }
+  .featured-book .book-art.has-cover { height: 340px; --cover-height: 340px; }
+}
+
+.featured-book { scroll-margin-top: 6rem; }
