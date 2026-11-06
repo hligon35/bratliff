@@ -300,8 +300,57 @@
     el.textContent = message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 2600);
   }
 
+  const boundPurchaseCards = new WeakSet();
+  function closePurchaseDropdowns(except = null, returnFocus = false) {
+    let closed = false;
+    document.querySelectorAll('[data-purchase-dropdown][open]').forEach(dropdown => {
+      if (dropdown === except) return;
+      dropdown.open = false;
+      if (returnFocus) dropdown.querySelector('summary').focus();
+      closed = true;
+    });
+    return closed;
+  }
+
+  function setupPurchaseDropdowns() {
+    document.querySelectorAll('[data-published-catalog] > .store-card').forEach(card => {
+      if (boundPurchaseCards.has(card)) return;
+      const dropdown = card.querySelector('[data-purchase-dropdown]');
+      if (!dropdown) return;
+      boundPurchaseCards.add(card);
+      dropdown.querySelector('[data-purchase-close]').hidden = false;
+      dropdown.addEventListener('toggle', () => {
+        if (dropdown.open) closePurchaseDropdowns(dropdown);
+      });
+      card.addEventListener('pointerleave', event => {
+        // Touch users close explicitly; a scrolling gesture must not dismiss it.
+        if (event.pointerType === 'touch' || !dropdown.open) return;
+        const panel = dropdown.querySelector('.catalog-purchase-panel');
+        if (panel.contains(document.activeElement)) dropdown.querySelector('summary').focus();
+        dropdown.open = false;
+      });
+      card.addEventListener('focusout', event => {
+        if (!card.contains(event.relatedTarget)) dropdown.open = false;
+      });
+    });
+  }
+
   document.addEventListener('click', event => {
-    const add = event.target.closest('[data-add-sku]'); if (add) return addToCart(add.dataset.addSku);
+    const purchaseDropdown = event.target.closest('[data-purchase-dropdown]');
+    closePurchaseDropdowns(purchaseDropdown);
+    if (event.target.closest('[data-purchase-close]')) {
+      purchaseDropdown.open = false;
+      purchaseDropdown.querySelector('summary').focus();
+      return;
+    }
+    const add = event.target.closest('[data-add-sku]');
+    if (add) {
+      if (purchaseDropdown) {
+        purchaseDropdown.open = false;
+        purchaseDropdown.querySelector('summary').focus();
+      }
+      return addToCart(add.dataset.addSku);
+    }
     const trigger = event.target.closest('[data-store-cart-trigger]'); if (trigger) return openCart();
     if (event.target.closest('.store-cart-close')) return closeCart();
     const qty = event.target.closest('[data-qty]'); if (qty) return changeQty(qty.dataset.sku, Number(qty.dataset.qty));
@@ -309,9 +358,14 @@
     if (event.target.classList.contains('store-cart-backdrop')) closeCart();
   });
 
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeCart(); });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    if (closePurchaseDropdowns(null, true)) { event.preventDefault(); return; }
+    closeCart();
+  });
 
   async function init() {
+    setupPurchaseDropdowns();
     ensureCartUi(); renderCart(); updateCartCount();
     await confirmCheckoutReturn();
     const grid = document.querySelector('[data-store-grid]');
