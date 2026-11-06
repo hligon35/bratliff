@@ -7,9 +7,8 @@ const date = value => new Date(value + 'T12:00:00Z').toLocaleDateString('en-US',
 // Present the original cover without its transparent margins. All releases use
 // the same display slot; the raster assets remain unchanged.
 function cover(book, featured = false) {
-  const art = featured && book.featuredImage;
-  const c = art ? { x:0, y:0, width:art.width, height:art.height, canvasWidth:art.width, canvasHeight:art.height } : book.cover;
-  const source = art ? art.src : book.image;
+  const c = book.cover;
+  const source = book.image;
   const percent = (value, total) => (value / total * 100).toFixed(5) + '%';
   const style = `--cover-ratio:${c.width} / ${c.height};--cover-image-width:${percent(c.canvasWidth,c.width)};--cover-image-height:${percent(c.canvasHeight,c.height)};--cover-image-left:${percent(-c.x,c.width)};--cover-image-top:${percent(-c.y,c.height)}`;
   return `<span class="book-cover-frame" style="${style}"><img${featured ? ' class="featured-book-cover"' : ''} src="${source}" alt="${escape(book.title)} book cover" width="${c.canvasWidth}" height="${c.canvasHeight}" ${featured ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"'} /></span>`;
