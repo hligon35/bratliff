@@ -52,6 +52,11 @@
       "height": 770,
       "canvasWidth": 589,
       "canvasHeight": 800
+    },
+    "featuredImage": {
+      "src": "assets/books/The_Adventures_DD_Reuel_Book1_Ingram_Thumbnail_1800x2700.jpg",
+      "width": 1800,
+      "height": 2700
     }
   },
   {
@@ -121,6 +126,10 @@
         "directPrice": 20,
         "retailers": [
           {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/B0H1HJ642L?binding=paperback&ref_=saga_sdp_cft_dsk"
+          },
+          {
             "name": "IngramSpark",
             "url": "https://shop.ingramspark.com/b/084?params=itFCiOCK74nHUVnmAo4IFWG6WLpUtXHFF6aS1swN5aI"
           }
@@ -132,6 +141,10 @@
         "retailPrice": 24.99,
         "directPrice": 25,
         "retailers": [
+          {
+            "name": "Amazon",
+            "url": "https://www.amazon.com/dp/B0H1HJ642L?binding=hardcover&ref_=saga_sdp_cft_dsk"
+          },
           {
             "name": "IngramSpark",
             "url": "https://shop.ingramspark.com/b/084?params=DHV6V95WyZ24FT6LbL3gp2er1QCdREQPfu0doP5V5bJ"

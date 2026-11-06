@@ -320,3 +320,15 @@ body.store-cart-open {
 }
 
 .featured-book { scroll-margin-top: 6rem; }
+
+
+/* Original featured purchase-card presentation, with the native cart retained. */
+.featured-purchases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.featured-purchases .purchase-card { align-content: start; }
+.featured-purchases .purchase-details { min-width: 0; }
+.featured-purchases .purchase-price { margin: 0 0 .7rem; font-size: .75rem; }
+.featured-purchases .purchase-button { min-height: 32px; font-size: .7rem; line-height: 1.35; white-space: normal; text-align: left; }
+.featured-purchases button:disabled { opacity: .65; cursor: not-allowed; }
+.featured-purchases [data-direct-status] { margin-bottom: 0; }
+@media (max-width: 1100px) { .featured-purchases { grid-template-columns: 1fr; } }
+@media (min-width: 601px) and (max-width: 900px) { .featured-purchases { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
