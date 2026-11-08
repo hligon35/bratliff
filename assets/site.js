@@ -17,7 +17,7 @@ const loginUrl = normalizeUrl(siteConfig.loginUrl);
 const adminUrl = normalizeUrl(siteConfig.adminUrl);
 const adminApiUrl = normalizeUrl(siteConfig.adminApiUrl);
 const artwork = Object.freeze({
-  logo: "assets/icons/jrppLogo.png",
+  logo: "/assets/icons/jrppLogo2.png",
   brandLogo: "assets/icons/jrppLogo2.png",
   featuredBook: "assets/books/battles1.png",
   futureBook: "assets/books/book2.png",
